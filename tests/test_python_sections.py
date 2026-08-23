@@ -59,21 +59,75 @@ def test_sections_preserve_text_around_multiple_definitions() -> None:
     ) == source
 
 
-def test_sections_keep_comment_before_decorator_in_gap() -> None:
-    """Comment attachment is deferred without losing source characters."""
+def test_sections_attach_comment_before_decorator() -> None:
+    """A directly preceding comment becomes part of the definition."""
     source = "# Explain cache.\n@cache\ndef value():\n    return 1\n"
 
     sections = partition(source)
 
-    first_text = source[
+    definition_text = source[
         sections[0].span.start:sections[0].span.end
     ]
+    assert sections[0].kind is _SectionKind.DEFINITION
+    assert definition_text.startswith("# Explain cache.\n@cache\n")
+
+
+def test_sections_attach_consecutive_comment_lines() -> None:
+    """One uninterrupted comment block stays with its definition."""
+    source = "# First.\n# Second.\ndef value():\n    return 1\n"
+
+    sections = partition(source)
+
+    definition = sections[0]
+    assert definition.kind is _SectionKind.DEFINITION
+    assert source[
+        definition.span.start:definition.span.end
+    ].startswith("# First.\n# Second.\n")
+
+
+def test_sections_do_not_attach_comment_across_blank_line() -> None:
+    """A blank line separates a module comment from a definition."""
+    source = "# Module note.\n\ndef value():\n    return 1\n"
+
+    sections = partition(source)
+
+    assert sections[0].kind is _SectionKind.GAP
+    assert source[
+        sections[0].span.start:sections[0].span.end
+    ] == "# Module note.\n\n"
+
+
+def test_sections_attach_comment_but_not_previous_statement() -> None:
+    """Only comments after module code move into the next definition."""
+    source = "VALUE = 1\n# Explain function.\ndef value():\n    return VALUE\n"
+
+    sections = partition(source)
+
+    gap_text = source[sections[0].span.start:sections[0].span.end]
     definition_text = source[
         sections[1].span.start:sections[1].span.end
     ]
+    assert gap_text == "VALUE = 1\n"
+    assert definition_text.startswith("# Explain function.\ndef value")
+
+
+def test_sections_keep_shebang_and_encoding_comment_in_gap() -> None:
+    """Interpreter and encoding declarations remain module metadata."""
+    source = (
+        "#!/usr/bin/env python3\n"
+        "# -*- coding: utf-8 -*-\n"
+        "def value():\n"
+        "    return 1\n"
+    )
+
+    sections = partition(source)
+
+    gap_text = source[sections[0].span.start:sections[0].span.end]
     assert sections[0].kind is _SectionKind.GAP
-    assert first_text == "# Explain cache.\n"
-    assert definition_text.startswith("@cache\n")
+    assert gap_text == (
+        "#!/usr/bin/env python3\n"
+        "# -*- coding: utf-8 -*-\n"
+    )
 
 
 def test_sections_treat_top_level_class_as_one_definition() -> None:
