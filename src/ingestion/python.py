@@ -2,8 +2,16 @@
 
 import ast
 from dataclasses import dataclass, field
+from enum import Enum
 import re
 from typing import cast
+
+
+class _SectionKind(str, Enum):
+    """Identify whether a module section is structure or surrounding text."""
+
+    GAP = "gap"
+    DEFINITION = "definition"
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,6 +29,14 @@ class _StructuralSpan:
         if self.end <= self.start:
             message = "Structural span end must be greater than start"
             raise ValueError(message)
+
+
+@dataclass(frozen=True, slots=True)
+class _SourceSection:
+    """Classify one non-empty, exact range in a Python module."""
+
+    kind: _SectionKind
+    span: _StructuralSpan
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,3 +131,52 @@ def _node_span(node: ast.AST, source_map: _PythonSourceMap) -> _StructuralSpan:
             start = at_sign
 
     return _StructuralSpan(start=start, end=end)
+
+
+def _top_level_sections(
+    module: ast.Module,
+    source_map: _PythonSourceMap,
+) -> list[_SourceSection]:
+    """Partition a module into top-level definitions and exact text gaps."""
+    definition_types = (
+        ast.FunctionDef,
+        ast.AsyncFunctionDef,
+        ast.ClassDef,
+    )
+    definition_spans = [
+        _node_span(node, source_map)
+        for node in module.body
+        if isinstance(node, definition_types)
+    ]
+
+    sections: list[_SourceSection] = []
+    cursor = 0
+
+    for definition_span in definition_spans:
+        if definition_span.start < cursor:
+            message = "Top-level definition spans must not overlap"
+            raise ValueError(message)
+        if cursor < definition_span.start:
+            sections.append(
+                _SourceSection(
+                    kind=_SectionKind.GAP,
+                    span=_StructuralSpan(cursor, definition_span.start),
+                )
+            )
+        sections.append(
+            _SourceSection(
+                kind=_SectionKind.DEFINITION,
+                span=definition_span,
+            )
+        )
+        cursor = definition_span.end
+
+    if cursor < len(source_map.text):
+        sections.append(
+            _SourceSection(
+                kind=_SectionKind.GAP,
+                span=_StructuralSpan(cursor, len(source_map.text)),
+            )
+        )
+
+    return sections
