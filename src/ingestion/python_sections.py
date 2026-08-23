@@ -2,6 +2,7 @@
 
 import ast
 from bisect import bisect_right
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
 import re
@@ -26,6 +27,7 @@ class _SourceSection:
 
     kind: _SectionKind
     span: _StructuralSpan
+    node: ast.AST | None = None
 
 
 def _top_level_sections(
@@ -39,17 +41,59 @@ def _top_level_sections(
         ast.ClassDef,
     )
     definition_spans = [
-        _span_with_attached_comments(_node_span(node, source_map), source_map)
+        (
+            _span_with_attached_comments(
+                _node_span(node, source_map),
+                source_map,
+            ),
+            node,
+        )
         for node in module.body
         if isinstance(node, definition_types)
     ]
 
-    sections: list[_SourceSection] = []
-    cursor = 0
+    return _partition_span(
+        _StructuralSpan(0, len(source_map.text)),
+        definition_spans,
+    ) if source_map.text else []
 
-    for definition_span in definition_spans:
+
+def _class_sections(
+    node: ast.ClassDef,
+    span: _StructuralSpan,
+    source_map: _PythonSourceMap,
+) -> list[_SourceSection]:
+    """Partition one class span around its direct methods."""
+    method_types = (ast.FunctionDef, ast.AsyncFunctionDef)
+    method_spans = [
+        (
+            _span_with_attached_comments(
+                _node_span(child, source_map),
+                source_map,
+            ),
+            child,
+        )
+        for child in node.body
+        if isinstance(child, method_types)
+    ]
+    return _partition_span(span, method_spans)
+
+
+def _partition_span(
+    container: _StructuralSpan,
+    definitions: Sequence[tuple[_StructuralSpan, ast.AST]],
+) -> list[_SourceSection]:
+    """Partition one container around ordered structural definitions."""
+
+    sections: list[_SourceSection] = []
+    cursor = container.start
+
+    for definition_span, node in definitions:
         if definition_span.start < cursor:
-            message = "Top-level definition spans must not overlap"
+            message = "Definition spans must not overlap"
+            raise ValueError(message)
+        if definition_span.end > container.end:
+            message = "Definition span must stay inside its container"
             raise ValueError(message)
         if cursor < definition_span.start:
             sections.append(
@@ -62,15 +106,16 @@ def _top_level_sections(
             _SourceSection(
                 kind=_SectionKind.DEFINITION,
                 span=definition_span,
+                node=node,
             )
         )
         cursor = definition_span.end
 
-    if cursor < len(source_map.text):
+    if cursor < container.end:
         sections.append(
             _SourceSection(
                 kind=_SectionKind.GAP,
-                span=_StructuralSpan(cursor, len(source_map.text)),
+                span=_StructuralSpan(cursor, container.end),
             )
         )
 

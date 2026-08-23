@@ -9,7 +9,10 @@ from src.ingestion.python_positions import (
     _PythonSourceMap,
     _StructuralSpan,
 )
-from src.ingestion.python_sections import _top_level_sections
+from src.ingestion.python_sections import (
+    _class_sections,
+    _top_level_sections,
+)
 
 
 MAX_CHUNK_SIZE = 2000
@@ -29,20 +32,32 @@ def chunk_python_document(
     if not document.text:
         return []
 
+    section_spans: list[_StructuralSpan] = []
     try:
         module = ast.parse(document.text)
     except SyntaxError:
-        sections = [_StructuralSpan(0, len(document.text))]
+        section_spans.append(_StructuralSpan(0, len(document.text)))
     else:
         source_map = _PythonSourceMap(document.text)
-        sections = [
-            section.span
-            for section in _top_level_sections(module, source_map)
-        ]
+        for section in _top_level_sections(module, source_map):
+            if (
+                isinstance(section.node, ast.ClassDef)
+                and section.span.end - section.span.start > max_chunk_size
+            ):
+                section_spans.extend(
+                    child.span
+                    for child in _class_sections(
+                        section.node,
+                        section.span,
+                        source_map,
+                    )
+                )
+            else:
+                section_spans.append(section.span)
 
     chunks: list[Chunk] = []
-    for section in sections:
-        for span in _split_span(document.text, section, max_chunk_size):
+    for section_span in section_spans:
+        for span in _split_span(document.text, section_span, max_chunk_size):
             if document.text[span.start:span.end].strip():
                 chunks.append(
                     make_chunk(document, start=span.start, end=span.end)
