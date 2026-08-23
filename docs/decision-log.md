@@ -112,6 +112,40 @@ Choose validation machinery according to the trust boundary and object volume.
 A single modeling tool across every layer can look consistent while imposing
 costs that the internal data flow does not need.
 
+## 2026-08-23 - Keep structural context out of exact chunk text
+
+**Status:** Accepted
+
+### Initial approach considered
+
+Repeat a containing class or function header inside every structural chunk so
+that each method or statement carries readable context during retrieval.
+
+### Why the approach was unsafe
+
+Prepended text would no longer be the exact source slice identified by the
+chunk's `start` and `end` coordinates. Repeating a large prefix through overlap
+would preserve exactness, but could exceed the size limit and create excessive
+duplicate content.
+
+### Decision
+
+Keep `Chunk.text` equal to `source_text[start:end]`. Split oversized classes and
+functions on structural AST boundaries, and add class or function names later
+as separate retrieval metadata rather than synthetic source text.
+
+### Consequences
+
+- Every chunk remains traceable to one exact source range.
+- Structural splitting does not inflate chunks with repeated prefixes.
+- Retrieval metadata will need a separate representation from chunk text.
+- Context enrichment cannot silently change evaluator-facing coordinates.
+
+### Lesson
+
+Search context and source evidence serve different purposes. Preserve source
+evidence exactly and enrich retrieval through explicit metadata.
+
 ## 2026-08-23 - Fail on invalid complete UTF-8 source text
 
 **Status:** Accepted

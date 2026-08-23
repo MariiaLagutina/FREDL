@@ -7,6 +7,7 @@ from src.ingestion.documents import (
     read_document,
 )
 from src.ingestion.files import CorpusFile, FileKind, discover_files
+from src.ingestion.python_chunks import chunk_python_document
 
 __all__ = [
     "Chunk",
@@ -14,6 +15,7 @@ __all__ = [
     "FileKind",
     "SourceDocument",
     "discover_files",
+    "chunk_python_document",
     "make_chunk",
     "read_document",
 ]
