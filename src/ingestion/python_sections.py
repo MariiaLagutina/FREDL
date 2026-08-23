@@ -19,6 +19,7 @@ class _SectionKind(str, Enum):
 
     GAP = "gap"
     DEFINITION = "definition"
+    STATEMENT = "statement"
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +56,7 @@ def _top_level_sections(
     return _partition_span(
         _StructuralSpan(0, len(source_map.text)),
         definition_spans,
+        _SectionKind.DEFINITION,
     ) if source_map.text else []
 
 
@@ -76,12 +78,32 @@ def _class_sections(
         for child in node.body
         if isinstance(child, method_types)
     ]
-    return _partition_span(span, method_spans)
+    return _partition_span(span, method_spans, _SectionKind.DEFINITION)
+
+
+def _function_sections(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+    span: _StructuralSpan,
+    source_map: _PythonSourceMap,
+) -> list[_SourceSection]:
+    """Partition one function span around its direct body statements."""
+    statement_spans = [
+        (
+            _span_with_attached_comments(
+                _node_span(statement, source_map),
+                source_map,
+            ),
+            statement,
+        )
+        for statement in node.body
+    ]
+    return _partition_span(span, statement_spans, _SectionKind.STATEMENT)
 
 
 def _partition_span(
     container: _StructuralSpan,
     definitions: Sequence[tuple[_StructuralSpan, ast.AST]],
+    structure_kind: _SectionKind,
 ) -> list[_SourceSection]:
     """Partition one container around ordered structural definitions."""
 
@@ -104,7 +126,7 @@ def _partition_span(
             )
         sections.append(
             _SourceSection(
-                kind=_SectionKind.DEFINITION,
+                kind=structure_kind,
                 span=definition_span,
                 node=node,
             )
@@ -134,7 +156,7 @@ def _span_with_attached_comments(
         message = "Definition span must begin after indentation only"
         raise ValueError(message)
 
-    attached_start = span.start
+    attached_start = definition_line_start
 
     for candidate_index in range(line_index - 1, -1, -1):
         candidate_start = source_map._line_starts[candidate_index]
