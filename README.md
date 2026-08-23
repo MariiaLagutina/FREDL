@@ -178,12 +178,41 @@ Overlapping chunks are supported because each chunk independently stores an
 exact source range. Chunking strategies decide the boundaries and overlap;
 the source-offset layer only guarantees their correctness.
 
+## Python-aware Chunking
+
+Python sources are parsed with the standard-library AST and divided at exact
+structural boundaries. Top-level functions and classes retain their
+decorators, signatures, docstrings, and directly preceding comment blocks.
+Oversized classes are divided around direct methods; oversized functions are
+divided around direct body statements. Adjacent small units are packed while
+the configured maximum size is respected.
+
+If parsing fails because a source file is incomplete or syntactically invalid,
+the chunker falls back to exact line boundaries and then to character limits.
+The fallback preserves Unicode text and original LF, CRLF, or CR newlines.
+
+```python
+from src.ingestion import chunk_python_document
+
+chunks = chunk_python_document(document, max_chunk_size=2000)
+
+assert all(len(chunk.text) <= 2000 for chunk in chunks)
+assert all(
+    chunk.text == document.text[chunk.start:chunk.end]
+    for chunk in chunks
+)
+```
+
+Chunk text never contains synthetic class or function context. Structural
+names can later be stored as retrieval metadata without invalidating exact
+source coordinates.
+
 ## Verification
 
 The current checks pass:
 
 ```text
-pytest: 27 passed
+pytest: 70 passed
 flake8: passed
 mypy: passed
 ```
@@ -203,6 +232,8 @@ These results cover the current implementation only.
 - Use Pydantic for assignment-facing JSON and frozen, slotted dataclasses for
   high-volume internal ingestion records.
 - Represent chunk coordinates as half-open Python ranges.
+- Keep Python chunk text exact and reserve synthetic retrieval context for
+  metadata.
 
 Reconsidered choices and their consequences are recorded in
 `docs/decision-log.md`.
