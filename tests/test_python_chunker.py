@@ -71,6 +71,28 @@ def test_chunker_falls_back_to_character_limit_for_long_line() -> None:
     assert_exact_chunks(document, max_chunk_size=16)
 
 
+def test_chunker_splits_large_class_at_method_boundaries() -> None:
+    """Direct methods become separate chunks when their class is oversized."""
+    source = (
+        "class Calculator:\n"
+        "    factor = 2\n\n"
+        "    def add(self, value):\n"
+        "        return value + self.factor\n\n"
+        "    def subtract(self, value):\n"
+        "        return value - self.factor\n"
+    )
+    document = make_python_document(source)
+
+    chunks = chunk_python_document(document, max_chunk_size=70)
+
+    assert [chunk.text.lstrip().splitlines()[0] for chunk in chunks] == [
+        "class Calculator:",
+        "def add(self, value):",
+        "def subtract(self, value):",
+    ]
+    assert_exact_chunks(document, max_chunk_size=70)
+
+
 def test_chunker_falls_back_for_invalid_python() -> None:
     """A syntax error uses safe line splitting instead of losing the file."""
     source = "def broken(:\n    value = 1\n    return value\n"

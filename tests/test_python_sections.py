@@ -4,6 +4,7 @@ import ast
 
 from src.ingestion.python_positions import _PythonSourceMap
 from src.ingestion.python_sections import (
+    _class_sections,
     _SectionKind,
     _SourceSection,
     _top_level_sections,
@@ -148,6 +149,39 @@ def test_sections_treat_top_level_class_as_one_definition() -> None:
         section.kind is _SectionKind.DEFINITION
         for section in sections
     ) == 1
+
+
+def test_class_sections_partition_direct_methods_exactly() -> None:
+    """A class header and its methods form exact ordered source slices."""
+    source = (
+        "class Server:\n"
+        "    port = 8000\n\n"
+        "    # Start the service.\n"
+        "    def start(self):\n"
+        "        return True\n\n"
+        "    async def stop(self):\n"
+        "        return False"
+    )
+    source_map = _PythonSourceMap(source)
+    class_node = ast.parse(source).body[0]
+    assert isinstance(class_node, ast.ClassDef)
+    class_span = partition(source)[0].span
+
+    sections = _class_sections(class_node, class_span, source_map)
+
+    assert [section.kind for section in sections] == [
+        _SectionKind.GAP,
+        _SectionKind.DEFINITION,
+        _SectionKind.GAP,
+        _SectionKind.DEFINITION,
+    ]
+    assert "".join(
+        source[section.span.start:section.span.end]
+        for section in sections
+    ) == source
+    assert source[
+        sections[1].span.start:sections[1].span.end
+    ].startswith("    # Start the service.\n    def start")
 
 
 def test_sections_return_one_gap_when_module_has_no_definitions() -> None:
