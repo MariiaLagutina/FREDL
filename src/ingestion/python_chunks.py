@@ -11,6 +11,8 @@ from src.ingestion.python_positions import (
 )
 from src.ingestion.python_sections import (
     _class_sections,
+    _function_sections,
+    _SourceSection,
     _top_level_sections,
 )
 
@@ -40,20 +42,9 @@ def chunk_python_document(
     else:
         source_map = _PythonSourceMap(document.text)
         for section in _top_level_sections(module, source_map):
-            if (
-                isinstance(section.node, ast.ClassDef)
-                and section.span.end - section.span.start > max_chunk_size
-            ):
-                section_spans.extend(
-                    child.span
-                    for child in _class_sections(
-                        section.node,
-                        section.span,
-                        source_map,
-                    )
-                )
-            else:
-                section_spans.append(section.span)
+            section_spans.extend(
+                _expand_section(section, source_map, max_chunk_size)
+            )
 
     chunks: list[Chunk] = []
     for section_span in section_spans:
@@ -63,6 +54,48 @@ def chunk_python_document(
                     make_chunk(document, start=span.start, end=span.end)
                 )
     return chunks
+
+
+def _expand_section(
+    section: _SourceSection,
+    source_map: _PythonSourceMap,
+    max_chunk_size: int,
+) -> list[_StructuralSpan]:
+    """Expand an oversized definition through its direct AST children."""
+    if section.span.end - section.span.start <= max_chunk_size:
+        return [section.span]
+
+    if isinstance(section.node, ast.ClassDef):
+        children = _class_sections(section.node, section.span, source_map)
+    elif isinstance(section.node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        children = _function_sections(section.node, section.span, source_map)
+    else:
+        return [section.span]
+
+    expanded = [
+        span
+        for child in children
+        for span in _expand_section(child, source_map, max_chunk_size)
+    ]
+    return _pack_adjacent_spans(expanded, max_chunk_size)
+
+
+def _pack_adjacent_spans(
+    spans: list[_StructuralSpan],
+    max_chunk_size: int,
+) -> list[_StructuralSpan]:
+    """Combine neighbouring structural ranges while they fit the limit."""
+    packed: list[_StructuralSpan] = []
+    for span in spans:
+        if (
+            packed
+            and packed[-1].end == span.start
+            and span.end - packed[-1].start <= max_chunk_size
+        ):
+            packed[-1] = _StructuralSpan(packed[-1].start, span.end)
+        else:
+            packed.append(span)
+    return packed
 
 
 def _split_span(

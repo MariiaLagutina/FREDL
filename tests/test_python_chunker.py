@@ -46,6 +46,40 @@ def test_chunker_keeps_small_top_level_structure() -> None:
     ]
 
 
+def test_chunker_keeps_decorators_with_their_definitions() -> None:
+    """Decorated functions and classes start at their first at-sign."""
+    source = (
+        "@cache\n"
+        "def value():\n"
+        "    return 1\n\n"
+        "@dataclass\n"
+        "class Server:\n"
+        "    port: int\n"
+    )
+    document = make_python_document(source)
+
+    chunks = chunk_python_document(document)
+
+    assert [chunk.text for chunk in chunks] == [
+        "@cache\ndef value():\n    return 1",
+        "@dataclass\nclass Server:\n    port: int",
+    ]
+
+
+def test_chunker_keeps_signature_docstring_and_body_together() -> None:
+    """A bounded function retains its complete semantic definition."""
+    source = (
+        "def describe(value):\n"
+        "    \"\"\"Return a readable value.\"\"\"\n"
+        "    return str(value)\n"
+    )
+    document = make_python_document(source)
+
+    chunks = chunk_python_document(document)
+
+    assert chunks[0].text == source.rstrip("\n")
+
+
 def test_chunker_splits_large_section_at_line_boundary() -> None:
     """Oversized module text prefers complete source lines."""
     source = "first = 1\nsecond = 2\nthird = 3\n"
@@ -90,7 +124,33 @@ def test_chunker_splits_large_class_at_method_boundaries() -> None:
         "def add(self, value):",
         "def subtract(self, value):",
     ]
+    assert chunks[1].text.startswith("    def add")
+    assert chunks[2].text.startswith("    def subtract")
     assert_exact_chunks(document, max_chunk_size=70)
+
+
+def test_chunker_splits_large_function_at_statement_boundaries() -> None:
+    """Small direct statements are packed without splitting AST blocks."""
+    source = (
+        "def process(value):\n"
+        "    validate(value)\n"
+        "    normalize(value)\n"
+        "    if value.ready:\n"
+        "        save(value)\n"
+        "    return value\n"
+    )
+    document = make_python_document(source)
+
+    chunks = chunk_python_document(document, max_chunk_size=65)
+
+    assert chunks[0].text == (
+        "def process(value):\n"
+        "    validate(value)\n"
+        "    normalize(value)\n"
+    )
+    assert chunks[1].text.startswith("    if value.ready:")
+    assert "        save(value)" in chunks[1].text
+    assert_exact_chunks(document, max_chunk_size=65)
 
 
 def test_chunker_falls_back_for_invalid_python() -> None:
