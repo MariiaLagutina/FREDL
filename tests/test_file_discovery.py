@@ -73,6 +73,47 @@ def test_discover_files_does_not_follow_symlinks(tmp_path: Path) -> None:
     assert [item.file_path for item in manifest] == ["corpus/real.py"]
 
 
+def test_discover_files_skips_files_above_size_limit(
+    tmp_path: Path,
+) -> None:
+    """Discovery excludes supported files larger than its configured limit."""
+    corpus_root = tmp_path / "corpus"
+    write_file(corpus_root / "small.py", "1234")
+    write_file(corpus_root / "large.py", "12345")
+
+    manifest = discover_files(
+        tmp_path,
+        corpus_root,
+        max_file_size_bytes=4,
+    )
+
+    assert [item.file_path for item in manifest] == ["corpus/small.py"]
+
+
+def test_discover_files_skips_binary_content(tmp_path: Path) -> None:
+    """Discovery excludes binary data disguised with a text suffix."""
+    corpus_root = tmp_path / "corpus"
+    write_file(corpus_root / "text.py", "print('hello')")
+    binary_path = corpus_root / "binary.py"
+    binary_path.write_bytes(b"python\x00binary")
+
+    manifest = discover_files(tmp_path, corpus_root)
+
+    assert [item.file_path for item in manifest] == ["corpus/text.py"]
+
+
+def test_discover_files_accepts_utf8_split_at_sample_boundary(
+    tmp_path: Path,
+) -> None:
+    """A partial final UTF-8 sequence in the sample remains valid text."""
+    corpus_root = tmp_path / "corpus"
+    write_file(corpus_root / "valid.txt", "a" * 8191 + "é")
+
+    manifest = discover_files(tmp_path, corpus_root)
+
+    assert [item.file_path for item in manifest] == ["corpus/valid.txt"]
+
+
 def test_discover_files_rejects_corpus_outside_project(
     tmp_path: Path,
 ) -> None:
@@ -109,3 +150,21 @@ def test_discover_files_rejects_non_directory_corpus(
 
     with pytest.raises(NotADirectoryError):
         discover_files(tmp_path, corpus_file)
+
+
+def test_discover_files_rejects_non_positive_size_limit(
+    tmp_path: Path,
+) -> None:
+    """Discovery requires a positive maximum file size."""
+    corpus_root = tmp_path / "corpus"
+    corpus_root.mkdir()
+
+    with pytest.raises(
+        ValueError,
+        match="Maximum file size must be positive",
+    ):
+        discover_files(
+            tmp_path,
+            corpus_root,
+            max_file_size_bytes=0,
+        )
