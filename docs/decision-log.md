@@ -73,3 +73,77 @@ incomplete character at the end of the sample remains valid pending more data.
 When validating a prefix of streamed data, do not apply checks that assume the
 prefix is a complete input. Buffer boundaries are implementation details and
 must not change how valid content is classified.
+
+## 2026-08-23 - Use slotted dataclasses for internal ingestion records
+
+**Status:** Accepted
+
+### Initial approach
+
+`SourceDocument` and `Chunk` were implemented as frozen Pydantic models, like
+the external JSON models required by the assignment.
+
+### Why the approach was inefficient
+
+Pydantic validation is valuable when data crosses an untrusted input or output
+boundary. Internal ingestion records are constructed by controlled project
+functions, however, and `Chunk` may be instantiated tens of thousands of
+times. Repeating general-purpose model parsing and storing per-instance model
+state would add avoidable indexing time and memory use.
+
+### Decision
+
+Keep Pydantic for the assignment-facing JSON models and use frozen, slotted
+dataclasses for internal `SourceDocument` and `Chunk` records. Enforce span
+invariants in `Chunk.__post_init__` and continue using static type checking for
+the controlled construction paths.
+
+### Consequences
+
+- Internal records remain immutable.
+- `slots=True` removes the per-instance `__dict__` overhead.
+- Chunk construction retains explicit coordinate and text-length validation.
+- JSON boundary models keep Pydantic parsing and serialization.
+- Tests distinguish internal dataclass errors from external validation errors.
+
+### Lesson
+
+Choose validation machinery according to the trust boundary and object volume.
+A single modeling tool across every layer can look consistent while imposing
+costs that the internal data flow does not need.
+
+## 2026-08-23 - Fail on invalid complete UTF-8 source text
+
+**Status:** Accepted
+
+### Initial approach considered
+
+Invalid bytes encountered while reading a complete source file could be
+ignored or replaced to let indexing continue.
+
+### Why the approach was unsafe
+
+Both `errors="ignore"` and `errors="replace"` silently change the decoded
+source. The resulting text can differ from the corpus used by the evaluator,
+making later character offsets unreliable while hiding the original data
+problem.
+
+### Decision
+
+Read complete source files with strict UTF-8 decoding and preserve their
+original newline characters. If a file passes the lightweight discovery sample
+but contains invalid UTF-8 later, stop with `UnicodeDecodeError` instead of
+building an index from modified text.
+
+### Consequences
+
+- Source text and character offsets share one unmodified representation.
+- Invalid corpus content fails visibly at the ingestion boundary.
+- Callers can report the failing path instead of receiving a corrupted chunk.
+- The corpus is required to contain valid UTF-8 source files.
+
+### Lesson
+
+Recovery that mutates source data is unsafe when downstream identifiers depend
+on exact positions. Prefer a visible ingestion failure to silently producing
+coordinates for content that no longer matches the source of truth.
