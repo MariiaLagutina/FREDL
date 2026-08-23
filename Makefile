@@ -15,9 +15,9 @@ clean:
 	rm -rf .pytest_cache
 
 lint:
-	uv run flake8 . --exclude=.venv
+	uv run flake8 . --exclude=.venv,data,.local
 	uv run mypy . \
-		--exclude '^\.venv/' \
+		--exclude '^(\.venv|data|\.local)/' \
 		--warn-return-any \
 		--warn-unused-ignores \
 		--ignore-missing-imports \
@@ -25,8 +25,8 @@ lint:
 		--check-untyped-defs
 
 lint-strict:
-	uv run flake8 . --exclude=.venv
-	uv run mypy . --strict --exclude '^\.venv/'
+	uv run flake8 . --exclude=.venv,data,.local
+	uv run mypy . --strict --exclude '^(\.venv|data|\.local)/'
 
 test:
 	uv run pytest

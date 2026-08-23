@@ -3,3 +3,18 @@ __pycache__/
 *.py[cod]
 .mypy_cache/
 .pytest_cache/
+
+# Operating-system metadata
+.DS_Store
+
+# Local evaluation tools and machine-specific files
+.local/
+moulinette
+
+# Assignment data, generated indices, and outputs
+data/
+
+# Downloaded model artefacts
+models/
+*.safetensors
+*.bin
