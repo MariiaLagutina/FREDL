@@ -9,8 +9,9 @@ answering questions about the vLLM codebase. Development is incremental: each
 pipeline stage is implemented, tested, reviewed, and merged before work begins
 on the next stage.
 
-The current implementation provides validated data models and safe corpus file
-discovery. It does not yet provide a complete RAG pipeline.
+The current implementation provides validated exchange models, safe corpus
+file discovery, exact source reading, and immutable chunks with character
+offsets. It does not yet provide a complete RAG pipeline.
 
 ## Current Status
 
@@ -21,16 +22,15 @@ Implemented:
 - the required Pydantic data models;
 - safe and deterministic corpus file discovery;
 - project-relative POSIX source paths;
-- filtering for supported file types, hidden entries, and symbolic links;
-- automated tests for models and file discovery.
+- filtering for supported, readable, non-binary files within a configurable
+  size limit;
+- exact UTF-8 source reading without newline normalization;
+- immutable source documents and half-open chunk spans;
+- automated tests for models, file discovery, and source offsets.
 
 Current work:
 
-- reviewing and finalizing the corpus file manifest.
-
-Next step:
-
-- preserve exact character offsets when source files are split into chunks.
+- implementing Python-aware chunking while preserving exact source offsets.
 
 ## Requirements
 
@@ -110,6 +110,8 @@ File discovery currently supports:
 - stable sorting by project-relative path;
 - exclusion of unsupported files and hidden entries;
 - exclusion of symbolic links;
+- exclusion of files above a configurable size limit;
+- exclusion of binary-looking or unreadable files;
 - rejection of a corpus outside the project root;
 - rejection of the project root itself as a corpus.
 
@@ -127,15 +129,61 @@ manifest = discover_files(project_root, corpus_root)
 print(f"Discovered {len(manifest)} supported files")
 ```
 
+The default maximum source-file size is 10 MiB. It can be changed explicitly:
+
+```python
+manifest = discover_files(
+    project_root,
+    corpus_root,
+    max_file_size_bytes=5 * 1024 * 1024,
+)
+```
+
 The current vLLM corpus produces 1,952 manifest entries. All 147 unique source
 files referenced by the supplied AnsweredQuestions datasets are included.
+
+## Exact Source Offsets
+
+Discovered files are read as strict UTF-8 without newline normalization. This
+keeps character positions stable across ingestion and retrieval. The reader
+also verifies that every source path is the canonical, project-relative POSIX
+path expected by the evaluator.
+
+`SourceDocument` and `Chunk` are frozen, slotted dataclasses. A chunk uses the
+standard Python half-open interval `[start:end)` and must satisfy:
+
+```text
+0 <= start < end
+len(chunk.text) == end - start
+chunk.text == document.text[start:end]
+```
+
+Example:
+
+```python
+from pathlib import Path
+
+from src.ingestion import discover_files, make_chunk, read_document
+
+project_root = Path.cwd()
+corpus_root = project_root / "data" / "raw" / "vllm-0.10.1"
+corpus_file = discover_files(project_root, corpus_root)[0]
+document = read_document(project_root, corpus_file)
+chunk = make_chunk(document, start=0, end=min(2000, len(document.text)))
+
+assert chunk.text == document.text[chunk.start:chunk.end]
+```
+
+Overlapping chunks are supported because each chunk independently stores an
+exact source range. Chunking strategies decide the boundaries and overlap;
+the source-offset layer only guarantees their correctness.
 
 ## Verification
 
 The current checks pass:
 
 ```text
-pytest: 12 passed
+pytest: 27 passed
 flake8: passed
 mypy: passed
 ```
@@ -150,7 +198,11 @@ These results cover the current implementation only.
 - Return a stable manifest order for reproducible processing.
 - Reject symbolic links instead of reading files outside the intended corpus.
 - Require the corpus to be a strict descendant of the project root.
-- Use Pydantic for data exchanged between pipeline stages.
+- Read complete sources as strict UTF-8 and preserve original newline
+  characters.
+- Use Pydantic for assignment-facing JSON and frozen, slotted dataclasses for
+  high-volume internal ingestion records.
+- Represent chunk coordinates as half-open Python ranges.
 
 Reconsidered choices and their consequences are recorded in
 `docs/decision-log.md`.
@@ -159,6 +211,7 @@ Reconsidered choices and their consequences are recorded in
 
 - [Python pathlib documentation](https://docs.python.org/3/library/pathlib.html)
 - [Python os.walk documentation](https://docs.python.org/3/library/os.html#os.walk)
+- [Python dataclasses documentation](https://docs.python.org/3/library/dataclasses.html)
 - [Pydantic documentation](https://docs.pydantic.dev/)
 
 ### AI Usage
