@@ -2,8 +2,8 @@
 
 import ast
 
-from src.ingestion.python import (
-    _PythonSourceMap,
+from src.ingestion.python_positions import _PythonSourceMap
+from src.ingestion.python_sections import (
     _SectionKind,
     _SourceSection,
     _top_level_sections,
