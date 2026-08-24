@@ -3,7 +3,7 @@
 import pytest
 
 from src.ingestion import FileKind, SourceDocument, chunk_text_document
-from src.ingestion.text_chunks import _overlap_start
+from src.ingestion.chunking.text.chunker import _overlap_start
 
 
 def make_plain_document(text: str) -> SourceDocument:

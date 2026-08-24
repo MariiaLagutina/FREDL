@@ -2,8 +2,8 @@
 
 from src.ingestion.documents import Chunk, SourceDocument
 from src.ingestion.files import FileKind
-from src.ingestion.python_chunks import chunk_python_document
-from src.ingestion.text_chunks import chunk_text_document
+from src.ingestion.chunking.python.chunker import chunk_python_document
+from src.ingestion.chunking.text.chunker import chunk_text_document
 
 
 MAX_CHUNK_SIZE = 2000

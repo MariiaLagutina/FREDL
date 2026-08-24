@@ -1,7 +1,7 @@
 """Partition plain text sources into exact paragraph ranges."""
 
-from src.ingestion.markdown_blocks import _source_lines
-from src.ingestion.text_models import _BlockKind, _TextBlock
+from src.ingestion.chunking.text.markdown import _source_lines
+from src.ingestion.chunking.text.models import _BlockKind, _TextBlock
 
 
 def _plain_text_blocks(text: str) -> list[_TextBlock]:

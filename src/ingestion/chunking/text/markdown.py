@@ -2,7 +2,7 @@
 
 import re
 
-from src.ingestion.text_blocks import (
+from src.ingestion.chunking.text.blocks import (
     _heading_from_line,
     _MarkdownHeading,
     _opening_fence_from_line,
@@ -10,7 +10,7 @@ from src.ingestion.text_blocks import (
     _section_path,
     _update_heading_stack,
 )
-from src.ingestion.text_models import _BlockKind, _TextBlock
+from src.ingestion.chunking.text.models import _BlockKind, _TextBlock
 
 
 _LIST_ITEM = re.compile(r"^ {0,3}(?:[-+*]|\d+[.)])[ \t]+")
