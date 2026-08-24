@@ -6,6 +6,7 @@ from src.ingestion.audit.models import (
     ChunkAuditReport,
     ChunkSizeSummary,
 )
+from src.ingestion.audit.runner import audit_corpus, audit_documents
 from src.ingestion.chunking.orchestrator import chunk_document
 from src.ingestion.documents import (
     Chunk,
@@ -26,6 +27,8 @@ __all__ = [
     "CorpusFile",
     "FileKind",
     "SourceDocument",
+    "audit_corpus",
+    "audit_documents",
     "chunk_document",
     "discover_files",
     "chunk_python_document",
