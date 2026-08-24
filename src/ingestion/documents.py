@@ -23,6 +23,7 @@ class Chunk:
     start: int
     end: int
     text: str
+    section_path: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         """Require coordinates to describe the stored text exactly."""
@@ -34,6 +35,12 @@ class Chunk:
             raise ValueError(message)
         if len(self.text) != self.end - self.start:
             message = "Chunk text length must match its character span"
+            raise ValueError(message)
+        if not isinstance(self.section_path, tuple) or any(
+            not isinstance(title, str) or not title.strip()
+            for title in self.section_path
+        ):
+            message = "Chunk section path must contain non-empty titles"
             raise ValueError(message)
 
 
@@ -93,6 +100,7 @@ def make_chunk(
     document: SourceDocument,
     start: int,
     end: int,
+    section_path: tuple[str, ...] = (),
 ) -> Chunk:
     """Create a chunk from an exact half-open document slice."""
     if start < 0:
@@ -110,4 +118,5 @@ def make_chunk(
         start=start,
         end=end,
         text=document.text[start:end],
+        section_path=section_path,
     )
