@@ -186,6 +186,16 @@ def test_chunker_never_splits_a_crlf_pair() -> None:
     assert_exact_chunks(document, max_chunk_size=5)
 
 
+def test_single_character_limit_makes_progress_across_crlf() -> None:
+    """An impossible one-character CRLF limit never creates an empty span."""
+    document = make_python_document("a\r\nb")
+
+    chunks = chunk_python_document(document, max_chunk_size=1)
+
+    assert [chunk.text for chunk in chunks] == ["a", "b"]
+    assert_exact_chunks(document, max_chunk_size=1)
+
+
 @pytest.mark.parametrize("max_chunk_size", [0, -1, 2001])
 def test_chunker_rejects_invalid_maximum_size(
     max_chunk_size: int,
