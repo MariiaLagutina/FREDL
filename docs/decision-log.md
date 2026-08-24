@@ -257,3 +257,43 @@ target.
 Overlap should repair a forced split, not compensate for boundaries that are
 already semantically meaningful. Bound duplication explicitly and measure its
 retrieval value later.
+
+## 2026-08-24 - Separate chunkers behind a shared orchestrator
+
+**Status:** Accepted
+
+### Initial approach
+
+Python, Markdown, and plain-text chunking modules all lived directly inside
+`src/ingestion`. The public dispatcher was another file in the same flat
+directory.
+
+### Why the approach stopped scaling
+
+As parsing, fallback, overlap, and audit modules accumulated, unrelated
+implementation details became visually indistinguishable. Adding another
+source format would increase that flat module list and make internal imports
+harder to navigate. The audit runner also needed one stable entry point rather
+than knowledge of every format-specific function.
+
+### Decision
+
+Group chunking code below `src/ingestion/chunking`, place Python and text
+implementations in separate subpackages, and keep format selection in
+`orchestrator.py`. Store audit models, invariant checks, execution, and
+statistics in a separate `src/ingestion/audit` package. Preserve the existing
+public exports from `src.ingestion`.
+
+### Consequences
+
+- Public imports remain stable while internal ownership becomes explicit.
+- The audit calls one orchestrator instead of branching on file formats.
+- Format-specific tests can mirror the source package structure.
+- A new source format can be introduced as a sibling chunking strategy.
+- Moving modules requires internal import updates but no behavior changes.
+
+### Lesson
+
+A flat package is useful while responsibilities are still small. Split it when
+new formats and cross-cutting services create distinct reasons for modules to
+change, while keeping a narrow public API stable across the refactor.
