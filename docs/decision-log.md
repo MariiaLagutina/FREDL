@@ -338,3 +338,45 @@ boundaries have been identified.
 Apply irreversible normalization only after every downstream consumer has
 extracted the structure it needs. Case may be irrelevant for matching while
 still carrying essential information during parsing.
+
+## 2026-08-24 - Bound possessive expansion with a simple heuristic
+
+**Status:** Accepted
+
+### Initial approach considered
+
+Preserve every apostrophe form as one normalized token. This avoids fragments
+such as `isn` and `t`, but a possessive such as `model's` then cannot match a
+query containing only `model`.
+
+### Why unconditional suffix removal was unsafe
+
+Removing `'s` from every token would treat contractions as possessives.
+Forms such as `it's`, `he's`, and `she's` would create speculative base terms
+that do not represent the same grammatical operation. A full language parser
+would add dependencies and complexity before retrieval evaluation shows that
+the distinction materially affects search quality.
+
+### Decision
+
+Always retain the complete normalized apostrophe form. Add the suffix-free
+base as a second search signal only when the base contains at least four
+letters or when the original base is uppercase, which covers technical
+acronyms such as `GPU's` and `API's`. Count alphabetic characters instead of
+raw string length so punctuation and digits do not satisfy the threshold.
+
+### Consequences
+
+- `model's` contributes both `model's` and `model`.
+- Short contractions such as `it's` and `she's` remain single tokens.
+- Uppercase technical acronyms remain searchable without their suffix.
+- The rule removes common noise without requiring an NLP library.
+- The threshold is a heuristic, not a grammatical law; forms such as `that's`
+  may still contribute a useful but linguistically simplified base token.
+- Retrieval metrics may justify changing or removing the heuristic later.
+
+### Lesson
+
+When a lightweight heuristic replaces full linguistic analysis, keep it
+bounded, preserve the original signal, document known errors, and make the
+behavior executable through exact tests.
