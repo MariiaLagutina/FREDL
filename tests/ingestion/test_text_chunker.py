@@ -60,6 +60,48 @@ def test_markdown_chunker_starts_a_chunk_for_each_heading_path() -> None:
     ]
 
 
+def test_markdown_chunker_keeps_fenced_code_inside_its_section() -> None:
+    """Heading-like code never changes the active retrieval section."""
+    source = (
+        "# Guide\n"
+        "```python\n"
+        "# Not a document heading\n"
+        "print('ready')\n"
+        "```\n"
+        "## Usage\n"
+        "Run the example.\n"
+    )
+    document = make_text_document(source)
+
+    chunks = chunk_text_document(document)
+
+    assert [chunk.section_path for chunk in chunks] == [
+        ("Guide",),
+        ("Guide", "Usage"),
+    ]
+    assert "```python\n# Not a document heading\n" in chunks[0].text
+
+
+def test_markdown_chunker_is_deterministic_for_unicode_and_crlf() -> None:
+    """Repeated runs preserve Unicode and original CRLF coordinates."""
+    source = (
+        "# Grüße\r\n"
+        "Einführung für München.\r\n"
+        "Weitere Informationen.\r\n"
+    )
+    document = make_text_document(source)
+
+    first_run = chunk_text_document(document, max_chunk_size=28)
+    second_run = chunk_text_document(document, max_chunk_size=28)
+
+    assert first_run == second_run
+    assert all(
+        chunk.text == source[chunk.start:chunk.end]
+        for chunk in first_run
+    )
+    assert all(len(chunk.text) <= 28 for chunk in first_run)
+
+
 def test_plain_text_does_not_interpret_hash_lines_as_headings() -> None:
     """TXT files use paragraph boundaries without Markdown semantics."""
     source = "# Literal hash line\nOrdinary text.\n"
