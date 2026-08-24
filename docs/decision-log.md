@@ -297,3 +297,86 @@ public exports from `src.ingestion`.
 A flat package is useful while responsibilities are still small. Split it when
 new formats and cross-cutting services create distinct reasons for modules to
 change, while keeping a narrow public API stable across the refactor.
+
+## 2026-08-24 - Preserve capitalization until identifier expansion
+
+**Status:** Accepted
+
+### Initial approach
+
+The shared lexical scanner converted every matched unit to lowercase as soon
+as it was extracted. This produced stable case-insensitive tokens for ordinary
+text and exact identifier forms.
+
+### Why the approach lost information
+
+Capitalization is structural data inside code identifiers. Converting
+`SamplingParams` to `samplingparams` before code-specific processing removes
+the boundary between `Sampling` and `Params`. That boundary cannot be inferred
+reliably from the normalized string, so later subword expansion would either
+miss useful search terms or require unsafe dictionary-based guesses.
+
+### Decision
+
+Separate lexical extraction from normalization. `scan_lexemes()` preserves
+the original capitalization and delimiters, while `scan_tokens()` remains the
+lowercase wrapper for callers that only need normalized units. Code identifier
+expansion operates on the preserved lexeme and lowercases exact and component
+signals only after snake_case, dotted-name, CamelCase, acronym, and numeric
+boundaries have been identified.
+
+### Consequences
+
+- Existing normalized scanning behavior remains stable.
+- CamelCase and acronym boundaries are available to the code tokenizer.
+- Exact normalized identifiers and readable subwords can coexist.
+- The shared scanner exposes one additional intermediate representation.
+- Golden tests must protect both preserved lexemes and normalized tokens.
+
+### Lesson
+
+Apply irreversible normalization only after every downstream consumer has
+extracted the structure it needs. Case may be irrelevant for matching while
+still carrying essential information during parsing.
+
+## 2026-08-24 - Bound possessive expansion with a simple heuristic
+
+**Status:** Accepted
+
+### Initial approach considered
+
+Preserve every apostrophe form as one normalized token. This avoids fragments
+such as `isn` and `t`, but a possessive such as `model's` then cannot match a
+query containing only `model`.
+
+### Why unconditional suffix removal was unsafe
+
+Removing `'s` from every token would treat contractions as possessives.
+Forms such as `it's`, `he's`, and `she's` would create speculative base terms
+that do not represent the same grammatical operation. A full language parser
+would add dependencies and complexity before retrieval evaluation shows that
+the distinction materially affects search quality.
+
+### Decision
+
+Always retain the complete normalized apostrophe form. Add the suffix-free
+base as a second search signal only when the base contains at least four
+letters or when the original base is uppercase, which covers technical
+acronyms such as `GPU's` and `API's`. Count alphabetic characters instead of
+raw string length so punctuation and digits do not satisfy the threshold.
+
+### Consequences
+
+- `model's` contributes both `model's` and `model`.
+- Short contractions such as `it's` and `she's` remain single tokens.
+- Uppercase technical acronyms remain searchable without their suffix.
+- The rule removes common noise without requiring an NLP library.
+- The threshold is a heuristic, not a grammatical law; forms such as `that's`
+  may still contribute a useful but linguistically simplified base token.
+- Retrieval metrics may justify changing or removing the heuristic later.
+
+### Lesson
+
+When a lightweight heuristic replaces full linguistic analysis, keep it
+bounded, preserve the original signal, document known errors, and make the
+behavior executable through exact tests.

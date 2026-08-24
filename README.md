@@ -12,7 +12,8 @@ on the next stage.
 The current implementation provides validated exchange models, safe corpus
 file discovery, exact source reading, immutable chunks with character offsets,
 structural chunking for Python, Markdown, and plain text, and a full-corpus
-chunk invariant audit. It does not yet provide a complete RAG pipeline.
+chunk invariant audit. It also provides separate lexical tokenization for code
+and documentation. It does not yet provide a complete RAG pipeline.
 
 ## Current Status
 
@@ -31,11 +32,12 @@ Implemented:
 - Markdown and plain-text chunking with section metadata and bounded overlap;
 - a shared orchestrator for selecting format-specific chunkers;
 - deterministic chunk audits with invariant failures and size statistics;
+- code-aware identifier expansion and conservative documentation tokenization;
 - automated tests organized by pipeline component.
 
 Current work:
 
-- preparing the chunk audit stage for review and merge.
+- validating lexical tokenization before merge.
 
 ## Requirements
 
@@ -313,12 +315,69 @@ P95 size: 1,978
 maximum size: 2,000
 ```
 
+## Lexical Tokenization
+
+Lexical retrieval uses separate tokenizers for code and documentation. Both
+preserve source order and repeated terms so a later BM25 index can measure term
+frequency.
+
+`CodeTokenizer` retains each complete normalized identifier and adds subword
+signals for snake_case, dotted names, CamelCase, acronyms, and numeric suffixes:
+
+```text
+gpu_memory_utilization
+→ gpu_memory_utilization, gpu, memory, utilization
+
+PagedAttention.forward
+→ pagedattention.forward, pagedattention, paged, attention, forward
+
+HTTPServer2
+→ httpserver2, http, server, 2
+```
+
+Capitalization is preserved until structural boundaries have been extracted.
+Unicode components remain complete instead of being partially interpreted by
+the ASCII CamelCase rule.
+
+`TextTokenizer` lowercases Unicode text, discards surrounding punctuation,
+splits hyphenated words, preserves technical underscore and dotted forms, and
+normalizes typographic apostrophes. It does not apply stemming or remove stop
+words before retrieval measurements justify those transformations.
+
+Possessive expansion uses a bounded heuristic. The complete apostrophe form is
+always retained. A suffix-free base is added only when it contains at least
+four letters or the original base is uppercase:
+
+```text
+model's → model's, model
+GPU's   → gpu's, gpu
+it's    → it's
+```
+
+This threshold is not a grammatical rule. It removes common contraction noise
+without adding a language parser, and it remains subject to retrieval
+evaluation.
+
+The current local corpus sanity check reports:
+
+```text
+Python: 1,753 files, 18,578 chunks, 2,919,369 tokens
+        median 149, P95 322, maximum 607 tokens per chunk
+        3 punctuation-only chunks with no lexical terms
+Text:     199 files,  1,521 chunks,   141,492 tokens
+        median 66, P95 256, maximum 393 tokens per chunk
+        0 chunks with no lexical terms
+```
+
+Punctuation-only chunks are valid exact source slices but should be skipped by
+the future lexical index because they provide no searchable terms.
+
 ## Verification
 
 The current checks pass:
 
 ```text
-pytest: 131 passed
+pytest: 156 passed
 flake8: passed
 mypy: passed
 ```
@@ -345,6 +404,8 @@ These results cover the current implementation only.
 - Apply overlap only to forced splits inside oversized text blocks.
 - Keep format-specific chunkers behind one shared orchestrator.
 - Audit format-independent invariants through the public chunking path.
+- Preserve identifier capitalization until code structure is extracted.
+- Bound possessive expansion and preserve the original apostrophe form.
 
 Reconsidered choices and their consequences are recorded in
 `docs/decision-log.md`.
@@ -355,6 +416,7 @@ Reconsidered choices and their consequences are recorded in
 - [Python os.walk documentation](https://docs.python.org/3/library/os.html#os.walk)
 - [Python dataclasses documentation](https://docs.python.org/3/library/dataclasses.html)
 - [Python statistics documentation](https://docs.python.org/3/library/statistics.html)
+- [Python regular expression documentation](https://docs.python.org/3/library/re.html)
 - [Pydantic documentation](https://docs.pydantic.dev/)
 
 ### AI Usage
