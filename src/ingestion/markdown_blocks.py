@@ -1,7 +1,5 @@
 """Partition Markdown sources into exact structural blocks."""
 
-from dataclasses import dataclass
-from enum import Enum
 import re
 
 from src.ingestion.text_blocks import (
@@ -12,41 +10,16 @@ from src.ingestion.text_blocks import (
     _section_path,
     _update_heading_stack,
 )
+from src.ingestion.text_models import _BlockKind, _TextBlock
 
 
 _LIST_ITEM = re.compile(r"^ {0,3}(?:[-+*]|\d+[.)])[ \t]+")
 
 
-class _BlockKind(str, Enum):
-    """Identify one Markdown block boundary."""
-
-    HEADING = "heading"
-    PARAGRAPH = "paragraph"
-    LIST = "list"
-    FENCED_CODE = "fenced_code"
-    WHITESPACE = "whitespace"
-
-
-@dataclass(frozen=True, slots=True)
-class _MarkdownBlock:
-    """Store one exact Markdown range and its active heading path."""
-
-    kind: _BlockKind
-    start: int
-    end: int
-    section_path: tuple[str, ...]
-
-    def __post_init__(self) -> None:
-        """Reject ranges that cannot identify source content."""
-        if self.start < 0 or self.end <= self.start:
-            message = "Markdown block range must be positive"
-            raise ValueError(message)
-
-
-def _markdown_blocks(text: str) -> list[_MarkdownBlock]:
+def _markdown_blocks(text: str) -> list[_TextBlock]:
     """Partition a Markdown document without changing any source text."""
     lines = _source_lines(text)
-    blocks: list[_MarkdownBlock] = []
+    blocks: list[_TextBlock] = []
     headings: tuple[_MarkdownHeading, ...] = ()
     index = 0
 
@@ -56,7 +29,7 @@ def _markdown_blocks(text: str) -> list[_MarkdownBlock]:
         if not line.strip():
             index = _consume_whitespace(lines, index)
             blocks.append(
-                _MarkdownBlock(
+                _TextBlock(
                     _BlockKind.WHITESPACE,
                     start,
                     lines[index - 1][1],
@@ -75,7 +48,7 @@ def _markdown_blocks(text: str) -> list[_MarkdownBlock]:
                 if _is_closing_fence(candidate, fence):
                     break
             blocks.append(
-                _MarkdownBlock(
+                _TextBlock(
                     _BlockKind.FENCED_CODE,
                     start,
                     end,
@@ -88,7 +61,7 @@ def _markdown_blocks(text: str) -> list[_MarkdownBlock]:
         if heading is not None:
             headings = _update_heading_stack(headings, heading)
             blocks.append(
-                _MarkdownBlock(
+                _TextBlock(
                     _BlockKind.HEADING,
                     start,
                     end,
@@ -111,7 +84,7 @@ def _markdown_blocks(text: str) -> list[_MarkdownBlock]:
             end = lines[index][1]
             index += 1
         blocks.append(
-            _MarkdownBlock(
+            _TextBlock(
                 kind,
                 start,
                 end,
