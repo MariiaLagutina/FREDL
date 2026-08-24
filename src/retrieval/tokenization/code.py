@@ -2,11 +2,24 @@
 
 import re
 
+from src.retrieval.tokenization.shared import scan_lexemes
+
 
 _IDENTIFIER_SEPARATOR_PATTERN = re.compile(r"[._]+")
 _CAMEL_PART_PATTERN = re.compile(
     r"[A-Z]+(?=[A-Z][a-z]|\d|$)|[A-Z]?[a-z]+|[A-Z]+|\d+"
 )
+
+
+class CodeTokenizer:
+    """Create exact and component lexical signals from source code."""
+
+    def tokenize(self, text: str) -> list[str]:
+        """Tokenize complete source text without removing term frequency."""
+        tokens: list[str] = []
+        for lexeme in scan_lexemes(text):
+            tokens.extend(expand_code_lexeme(lexeme))
+        return tokens
 
 
 def expand_code_lexeme(lexeme: str) -> list[str]:
@@ -21,6 +34,8 @@ def expand_code_lexeme(lexeme: str) -> list[str]:
         if not component:
             continue
         _append_unique(expanded, component.lower())
+        if not component.isascii():
+            continue
         for match in _CAMEL_PART_PATTERN.finditer(component):
             _append_unique(expanded, match.group().lower())
 
