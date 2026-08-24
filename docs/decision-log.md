@@ -297,3 +297,44 @@ public exports from `src.ingestion`.
 A flat package is useful while responsibilities are still small. Split it when
 new formats and cross-cutting services create distinct reasons for modules to
 change, while keeping a narrow public API stable across the refactor.
+
+## 2026-08-24 - Preserve capitalization until identifier expansion
+
+**Status:** Accepted
+
+### Initial approach
+
+The shared lexical scanner converted every matched unit to lowercase as soon
+as it was extracted. This produced stable case-insensitive tokens for ordinary
+text and exact identifier forms.
+
+### Why the approach lost information
+
+Capitalization is structural data inside code identifiers. Converting
+`SamplingParams` to `samplingparams` before code-specific processing removes
+the boundary between `Sampling` and `Params`. That boundary cannot be inferred
+reliably from the normalized string, so later subword expansion would either
+miss useful search terms or require unsafe dictionary-based guesses.
+
+### Decision
+
+Separate lexical extraction from normalization. `scan_lexemes()` preserves
+the original capitalization and delimiters, while `scan_tokens()` remains the
+lowercase wrapper for callers that only need normalized units. Code identifier
+expansion operates on the preserved lexeme and lowercases exact and component
+signals only after snake_case, dotted-name, CamelCase, acronym, and numeric
+boundaries have been identified.
+
+### Consequences
+
+- Existing normalized scanning behavior remains stable.
+- CamelCase and acronym boundaries are available to the code tokenizer.
+- Exact normalized identifiers and readable subwords can coexist.
+- The shared scanner exposes one additional intermediate representation.
+- Golden tests must protect both preserved lexemes and normalized tokens.
+
+### Lesson
+
+Apply irreversible normalization only after every downstream consumer has
+extracted the structure it needs. Case may be irrelevant for matching while
+still carrying essential information during parsing.
