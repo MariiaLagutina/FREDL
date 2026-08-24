@@ -11,8 +11,8 @@ on the next stage.
 
 The current implementation provides validated exchange models, safe corpus
 file discovery, exact source reading, immutable chunks with character offsets,
-and structural chunking for Python, Markdown, and plain text. It does not yet
-provide a complete RAG pipeline.
+structural chunking for Python, Markdown, and plain text, and a full-corpus
+chunk invariant audit. It does not yet provide a complete RAG pipeline.
 
 ## Current Status
 
@@ -29,11 +29,13 @@ Implemented:
 - immutable source documents and half-open chunk spans;
 - Python-aware AST chunking with safe fallbacks;
 - Markdown and plain-text chunking with section metadata and bounded overlap;
+- a shared orchestrator for selecting format-specific chunkers;
+- deterministic chunk audits with invariant failures and size statistics;
 - automated tests organized by pipeline component.
 
 Current work:
 
-- validating Markdown and plain-text chunking before merge.
+- preparing the chunk audit stage for review and merge.
 
 ## Requirements
 
@@ -103,6 +105,30 @@ Run stricter type checking:
 ```bash
 make lint-strict
 ```
+
+## Ingestion Architecture
+
+The public ingestion API is exported from `src.ingestion`, while internal
+format-specific implementations are separated by responsibility:
+
+```text
+src/ingestion/
+├── audit/
+│   ├── invariants.py
+│   ├── models.py
+│   ├── runner.py
+│   └── statistics.py
+├── chunking/
+│   ├── orchestrator.py
+│   ├── python/
+│   └── text/
+├── documents.py
+└── files.py
+```
+
+The orchestrator selects a chunker from `SourceDocument.kind`. Chunking
+implementations do not know how the corpus was discovered, and the audit does
+not contain format-specific branches.
 
 ## Implemented File Discovery
 
@@ -244,12 +270,55 @@ duplicate chunks. Original Markdown markup is preserved until retrieval
 evaluation provides evidence that a separate normalization layer improves
 Recall@5.
 
+## Chunk Audit
+
+`audit_documents()` checks an in-memory document stream. `audit_corpus()` runs
+the complete discovery, reading, chunking, and audit flow without retaining
+every source document in memory.
+
+Each document is chunked twice to verify deterministic output. Every chunk is
+then checked for:
+
+- a valid half-open source range;
+- exact equality with its source slice;
+- a size at or below `max_chunk_size`;
+- at least one non-whitespace character.
+
+The resulting immutable `ChunkAuditReport` contains actionable issues and a
+size distribution with the minimum, median, nearest-rank P95, and maximum.
+
+```python
+from pathlib import Path
+
+from src.ingestion import audit_corpus
+
+project_root = Path.cwd()
+corpus_root = project_root / "data" / "raw" / "vllm-0.10.1"
+report = audit_corpus(project_root, corpus_root)
+
+assert report.passed
+assert report.size_summary is not None
+assert report.size_summary.maximum <= 2000
+```
+
+The current local vLLM corpus audit reports:
+
+```text
+documents: 1,952
+chunks: 20,099
+invalid chunks: 0
+minimum size: 5
+median size: 931
+P95 size: 1,978
+maximum size: 2,000
+```
+
 ## Verification
 
 The current checks pass:
 
 ```text
-pytest: 113 passed
+pytest: 131 passed
 flake8: passed
 mypy: passed
 ```
@@ -274,6 +343,8 @@ These results cover the current implementation only.
 - Store Markdown heading paths as metadata instead of synthetic chunk text.
 - Preserve Markdown markup until retrieval evaluation justifies normalization.
 - Apply overlap only to forced splits inside oversized text blocks.
+- Keep format-specific chunkers behind one shared orchestrator.
+- Audit format-independent invariants through the public chunking path.
 
 Reconsidered choices and their consequences are recorded in
 `docs/decision-log.md`.
@@ -283,6 +354,7 @@ Reconsidered choices and their consequences are recorded in
 - [Python pathlib documentation](https://docs.python.org/3/library/pathlib.html)
 - [Python os.walk documentation](https://docs.python.org/3/library/os.html#os.walk)
 - [Python dataclasses documentation](https://docs.python.org/3/library/dataclasses.html)
+- [Python statistics documentation](https://docs.python.org/3/library/statistics.html)
 - [Pydantic documentation](https://docs.pydantic.dev/)
 
 ### AI Usage

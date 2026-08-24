@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.ingestion.text_blocks import (
+from src.ingestion.chunking.text.blocks import (
     _heading_from_line,
     _MarkdownHeading,
     _section_path,

@@ -5,11 +5,11 @@ import re
 
 from src.ingestion.documents import Chunk, SourceDocument, make_chunk
 from src.ingestion.files import FileKind
-from src.ingestion.python_positions import (
+from src.ingestion.chunking.python.positions import (
     _PythonSourceMap,
     _StructuralSpan,
 )
-from src.ingestion.python_sections import (
+from src.ingestion.chunking.python.sections import (
     _class_sections,
     _function_sections,
     _SourceSection,

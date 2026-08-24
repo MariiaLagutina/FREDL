@@ -1,7 +1,7 @@
 """Tests for exact paragraph blocks in plain text sources."""
 
-from src.ingestion.plain_text_blocks import _plain_text_blocks
-from src.ingestion.text_models import _BlockKind
+from src.ingestion.chunking.text.models import _BlockKind
+from src.ingestion.chunking.text.plain_text import _plain_text_blocks
 
 
 def test_plain_text_blocks_alternate_paragraphs_and_whitespace() -> None:
