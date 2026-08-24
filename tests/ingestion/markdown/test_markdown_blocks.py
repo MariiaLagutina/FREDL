@@ -1,7 +1,7 @@
 """Tests for exact structural Markdown block partitioning."""
 
-from src.ingestion.markdown_blocks import _markdown_blocks
-from src.ingestion.text_models import _BlockKind
+from src.ingestion.chunking.text.markdown import _markdown_blocks
+from src.ingestion.chunking.text.models import _BlockKind
 
 
 def test_markdown_blocks_preserve_structure_and_section_paths() -> None:

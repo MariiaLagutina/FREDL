@@ -2,8 +2,8 @@
 
 import ast
 
-from src.ingestion.python_positions import _PythonSourceMap
-from src.ingestion.python_sections import (
+from src.ingestion.chunking.python.positions import _PythonSourceMap
+from src.ingestion.chunking.python.sections import (
     _function_sections,
     _SectionKind,
     _top_level_sections,

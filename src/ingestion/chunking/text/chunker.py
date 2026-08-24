@@ -6,9 +6,9 @@ import re
 
 from src.ingestion.documents import Chunk, SourceDocument, make_chunk
 from src.ingestion.files import FileKind
-from src.ingestion.markdown_blocks import _markdown_blocks
-from src.ingestion.plain_text_blocks import _plain_text_blocks
-from src.ingestion.text_models import _TextBlock
+from src.ingestion.chunking.text.markdown import _markdown_blocks
+from src.ingestion.chunking.text.models import _TextBlock
+from src.ingestion.chunking.text.plain_text import _plain_text_blocks
 
 
 MAX_CHUNK_SIZE = 2000
