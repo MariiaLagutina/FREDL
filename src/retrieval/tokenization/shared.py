@@ -13,8 +13,13 @@ def scan_tokens(text: str) -> list[str]:
     format-specific expansion. Punctuation outside a token is discarded.
     Repeated terms stay repeated so later ranking can measure term frequency.
     """
+    return [lexeme.lower() for lexeme in scan_lexemes(text)]
+
+
+def scan_lexemes(text: str) -> list[str]:
+    """Return lexical units without destroying structural capitalization."""
     return [
-        token.lower()
-        for token in _TOKEN_PATTERN.findall(text)
-        if any(character.isalnum() for character in token)
+        lexeme
+        for lexeme in _TOKEN_PATTERN.findall(text)
+        if any(character.isalnum() for character in lexeme)
     ]
