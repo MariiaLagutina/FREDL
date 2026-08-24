@@ -181,3 +181,40 @@ building an index from modified text.
 Recovery that mutates source data is unsafe when downstream identifiers depend
 on exact positions. Prefer a visible ingestion failure to silently producing
 coordinates for content that no longer matches the source of truth.
+
+## 2026-08-24 - Defer Markdown normalization until retrieval evaluation
+
+**Status:** Accepted
+
+### Initial approach considered
+
+Strip emphasis markers, link syntax, heading markers, and code-fence delimiters
+before sending Markdown chunks to the embedding model.
+
+### Why the approach was premature
+
+Correct inline Markdown normalization requires contextual parsing. Simple
+regular expressions can corrupt identifiers, escaped markers, arithmetic,
+inline code, and fenced source code. Adding that transformation before any
+retrieval measurement would increase complexity without evidence that the
+original markup reduces search quality.
+
+### Decision
+
+Keep exact Markdown source text in the first retrieval representation and use
+parsed headings and block types only for chunk boundaries and metadata. Add a
+separate parser-based normalization layer only if controlled experiments show
+an improvement in Recall@5.
+
+### Consequences
+
+- Chunking remains responsible for structure rather than text rewriting.
+- Markdown code and emphasis remain available to models trained on technical
+  text.
+- Exact source coordinates remain directly auditable.
+- A future normalizer must be evaluated against the unchanged baseline.
+
+### Lesson
+
+Do not add irreversible preprocessing because it appears cleaner. Preserve a
+simple baseline and require retrieval metrics to justify normalization.
