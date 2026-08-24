@@ -55,3 +55,13 @@ def test_lexeme_scanner_preserves_structural_capitalization() -> None:
         "SamplingParams",
         "HTTPServer2",
     ]
+
+
+def test_scanner_preserves_and_normalizes_internal_apostrophes() -> None:
+    """Contractions do not create meaningless one-letter fragments."""
+    assert scan_tokens("Model’s behavior isn't hidden.") == [
+        "model's",
+        "behavior",
+        "isn't",
+        "hidden",
+    ]
