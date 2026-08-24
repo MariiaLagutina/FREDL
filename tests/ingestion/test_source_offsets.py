@@ -108,6 +108,33 @@ def test_make_chunk_supports_exact_overlap() -> None:
     assert first.end - second.start == 2
 
 
+def test_make_chunk_stores_immutable_section_path() -> None:
+    """Retrieval metadata stays separate from exact source text."""
+    chunk = make_chunk(
+        make_document(),
+        start=0,
+        end=4,
+        section_path=("Guide", "Linux"),
+    )
+
+    assert chunk.section_path == ("Guide", "Linux")
+
+
+def test_chunk_rejects_invalid_section_path() -> None:
+    """Section metadata cannot contain empty path elements."""
+    with pytest.raises(
+        ValueError,
+        match="Chunk section path must contain non-empty titles",
+    ):
+        Chunk(
+            file_path="data/raw/example.md",
+            start=0,
+            end=4,
+            text="text",
+            section_path=("Guide", ""),
+        )
+
+
 @pytest.mark.parametrize(
     ("start", "end", "message"),
     [
