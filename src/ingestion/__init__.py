@@ -1,5 +1,11 @@
 """Corpus ingestion utilities."""
 
+from src.ingestion.audit_models import (
+    ChunkAuditIssue,
+    ChunkAuditIssueKind,
+    ChunkAuditReport,
+    ChunkSizeSummary,
+)
 from src.ingestion.chunking import chunk_document
 from src.ingestion.documents import (
     Chunk,
@@ -13,6 +19,10 @@ from src.ingestion.text_chunks import chunk_text_document
 
 __all__ = [
     "Chunk",
+    "ChunkAuditIssue",
+    "ChunkAuditIssueKind",
+    "ChunkAuditReport",
+    "ChunkSizeSummary",
     "CorpusFile",
     "FileKind",
     "SourceDocument",
