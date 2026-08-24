@@ -181,3 +181,79 @@ building an index from modified text.
 Recovery that mutates source data is unsafe when downstream identifiers depend
 on exact positions. Prefer a visible ingestion failure to silently producing
 coordinates for content that no longer matches the source of truth.
+
+## 2026-08-24 - Defer Markdown normalization until retrieval evaluation
+
+**Status:** Accepted
+
+### Initial approach considered
+
+Strip emphasis markers, link syntax, heading markers, and code-fence delimiters
+before sending Markdown chunks to the embedding model.
+
+### Why the approach was premature
+
+Correct inline Markdown normalization requires contextual parsing. Simple
+regular expressions can corrupt identifiers, escaped markers, arithmetic,
+inline code, and fenced source code. Adding that transformation before any
+retrieval measurement would increase complexity without evidence that the
+original markup reduces search quality.
+
+### Decision
+
+Keep exact Markdown source text in the first retrieval representation and use
+parsed headings and block types only for chunk boundaries and metadata. Add a
+separate parser-based normalization layer only if controlled experiments show
+an improvement in Recall@5.
+
+### Consequences
+
+- Chunking remains responsible for structure rather than text rewriting.
+- Markdown code and emphasis remain available to models trained on technical
+  text.
+- Exact source coordinates remain directly auditable.
+- A future normalizer must be evaluated against the unchanged baseline.
+
+### Lesson
+
+Do not add irreversible preprocessing because it appears cleaner. Preserve a
+simple baseline and require retrieval metrics to justify normalization.
+
+## 2026-08-24 - Limit overlap to oversized text block fallback
+
+**Status:** Accepted
+
+### Initial approach considered
+
+Apply a fixed overlap between every pair of Markdown or plain-text chunks to
+retain context around all boundaries.
+
+### Why the approach was inefficient
+
+Structural blocks already preserve headings, paragraphs, lists, and fenced
+code boundaries. Repeating text across those natural boundaries would increase
+index size, duplicate complete semantic units, and risk mixing content from
+different heading paths without repairing a real context loss.
+
+### Decision
+
+Use overlap only when one structural block is itself larger than the maximum
+chunk size and must use line or character fallback. The default overlap is the
+smaller of 100 characters and ten percent of the configured chunk size.
+Callers may set it to zero. Prefer a complete trailing line only when doing so
+does not exceed twice the requested overlap; otherwise use the exact character
+target.
+
+### Consequences
+
+- Natural structural chunks remain disjoint and compact.
+- Long paragraphs and code blocks retain limited boundary context.
+- Whole-line overlap avoids unnecessary mid-line starts when duplication stays
+  bounded.
+- Every overlapping chunk remains an exact source slice with valid offsets.
+
+### Lesson
+
+Overlap should repair a forced split, not compensate for boundaries that are
+already semantically meaningful. Bound duplication explicitly and measure its
+retrieval value later.

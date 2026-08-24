@@ -10,8 +10,9 @@ pipeline stage is implemented, tested, reviewed, and merged before work begins
 on the next stage.
 
 The current implementation provides validated exchange models, safe corpus
-file discovery, exact source reading, and immutable chunks with character
-offsets. It does not yet provide a complete RAG pipeline.
+file discovery, exact source reading, immutable chunks with character offsets,
+and structural chunking for Python, Markdown, and plain text. It does not yet
+provide a complete RAG pipeline.
 
 ## Current Status
 
@@ -26,11 +27,13 @@ Implemented:
   size limit;
 - exact UTF-8 source reading without newline normalization;
 - immutable source documents and half-open chunk spans;
-- automated tests for models, file discovery, and source offsets.
+- Python-aware AST chunking with safe fallbacks;
+- Markdown and plain-text chunking with section metadata and bounded overlap;
+- automated tests organized by pipeline component.
 
 Current work:
 
-- implementing Python-aware chunking while preserving exact source offsets.
+- validating Markdown and plain-text chunking before merge.
 
 ## Requirements
 
@@ -207,12 +210,46 @@ Chunk text never contains synthetic class or function context. Structural
 names can later be stored as retrieval metadata without invalidating exact
 source coordinates.
 
+## Markdown and Plain-Text Chunking
+
+Markdown files are partitioned into headings, paragraphs, lists, fenced code
+blocks, and whitespace ranges. Heading-like text inside backtick or tilde code
+fences remains code. Each resulting chunk stores its active heading hierarchy
+as an immutable `section_path` without adding synthetic text to the exact
+source slice.
+
+Plain `.txt` and `.rst` files use paragraph boundaries and do not interpret
+hash-prefixed lines as Markdown headings. Oversized text blocks prefer line
+boundaries and fall back to character limits when necessary.
+
+```python
+from src.ingestion import chunk_text_document
+
+chunks = chunk_text_document(
+    document,
+    max_chunk_size=2000,
+)
+
+assert all(len(chunk.text) <= 2000 for chunk in chunks)
+assert all(
+    chunk.text == document.text[chunk.start:chunk.end]
+    for chunk in chunks
+)
+```
+
+Overlap is limited to forced splits inside one oversized block. Its default is
+the smaller of 100 characters and ten percent of `max_chunk_size`; callers can
+disable it with `overlap_size=0`. Natural structural boundaries do not create
+duplicate chunks. Original Markdown markup is preserved until retrieval
+evaluation provides evidence that a separate normalization layer improves
+Recall@5.
+
 ## Verification
 
 The current checks pass:
 
 ```text
-pytest: 70 passed
+pytest: 113 passed
 flake8: passed
 mypy: passed
 ```
@@ -234,6 +271,9 @@ These results cover the current implementation only.
 - Represent chunk coordinates as half-open Python ranges.
 - Keep Python chunk text exact and reserve synthetic retrieval context for
   metadata.
+- Store Markdown heading paths as metadata instead of synthetic chunk text.
+- Preserve Markdown markup until retrieval evaluation justifies normalization.
+- Apply overlap only to forced splits inside oversized text blocks.
 
 Reconsidered choices and their consequences are recorded in
 `docs/decision-log.md`.
