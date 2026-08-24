@@ -1,6 +1,6 @@
 """Tests for fenced Markdown code block recognition."""
 
-from src.ingestion.text_blocks import (
+from src.ingestion.chunking.text.blocks import (
     _headings_outside_fences,
     _is_closing_fence,
     _opening_fence_from_line,

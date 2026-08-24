@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from enum import Enum
 import re
 
-from src.ingestion.python_positions import (
+from src.ingestion.chunking.python.positions import (
     _node_span,
     _PythonSourceMap,
     _StructuralSpan,
