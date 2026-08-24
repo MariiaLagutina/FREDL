@@ -2,7 +2,7 @@
 
 import re
 
-from src.retrieval.tokenization.shared import scan_lexemes
+from src.retrieval.tokenization.shared import normalize_lexeme, scan_lexemes
 
 
 _IDENTIFIER_SEPARATOR_PATTERN = re.compile(r"[._]+")
@@ -28,16 +28,16 @@ def expand_code_lexeme(lexeme: str) -> list[str]:
         return []
 
     expanded: list[str] = []
-    _append_unique(expanded, lexeme.lower())
+    _append_unique(expanded, normalize_lexeme(lexeme))
 
     for component in _IDENTIFIER_SEPARATOR_PATTERN.split(lexeme):
         if not component:
             continue
-        _append_unique(expanded, component.lower())
-        if not component.isascii():
+        _append_unique(expanded, normalize_lexeme(component))
+        if not component.isascii() or "'" in component:
             continue
         for match in _CAMEL_PART_PATTERN.finditer(component):
-            _append_unique(expanded, match.group().lower())
+            _append_unique(expanded, normalize_lexeme(match.group()))
 
     return expanded
 
