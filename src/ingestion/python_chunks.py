@@ -113,7 +113,10 @@ def _split_span(
     while cursor < span.end:
         proposed_end = min(cursor + max_chunk_size, span.end)
         if proposed_end < span.end:
-            if text[proposed_end - 1:proposed_end + 1] == "\r\n":
+            if (
+                proposed_end - 1 > cursor
+                and text[proposed_end - 1:proposed_end + 1] == "\r\n"
+            ):
                 proposed_end -= 1
             line_end = _last_line_boundary(text, cursor, proposed_end)
             if (
