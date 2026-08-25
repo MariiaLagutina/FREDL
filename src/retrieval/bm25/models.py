@@ -42,6 +42,27 @@ class BM25Document:
         return (self.chunk.file_path, self.chunk.start, self.chunk.end)
 
 
+@dataclass(frozen=True, slots=True)
+class BM25CorpusStatistics:
+    """Expose immutable corpus values used by field scoring."""
+
+    document_count: int
+    average_content_length: float
+    average_metadata_length: float
+    content_document_frequencies: tuple[tuple[str, int], ...]
+    metadata_document_frequencies: tuple[tuple[str, int], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class BM25Hit:
+    """Return one ranked document with inspectable field scores."""
+
+    document: BM25Document
+    score: float
+    content_score: float
+    metadata_score: float
+
+
 def _validate_terms(name: str, terms: tuple[str, ...]) -> None:
     """Validate one immutable lexical field without changing its terms."""
     if not isinstance(terms, tuple):
