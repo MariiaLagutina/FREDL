@@ -1,5 +1,6 @@
 """Load a fixed BM25 corpus and its validated query labels."""
 
+from hashlib import sha256
 from pathlib import Path
 
 from src.evaluation.bm25.models import EvaluationSuite, QueryKind
@@ -10,6 +11,21 @@ from src.ingestion import (
     read_document,
 )
 from src.retrieval.bm25 import BM25Document, build_bm25_documents
+
+
+def fingerprint_suite(suite_root: Path) -> str:
+    """Hash relative paths and bytes for every versioned suite file."""
+    digest = sha256()
+    suite_files = sorted(
+        path for path in suite_root.rglob("*") if path.is_file()
+    )
+    for path in suite_files:
+        relative_path = path.relative_to(suite_root).as_posix()
+        digest.update(relative_path.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
 
 
 def load_suite(suite_root: Path) -> EvaluationSuite:

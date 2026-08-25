@@ -54,7 +54,11 @@ class ExperimentResult:
     parameters: BM25Parameters
     documentation_metrics: RetrievalMetrics
     code_metrics: RetrievalMetrics
+    source_file_count: int
+    document_count: int
     build_time_ms: float
+    index_size_bytes: int
+    peak_build_memory_bytes: int
     median_latency_ms: float
     p95_latency_ms: float
     query_results: tuple[QueryRunResult, ...]

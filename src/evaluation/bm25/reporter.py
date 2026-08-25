@@ -12,6 +12,8 @@ def print_results(
     verbose: bool = False,
 ) -> None:
     """Print a compact comparison and optional per-query explanations."""
+    if not results:
+        raise ValueError("BM25 reporter requires at least one experiment")
     _print_table(results)
     if len(results) > 1:
         _print_changes(results[0], results[1:])
@@ -22,10 +24,17 @@ def print_results(
 
 def _print_table(results: Sequence[ExperimentResult]) -> None:
     """Print required docs, code, and latency metrics per run."""
+    first = results[0]
+    print(
+        f"Suite: {first.suite_name}; "
+        f"files={first.source_file_count}; "
+        f"chunks={first.document_count}"
+    )
     header = (
         "Run  k1   b     meta  "
         "Docs R@1 R@3 R@5 R@10 MRR  "
-        "Code R@1 R@3 R@5 R@10 MRR  Buildms P50ms  P95ms"
+        "Code R@1 R@3 R@5 R@10 MRR  "
+        "Buildms IndexKB PeakKB P50ms  P95ms"
     )
     print(header)
     print("-" * len(header))
@@ -49,6 +58,8 @@ def _print_table(results: Sequence[ExperimentResult]) -> None:
             f"{code.recall_at_10:<5.2f} "
             f"{code.mean_reciprocal_rank:<4.2f} "
             f"{result.build_time_ms:<7.3f} "
+            f"{result.index_size_bytes / 1024:<7.1f} "
+            f"{result.peak_build_memory_bytes / 1024:<6.1f} "
             f"{result.median_latency_ms:<6.3f} "
             f"{result.p95_latency_ms:<6.3f}"
         )

@@ -54,6 +54,10 @@ def test_runner_reports_documentation_and_code_separately() -> None:
     assert result.code_metrics.query_count == 2
     assert result.documentation_metrics.recall_at_1 == 1.0
     assert result.code_metrics.recall_at_1 == 0.5
+    assert result.source_file_count == 8
+    assert result.document_count == 9
+    assert result.index_size_bytes > 0
+    assert result.peak_build_memory_bytes > 0
 
 
 def test_mini_suite_exposes_metadata_improvement_and_regression() -> None:
