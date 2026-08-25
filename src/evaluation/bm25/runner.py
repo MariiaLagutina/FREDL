@@ -11,6 +11,10 @@ from src.evaluation.bm25.models import (
     QueryKind,
     QueryRunResult,
 )
+from src.evaluation.bm25.measurement import (
+    measure_index_size,
+    measure_peak_build_memory,
+)
 from src.evaluation.retrieval import (
     RetrievalMetrics,
     aggregate_query_metrics,
@@ -39,6 +43,12 @@ def run_experiment(
     build_started = perf_counter_ns()
     index = BM25Index(documents, parameters)
     build_time_ms = _milliseconds_since(build_started)
+    immutable_documents = tuple(documents)
+    index_size_bytes = measure_index_size(index)
+    peak_build_memory_bytes = measure_peak_build_memory(
+        immutable_documents,
+        parameters,
+    )
     retriever = BM25Retriever(index)
 
     query_results: list[QueryRunResult] = []
@@ -74,7 +84,13 @@ def run_experiment(
             QueryKind.DOCUMENTATION,
         ),
         code_metrics=_aggregate_kind(query_results, QueryKind.CODE),
+        source_file_count=len(
+            {document.chunk.file_path for document in documents}
+        ),
+        document_count=len(documents),
         build_time_ms=build_time_ms,
+        index_size_bytes=index_size_bytes,
+        peak_build_memory_bytes=peak_build_memory_bytes,
         median_latency_ms=median(all_latencies),
         p95_latency_ms=_percentile(all_latencies, 0.95),
         query_results=tuple(query_results),

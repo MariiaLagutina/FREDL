@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 from src.evaluation.bm25.reporter import print_results
+from src.evaluation.bm25.report import write_json_report
 from src.evaluation.bm25.runner import run_experiment
 from src.evaluation.bm25.suite import build_suite_documents, load_suite
 from src.retrieval.bm25 import BM25Parameters
@@ -35,6 +36,9 @@ def main() -> None:
         for run_id in run_ids
     ]
     print_results(results, verbose=arguments.verbose)
+    if arguments.output is not None:
+        write_json_report(arguments.output, suite_root, results)
+        print(f"\nJSON report: {arguments.output}")
 
 
 def _parse_arguments() -> argparse.Namespace:
@@ -47,6 +51,7 @@ def _parse_arguments() -> argparse.Namespace:
     selection.add_argument("--run", choices=tuple(RUNS))
     selection.add_argument("--compare", nargs="+", choices=tuple(RUNS))
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--output", type=Path)
     return parser.parse_args()
 
 
