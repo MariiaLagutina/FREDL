@@ -13,7 +13,9 @@ The current implementation provides validated exchange models, safe corpus
 file discovery, exact source reading, immutable chunks with character offsets,
 structural chunking for Python, Markdown, and plain text, and a full-corpus
 chunk invariant audit. It also provides separate lexical tokenization for code
-and documentation. It does not yet provide a complete RAG pipeline.
+and documentation, explainable two-field BM25 retrieval, and reproducible
+source-aware retrieval evaluation. It does not yet provide a complete RAG
+pipeline.
 
 ## Current Status
 
@@ -33,11 +35,18 @@ Implemented:
 - a shared orchestrator for selecting format-specific chunkers;
 - deterministic chunk audits with invariant failures and size statistics;
 - code-aware identifier expansion and conservative documentation tokenization;
+- content and structural metadata terms stored as separate BM25 fields;
+- an inverted BM25 index with stable ranking and inspectable field scores;
+- mixed natural-language and code query tokenization;
+- Moulinette-compatible source IoU, Recall@K, and MRR metrics;
+- a fixed documentation/code mini-suite and BM25 experiment CLI;
+- optional JSON reports with corpus, Git, environment, latency, and memory
+  evidence;
 - automated tests organized by pipeline component.
 
 Current work:
 
-- validating lexical tokenization before merge.
+- finalizing the BM25 lexical baseline for merge.
 
 ## Requirements
 
@@ -60,8 +69,8 @@ uv sync
 
 ## Local Data Layout
 
-The supplied corpus, datasets, generated outputs, and local evaluation tools
-are not committed to Git. The current local layout is:
+The supplied corpus, datasets, and generated outputs are not committed to Git.
+The current local layout is:
 
 ```text
 data/
@@ -75,6 +84,19 @@ data/
     ├── search_results/
     └── search_results_and_answer/
 ```
+
+The small deterministic BM25 acceptance suite is committed separately:
+
+```text
+evals/bm25/mini/
+├── corpus/
+│   ├── docs/
+│   └── src/
+└── suite.json
+```
+
+It validates experiment mechanics and expected parameter effects. It is not a
+replacement for the complete evaluation datasets used to select final values.
 
 Evaluation-facing source paths are relative to the project root:
 
@@ -370,14 +392,92 @@ Text:     199 files,  1,521 chunks,   141,492 tokens
 ```
 
 Punctuation-only chunks are valid exact source slices but should be skipped by
-the future lexical index because they provide no searchable terms.
+the lexical index because they provide no searchable terms.
+
+## BM25 Lexical Retrieval
+
+Each searchable chunk keeps exact source evidence and two independent lexical
+fields:
+
+```text
+content terms  = normalized terms from the exact chunk text
+metadata terms = path, heading hierarchy, and overlapping Python symbols
+```
+
+Content preserves repeated terms for term-frequency scoring. Metadata terms
+are stably deduplicated so repeated structural sources do not create an
+undeclared weight. Python symbol spans come from the AST and use the same exact
+character-offset conversion as Python chunking.
+
+The index calculates separate document frequencies and average lengths for the
+two fields. Metadata is combined only after both field scores are known:
+
+```text
+final_score = content_score + metadata_weight * metadata_score
+```
+
+This supports fractional weights exactly and keeps every retrieval result
+explainable. Token repetition is not used as an approximation of metadata
+weight. The default control parameters are `k1=1.5`, `b=0.75`, and
+`metadata_weight=1.0`.
+
+The inverted index stores postings from each term to matching document indexes
+and term frequencies. Query execution visits matching candidates instead of
+recounting every document. Zero-score documents are omitted, and equal scores
+use `(file_path, start, end)` for deterministic ordering.
+
+`QueryTokenizer` combines natural-language normalization with code identifier
+expansion. `BM25Retriever` keeps this preparation outside the mathematical
+index while accepting normal string queries.
+
+## BM25 Evaluation
+
+Run the neutral mini-suite control:
+
+```bash
+.venv/bin/python -m src.evaluation.bm25 --suite mini --run M0
+```
+
+Compare the planned metadata weights:
+
+```bash
+.venv/bin/python -m src.evaluation.bm25 \
+  --suite mini \
+  --compare M0 M1 M2 M3
+```
+
+Add `--verbose` to inspect every query, expected source, relevant rank, and
+separate content and metadata scores. Save complete machine-readable evidence
+only when needed:
+
+```bash
+.venv/bin/python -m src.evaluation.bm25 \
+  --suite mini \
+  --compare M0 M1 M2 M3 \
+  --verbose \
+  --output reports/bm25-mini.json
+```
+
+The report records the Git commit and dirty state, suite fingerprint,
+environment, parameters, file and chunk counts, documentation and code metrics,
+ranked hits, build time, recursive in-memory index size, traced peak build
+memory, and median/P95 query latency.
+
+Retrieval relevance requires an exact file path and source-range IoU of at
+least `0.05`. Documentation and code metrics are reported separately. The
+mini-suite demonstrates both useful structural boosts and metadata dominance;
+it does not select a production weight. Hardware-dependent measurements are
+repeated on one Linux machine before performance conclusions are recorded.
+
+Controlled parameter history and provisional measurements are recorded in
+`docs/bm25-tuning-log.md`.
 
 ## Verification
 
 The current checks pass:
 
 ```text
-pytest: 156 passed
+pytest: 201 passed
 flake8: passed
 mypy: passed
 ```
@@ -406,6 +506,10 @@ These results cover the current implementation only.
 - Audit format-independent invariants through the public chunking path.
 - Preserve identifier capitalization until code structure is extracted.
 - Bound possessive expansion and preserve the original apostrophe form.
+- Score content and structural metadata as independent BM25 fields.
+- Apply fractional metadata weight after field scoring.
+- Use postings to avoid scanning every document for every query.
+- Compare parameters on fixed, fingerprinted docs/code evaluation suites.
 
 Reconsidered choices and their consequences are recorded in
 `docs/decision-log.md`.

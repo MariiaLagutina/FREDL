@@ -1,0 +1,26 @@
+"""Immutable metrics for one query and an aggregated retrieval dataset."""
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True, slots=True)
+class RetrievalQueryMetrics:
+    """Store source recall and first-relevant rank for one query."""
+
+    recall_at_1: float
+    recall_at_3: float
+    recall_at_5: float
+    recall_at_10: float
+    reciprocal_rank: float
+
+
+@dataclass(frozen=True, slots=True)
+class RetrievalMetrics:
+    """Store mean retrieval metrics for one fixed query group."""
+
+    query_count: int
+    recall_at_1: float
+    recall_at_3: float
+    recall_at_5: float
+    recall_at_10: float
+    mean_reciprocal_rank: float

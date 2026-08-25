@@ -1,0 +1,54 @@
+{
+  "name": "bm25-mini",
+  "max_chunk_size": 2000,
+  "queries": [
+    {
+      "query_id": "docs-cache-configuration",
+      "kind": "documentation",
+      "question": "cache configuration",
+      "sources": [
+        {
+          "file_path": "evals/bm25/mini/corpus/docs/cache.md",
+          "first_character_index": 0,
+          "last_character_index": 79
+        }
+      ]
+    },
+    {
+      "query_id": "docs-request-retry-delay",
+      "kind": "documentation",
+      "question": "request retry delay",
+      "sources": [
+        {
+          "file_path": "evals/bm25/mini/corpus/docs/recovery.md",
+          "first_character_index": 0,
+          "last_character_index": 78
+        }
+      ]
+    },
+    {
+      "query_id": "code-cache-store",
+      "kind": "code",
+      "question": "cache store implementation",
+      "sources": [
+        {
+          "file_path": "evals/bm25/mini/corpus/src/cache_store.py",
+          "first_character_index": 0,
+          "last_character_index": 85
+        }
+      ]
+    },
+    {
+      "query_id": "code-request-timeout-validation",
+      "kind": "code",
+      "question": "request timeout validation",
+      "sources": [
+        {
+          "file_path": "evals/bm25/mini/corpus/src/timeout.py",
+          "first_character_index": 0,
+          "last_character_index": 116
+        }
+      ]
+    }
+  ]
+}
