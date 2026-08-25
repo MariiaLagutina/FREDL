@@ -211,12 +211,12 @@ explicit boost, providing a clean control for later weight experiments.
 
 **Constants:** `k1=1.5`, `b=0.75`, `metadata_weight=1.0`; fixed `bm25-mini`
 suite; corpus fingerprint
-`1b7643609be02c00234fa9b3c03d2da902f44fe3eef9c986ee812323dae82c44`;
+`64f10584eb6ff1d4d666294d79b97402d5e39bb261873e5173658e01069a99b9`;
 8 source files; 9 indexed chunks; 2 documentation and 2 code queries;
 `max_chunk_size=2000`; `top_k=10`; 1 warm-up and 30 measured searches per
 query.
 
-**Git commit:** `c18fdd0`
+**Git commit:** `60b4170` with `git_dirty=false` in the generated report.
 
 **Environment:** Provisional local run on `Darwin x86_64` with Python
 `3.10.19`. Functional rankings are recorded below. Build and latency values
@@ -233,12 +233,19 @@ claims are made.
 
 **Results:**
 
-| Run | Metadata weight | Docs R@1 | Docs R@3/5/10 | Docs MRR | Code R@1 | Code R@3/5/10 | Code MRR | Build ms | Median ms | P95 ms |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| M0 | 1.0 | 1.00 | 1.00 | 1.00 | 0.50 | 1.00 | 0.75 | 0.268 | 0.042 | 0.076 |
-| M1 | 1.5 | 0.50 | 1.00 | 0.75 | 0.50 | 1.00 | 0.75 | 0.161 | 0.040 | 0.047 |
-| M2 | 2.0 | 0.50 | 1.00 | 0.75 | 0.00 | 1.00 | 0.50 | 0.149 | 0.034 | 0.036 |
-| M3 | 3.0 | 0.50 | 1.00 | 0.75 | 0.50 | 1.00 | 0.75 | 0.127 | 0.036 | 0.051 |
+| Run | Metadata weight | Docs R@1 | Docs R@3/5/10 | Docs MRR | Code R@1 | Code R@3/5/10 | Code MRR | Build ms | Index bytes | Peak build bytes | Median ms | P95 ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| M0 | 1.0 | 1.00 | 1.00 | 1.00 | 0.50 | 1.00 | 0.75 | 0.226 | 43,730 | 33,160 | 0.036 | 0.042 |
+| M1 | 1.5 | 0.50 | 1.00 | 0.75 | 0.50 | 1.00 | 0.75 | 0.141 | 43,706 | 33,160 | 0.037 | 0.057 |
+| M2 | 2.0 | 0.50 | 1.00 | 0.75 | 0.00 | 1.00 | 0.50 | 0.148 | 43,730 | 33,160 | 0.035 | 0.038 |
+| M3 | 3.0 | 0.50 | 1.00 | 0.75 | 0.50 | 1.00 | 0.75 | 0.129 | 43,730 | 33,160 | 0.035 | 0.044 |
+
+Index size recursively applies `sys.getsizeof` to the object graph retained by
+the index and counts shared objects once. Peak build memory is the incremental
+Python allocation peak from a separately warmed `tracemalloc` build. The
+24-byte M1 index-size difference is object-sharing noise at this scale; all
+four indexes are effectively 42.7 KiB. These methods do not measure native
+library allocations or process RSS.
 
 All four runs retained every relevant source within the first three results,
 so Recall@5 comparison reported 0 improvements, 0 regressions, and 4 unchanged
