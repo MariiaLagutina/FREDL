@@ -380,3 +380,49 @@ raw string length so punctuation and digits do not satisfy the threshold.
 When a lightweight heuristic replaces full linguistic analysis, keep it
 bounded, preserve the original signal, document known errors, and make the
 behavior executable through exact tests.
+
+## 2026-08-25 - Score content and metadata as separate BM25 fields
+
+**Status:** Accepted
+
+### Initial approach considered
+
+Append path, heading, and symbol tokens to chunk content. Approximate metadata
+weight by repeating those tokens before building one BM25 field.
+
+### Why the approach was misleading
+
+Token repetition cannot represent a fractional weight such as `1.5` exactly.
+It also changes term frequency before `k1` saturation, field length before `b`
+normalization, and document frequency inside the content corpus. A score change
+could not then be attributed cleanly to body evidence or structural context.
+
+### Decision
+
+Store immutable `content_terms` and stably deduplicated `metadata_terms` as two
+independent fields. Calculate separate document frequencies, average lengths,
+and BM25 scores. Combine them only after field scoring:
+
+```text
+final_score = content_score + metadata_weight * metadata_score
+```
+
+Expose content, metadata, and final scores on every hit. Use inverted postings
+for each field so query execution visits matching candidates rather than
+recounting all document terms.
+
+### Consequences
+
+- Fractional metadata weights are represented exactly.
+- Structural boosts cannot alter content term frequency or saturation.
+- Field scores explain why a result moved between experiment runs.
+- Metadata and content retain independent length normalization statistics.
+- Two postings maps and two sets of corpus statistics increase index state.
+- A high metadata weight can still promote an attractive but irrelevant path,
+  so fixed docs/code evaluation remains required.
+
+### Lesson
+
+When two evidence sources need different weights, preserve them as explicit
+signals until the final combination step. Do not encode importance through
+data duplication when the scoring model can represent it directly.
