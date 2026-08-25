@@ -201,22 +201,80 @@ results demonstrate.
 
 ## M0 - neutral metadata control
 
-**Status:** Planned
+**Status:** Completed for mini-suite validation only. Not parameter-selection
+evidence.
 
 **Hypothesis:** Metadata terms can improve structural matching without an
 explicit boost, providing a clean control for later weight experiments.
 
 **Changed factor:** None. This is the initial measured baseline.
 
-**Constants:** `k1=1.5`, `b=0.75`, `metadata_weight=1.0`. Remaining constants
-will be recorded after the complete BM25 evaluation command exists.
+**Constants:** `k1=1.5`, `b=0.75`, `metadata_weight=1.0`; fixed `bm25-mini`
+suite; corpus fingerprint
+`1b7643609be02c00234fa9b3c03d2da902f44fe3eef9c986ee812323dae82c44`;
+8 source files; 9 indexed chunks; 2 documentation and 2 code queries;
+`max_chunk_size=2000`; `top_k=10`; 1 warm-up and 30 measured searches per
+query.
 
-**Git commit:** Pending.
+**Git commit:** `c18fdd0`
 
-**Results:** Pending.
+**Environment:** Provisional local run on `Darwin x86_64` with Python
+`3.10.19`. Functional rankings are recorded below. Build and latency values
+must be repeated on the shared Linux evaluation machine before performance
+claims are made.
 
-**Query review:** Pending.
+**Command:**
 
-**Interpretation:** Pending.
+```bash
+.venv/bin/python -m src.evaluation.bm25 \
+  --suite mini \
+  --compare M0 M1 M2 M3
+```
 
-**Decision:** Pending.
+**Results:**
+
+| Run | Metadata weight | Docs R@1 | Docs R@3/5/10 | Docs MRR | Code R@1 | Code R@3/5/10 | Code MRR | Build ms | Median ms | P95 ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| M0 | 1.0 | 1.00 | 1.00 | 1.00 | 0.50 | 1.00 | 0.75 | 0.268 | 0.042 | 0.076 |
+| M1 | 1.5 | 0.50 | 1.00 | 0.75 | 0.50 | 1.00 | 0.75 | 0.161 | 0.040 | 0.047 |
+| M2 | 2.0 | 0.50 | 1.00 | 0.75 | 0.00 | 1.00 | 0.50 | 0.149 | 0.034 | 0.036 |
+| M3 | 3.0 | 0.50 | 1.00 | 0.75 | 0.50 | 1.00 | 0.75 | 0.127 | 0.036 | 0.051 |
+
+All four runs retained every relevant source within the first three results,
+so Recall@5 comparison reported 0 improvements, 0 regressions, and 4 unchanged
+queries for M1, M2, and M3. First-relevant rank was more discriminating:
+
+| Candidate | Improved | Regressed | Unchanged |
+| --- | ---: | ---: | ---: |
+| M1 | 0 | 1 | 3 |
+| M2 | 0 | 2 | 2 |
+| M3 | 1 | 2 | 1 |
+
+**Query review:** M3 moved `code-cache-store` from rank 2 to rank 1 because
+the relevant file-path metadata overcame repeated body terms in a distractor.
+M1 and higher moved `docs-request-retry-delay` from rank 1 to rank 2 because an
+irrelevant filename exactly matched the query. M2 and higher also moved
+`code-request-timeout-validation` from rank 1 to rank 2 for the same reason.
+The separate field scores in verbose output confirmed that these changes came
+from metadata rather than content score changes.
+
+**Interpretation:** The runner detects both intended effects: structural terms
+can rescue a relevant result, and excessive structural weight can make an
+attractive filename dominate relevant content. The mini-suite is deliberately
+small, so Recall@5 saturates and latency is below a meaningful benchmarking
+scale. The suite validates mechanics and explanations; it cannot identify the
+best production weight.
+
+**Decision:** Accept the runner and the mini-suite as reproducible acceptance
+evidence. Keep M0 as the control configuration. Do not select a metadata weight
+from this run. Repeat M0-M3 on the complete, separately labelled documentation
+and code query sets on one Linux machine. Record index size and peak memory once
+those measurements are implemented.
+
+## M1-M3 - mini-suite metadata stress comparison
+
+**Status:** Completed as part of the provisional mini-suite validation above.
+
+**Changed factor:** Only `metadata_weight`: M1=`1.5`, M2=`2.0`, M3=`3.0`.
+All other constants, evidence, results, and the decision are recorded in the M0
+entry so the controlled comparison remains in one place.
