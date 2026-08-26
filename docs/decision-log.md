@@ -426,3 +426,63 @@ recounting all document terms.
 When two evidence sources need different weights, preserve them as explicit
 signals until the final combination step. Do not encode importance through
 data duplication when the scoring model can represent it directly.
+
+## 2026-08-26 - Persist validated lexical inputs instead of runtime internals
+
+**Status:** Accepted
+
+### Initial approach considered
+
+Serialize the complete live `BM25Index` object, including its private postings
+maps and derived statistics, with Python pickle. Loading would restore the
+runtime object graph directly with minimal reconstruction work.
+
+### Why the approach was rejected
+
+Pickle couples stored data to Python class layout and executes a Python object
+deserialization protocol that is inappropriate for an index file that may be
+stale or damaged. Persisting private derived structures would also duplicate
+the source of truth and make schema compatibility difficult to inspect. A
+class refactor could make an old cache fail without a clear reindex message.
+
+### Decision
+
+Persist a versioned, Pydantic-validated JSON snapshot containing the corpus
+fingerprint, all BM25 parameters, exact chunks and section paths, and the
+already-tokenized content and metadata fields. Reconstruct postings and corpus
+statistics from those stored lexical fields at load time; do not reopen,
+reparse, rechunk, or retokenize the corpus. Reject unknown schema versions and
+corpus fingerprint mismatches with an explicit `reindex required` error.
+
+Calculate the corpus fingerprint from every discovered file's canonical
+project-relative path and exact bytes in sorted path order. Save through a
+temporary sibling file and atomically replace the target only after the JSON
+snapshot has been written successfully.
+
+### Consequences
+
+- Stored data is portable, inspectable, and validated before runtime objects
+  are created.
+- Source text, offsets, section metadata, lexical fields, and scoring
+  parameters round-trip without loss.
+- Loading rebuilds derived postings but avoids the much more expensive corpus
+  parsing and tokenization stages.
+- The JSON representation favors transparency over compactness. The full
+  20,096-document snapshot measured 90,700,944 bytes and loaded in 1.874
+  seconds on the Linux development machine.
+- Schema changes require an intentional version update and reindex behavior.
+
+### Verification
+
+On the 1,952-file vLLM corpus with fingerprint
+`1745355afa9ef90effcc67802ad356e439dbf8a5d954e36ad4095d88b05bf1f2`,
+the existing pipeline produced 20,096 lexical documents in 12.994 seconds.
+Saving took 0.878 seconds. Top-10 source rankings for fixed documentation and
+code queries were identical before and after loading. A subprocess test also
+proves that a separate Python process reproduces exact top-k scores.
+
+### Lesson
+
+Persist the smallest validated source of truth that can rebuild runtime state.
+Treat cache compatibility as an explicit contract rather than relying on a
+serializer to preserve private implementation details.
