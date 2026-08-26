@@ -285,3 +285,41 @@ those measurements are implemented.
 **Changed factor:** Only `metadata_weight`: M1=`1.5`, M2=`2.0`, M3=`3.0`.
 All other constants, evidence, results, and the decision are recorded in the M0
 entry so the controlled comparison remains in one place.
+
+## Linux reproduction - M0-M3 mini-suite
+
+**Status:** Completed as a platform reproduction. Not parameter-selection
+evidence.
+
+**Constants:** The fixed `bm25-mini` suite, corpus fingerprint, queries,
+chunking, tokenizers, `top_k`, warm-up, measured searches, and M0-M3 parameters
+match the provisional run above.
+
+**Git commit:** `42f4d0374578733dd2ffb9397e319ff2618d22bc` with
+`git_dirty=false` in `reports/bm25-mini-linux.json`.
+
+**Environment:** Linux `7.0.0-30-generic` on `x86_64` with Python `3.14.4`.
+
+**Results:**
+
+| Run | Build ms | Index bytes | Peak build bytes | Median ms | P95 ms |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| M0 | 0.160 | 44,214 | 34,568 | 0.020 | 0.025 |
+| M1 | 0.079 | 44,166 | 34,480 | 0.020 | 0.036 |
+| M2 | 0.080 | 44,166 | 34,448 | 0.020 | 0.028 |
+| M3 | 0.076 | 44,142 | 34,424 | 0.020 | 0.041 |
+
+**Ranking review:** Functional results were unchanged from the macOS run. All
+four queries remained relevant within top-3 and top-5. M1-M3 each had zero
+Recall@5 improvements, zero regressions, and four unchanged queries against M0.
+First-relevant rank changes also matched exactly: M1=`0/1/3`, M2=`0/2/2`, and
+M3=`1/2/1` for improved/regressed/unchanged.
+
+**Interpretation:** The stable rankings confirm platform-independent functional
+behavior for the fixed suite. Only build time, recursive Python object size,
+peak Python allocations, and median/P95 latency were re-recorded because those
+measurements depend on the runtime and hardware.
+
+**Decision:** Keep M0 as the control and retain the earlier parameter decision.
+Use the Linux report as reproduction evidence, not as justification for a new
+metadata weight.

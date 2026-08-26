@@ -1,0 +1,1156 @@
+{
+  "created_at": "2026-08-26T13:05:55.665324+00:00",
+  "environment": {
+    "machine": "x86_64",
+    "python": "3.14.4",
+    "release": "7.0.0-30-generic",
+    "system": "Linux"
+  },
+  "git_commit": "42f4d0374578733dd2ffb9397e319ff2618d22bc",
+  "git_dirty": false,
+  "runs": [
+    {
+      "build_time_ms": 0.160037,
+      "code_metrics": {
+        "mean_reciprocal_rank": 0.75,
+        "query_count": 2,
+        "recall_at_1": 0.5,
+        "recall_at_10": 1.0,
+        "recall_at_3": 1.0,
+        "recall_at_5": 1.0
+      },
+      "document_count": 9,
+      "documentation_metrics": {
+        "mean_reciprocal_rank": 1.0,
+        "query_count": 2,
+        "recall_at_1": 1.0,
+        "recall_at_10": 1.0,
+        "recall_at_3": 1.0,
+        "recall_at_5": 1.0
+      },
+      "index_size_bytes": 44214,
+      "median_latency_ms": 0.0204605,
+      "p95_latency_ms": 0.02476,
+      "parameters": {
+        "b": 0.75,
+        "k1": 1.5,
+        "metadata_weight": 1.0
+      },
+      "peak_build_memory_bytes": 34568,
+      "queries": [
+        {
+          "hits": [
+            {
+              "content_score": 2.413721134882545,
+              "end": 79,
+              "file_path": "evals/bm25/mini/corpus/docs/cache.md",
+              "metadata_score": 3.356020560045211,
+              "rank": 1,
+              "relevant": true,
+              "score": 5.769741694927756,
+              "start": 0
+            },
+            {
+              "content_score": 3.777830521263008,
+              "end": 115,
+              "file_path": "evals/bm25/mini/corpus/docs/database.md",
+              "metadata_score": 0.0,
+              "rank": 2,
+              "relevant": false,
+              "score": 3.777830521263008,
+              "start": 0
+            },
+            {
+              "content_score": 1.690170059358867,
+              "end": 70,
+              "file_path": "evals/bm25/mini/corpus/src/helpers.py",
+              "metadata_score": 0.0,
+              "rank": 3,
+              "relevant": false,
+              "score": 1.690170059358867,
+              "start": 0
+            },
+            {
+              "content_score": 0.0,
+              "end": 84,
+              "file_path": "evals/bm25/mini/corpus/src/cache_store.py",
+              "metadata_score": 1.3627090128210644,
+              "rank": 4,
+              "relevant": false,
+              "score": 1.3627090128210644,
+              "start": 0
+            }
+          ],
+          "kind": "documentation",
+          "median_latency_ms": 0.0193955,
+          "metrics": {
+            "recall_at_1": 1.0,
+            "recall_at_10": 1.0,
+            "recall_at_3": 1.0,
+            "recall_at_5": 1.0,
+            "reciprocal_rank": 1.0
+          },
+          "p95_latency_ms": 0.02476,
+          "query_id": "docs-cache-configuration",
+          "question": "cache configuration",
+          "sources": [
+            {
+              "file_path": "evals/bm25/mini/corpus/docs/cache.md",
+              "first_character_index": 0,
+              "last_character_index": 79
+            }
+          ]
+        },
+        {
+          "hits": [
+            {
+              "content_score": 5.354414811896541,
+              "end": 78,
+              "file_path": "evals/bm25/mini/corpus/docs/recovery.md",
+              "metadata_score": 0.0,
+              "rank": 1,
+              "relevant": true,
+              "score": 5.354414811896541,
+              "start": 0
+            },
+            {
+              "content_score": 0.0,
+              "end": 66,
+              "file_path": "evals/bm25/mini/corpus/docs/request_retry_delay.md",
+              "metadata_score": 4.730250837688604,
+              "rank": 2,
+              "relevant": false,
+              "score": 4.730250837688604,
+              "start": 0
+            },
+            {
+              "content_score": 0.0,
+              "end": 92,
+              "file_path": "evals/bm25/mini/corpus/src/request_timeout_validation.py",
+              "metadata_score": 1.3124680341963462,
+              "rank": 3,
+              "relevant": false,
+              "score": 1.3124680341963462,
+              "start": 0
+            },
+            {
+              "content_score": 1.2219041620048106,
+              "end": 115,
+              "file_path": "evals/bm25/mini/corpus/src/timeout.py",
+              "metadata_score": 0.0,
+              "rank": 4,
+              "relevant": false,
+              "score": 1.2219041620048106,
+              "start": 0
+            }
+          ],
+          "kind": "documentation",
+          "median_latency_ms": 0.02104,
+          "metrics": {
+            "recall_at_1": 1.0,
+            "recall_at_10": 1.0,
+            "recall_at_3": 1.0,
+            "recall_at_5": 1.0,
+            "reciprocal_rank": 1.0
+          },
+          "p95_latency_ms": 0.035118,
+          "query_id": "docs-request-retry-delay",
+          "question": "request retry delay",
+          "sources": [
+            {
+              "file_path": "evals/bm25/mini/corpus/docs/recovery.md",
+              "first_character_index": 0,
+              "last_character_index": 78
+            }
+          ]
+        },
+        {
+          "hits": [
+            {
+              "content_score": 7.798738973348262,
+              "end": 70,
+              "file_path": "evals/bm25/mini/corpus/src/helpers.py",
+              "metadata_score": 0.0,
+              "rank": 1,
+              "relevant": false,
+              "score": 7.798738973348262,
+              "start": 0
+            },
+            {
+              "content_score": 0.0,
+              "end": 84,
+              "file_path": "evals/bm25/mini/corpus/src/cache_store.py",
+              "metadata_score": 3.227552854296789,
+              "rank": 2,
+              "relevant": true,
+              "score": 3.227552854296789,
+              "start": 0
+            },
+            {
+              "content_score": 1.0401710528740729,
+              "end": 79,
+              "file_path": "evals/bm25/mini/corpus/docs/cache.md",
+              "metadata_score": 1.4169495189824926,
+              "rank": 3,
+              "relevant": false,
+              "score": 2.4571205718565654,
+              "start": 0
+            },
+            {
+              "content_score": 1.6280215200059431,
+              "end": 115,
+              "file_path": "evals/bm25/mini/corpus/docs/database.md",
+              "metadata_score": 0.0,
+              "rank": 4,
+              "relevant": false,
+              "score": 1.6280215200059431,
+              "start": 0
+            }
+          ],
+          "kind": "code",
+          "median_latency_ms": 0.020111999999999998,
+          "metrics": {
+            "recall_at_1": 0.0,
+            "recall_at_10": 1.0,
+            "recall_at_3": 1.0,
+            "recall_at_5": 1.0,
+            "reciprocal_rank": 0.5
+          },
+          "p95_latency_ms": 0.021144,
+          "query_id": "code-cache-store",
+          "question": "cache store implementation",
+          "sources": [
+            {
+              "file_path": "evals/bm25/mini/corpus/src/cache_store.py",
+              "first_character_index": 0,
+              "last_character_index": 85
+            }
+          ]
+        },
+        {
+          "hits": [
+            {
+              "content_score": 4.566213812780467,
+              "end": 115,
+              "file_path": "evals/bm25/mini/corpus/src/timeout.py",
+              "metadata_score": 1.4169495189824926,
+              "rank": 1,
+              "relevant": true,
+              "score": 5.98316333176296,
+              "start": 0
+            },
+            {
+              "content_score": 0.0,
+              "end": 92,
+              "file_path": "evals/bm25/mini/corpus/src/request_timeout_validation.py",
+              "metadata_score": 4.42102599491187,
+              "rank": 2,
+              "relevant": false,
+              "score": 4.42102599491187,
+              "start": 0
+            },
+            {
+              "content_score": 1.4328242198042558,
+              "end": 78,
+              "file_path": "evals/bm25/mini/corpus/docs/recovery.md",
+              "metadata_score": 0.0,
+              "rank": 3,
+              "relevant": false,
+              "score": 1.4328242198042558,
+              "start": 0
+            },
+            {
+              "content_score": 0.0,
+              "end": 66,
+              "file_path": "evals/bm25/mini/corpus/docs/request_retry_delay.md",
+              "metadata_score": 1.2657999434281706,
+              "rank": 4,
+              "relevant": false,
+              "score": 1.2657999434281706,
+              "start": 0
+            }
+          ],
+          "kind": "code",
+          "median_latency_ms": 0.020657500000000002,
+          "metrics": {
+            "recall_at_1": 1.0,
+            "recall_at_10": 1.0,
+            "recall_at_3": 1.0,
+            "recall_at_5": 1.0,
+            "reciprocal_rank": 1.0
+          },
+          "p95_latency_ms": 0.022315,
+          "query_id": "code-request-timeout-validation",
+          "question": "request timeout validation",
+          "sources": [
+            {
+              "file_path": "evals/bm25/mini/corpus/src/timeout.py",
+              "first_character_index": 0,
+              "last_character_index": 116
+            }
+          ]
+        }
+      ],
+      "run_id": "M0",
+      "source_file_count": 8
+    },
+    {
+      "build_time_ms": 0.079346,
+      "code_metrics": {
+        "mean_reciprocal_rank": 0.75,
+        "query_count": 2,
+        "recall_at_1": 0.5,
+        "recall_at_10": 1.0,
+        "recall_at_3": 1.0,
+        "recall_at_5": 1.0
+      },
+      "document_count": 9,
+      "documentation_metrics": {
+        "mean_reciprocal_rank": 0.75,
+        "query_count": 2,
+        "recall_at_1": 0.5,
+        "recall_at_10": 1.0,
+        "recall_at_3": 1.0,
+        "recall_at_5": 1.0
+      },
+      "index_size_bytes": 44166,
+      "median_latency_ms": 0.02043,
+      "p95_latency_ms": 0.035573,
+      "parameters": {
+        "b": 0.75,
+        "k1": 1.5,
+        "metadata_weight": 1.5
+      },
+      "peak_build_memory_bytes": 34480,
+      "queries": [
+        {
+          "hits": [
+            {
+              "content_score": 2.413721134882545,
+              "end": 79,
+              "file_path": "evals/bm25/mini/corpus/docs/cache.md",
+              "metadata_score": 3.356020560045211,
+              "rank": 1,
+              "relevant": true,
+              "score": 7.447751974950362,
+              "start": 0
+            },
+            {
+              "content_score": 3.777830521263008,
+              "end": 115,
+              "file_path": "evals/bm25/mini/corpus/docs/database.md",
+              "metadata_score": 0.0,
+              "rank": 2,
+              "relevant": false,
+              "score": 3.777830521263008,
+              "start": 0
+            },
+            {
+              "content_score": 0.0,
+              "end": 84,
+              "file_path": "evals/bm25/mini/corpus/src/cache_store.py",
+              "metadata_score": 1.3627090128210644,
+              "rank": 3,
+              "relevant": false,
+              "score": 2.044063519231597,
+              "start": 0
+            },
+            {
+              "content_score": 1.690170059358867,
+              "end": 70,
+              "file_path": "evals/bm25/mini/corpus/src/helpers.py",
+              "metadata_score": 0.0,
+              "rank": 4,
+              "relevant": false,
+              "score": 1.690170059358867,
+              "start": 0
+            }
+          ],
+          "kind": "documentation",
+          "median_latency_ms": 0.020546000000000002,
+          "metrics": {
+            "recall_at_1": 1.0,
+            "recall_at_10": 1.0,
+            "recall_at_3": 1.0,
+            "recall_at_5": 1.0,
+            "reciprocal_rank": 1.0
+          },
+          "p95_latency_ms": 0.052244,
+          "query_id": "docs-cache-configuration",
+          "question": "cache configuration",
+          "sources": [
+            {
+              "file_path": "evals/bm25/mini/corpus/docs/cache.md",
+              "first_character_index": 0,
+              "last_character_index": 79
+            }
+          ]
+        },
+        {
+          "hits": [
+            {
+              "content_score": 0.0,
+              "end": 66,
+              "file_path": "evals/bm25/mini/corpus/docs/request_retry_delay.md",
+              "metadata_score": 4.730250837688604,
+              "rank": 1,
+              "relevant": false,
+              "score": 7.095376256532905,
+              "start": 0
+            },
+            {
+              "content_score": 5.354414811896541,
+              "end": 78,
+              "file_path": "evals/bm25/mini/corpus/docs/recovery.md",
+              "metadata_score": 0.0,
+              "rank": 2,
+              "relevant": true,
+              "score": 5.354414811896541,
+              "start": 0
+            },
+            {
+              "content_score": 0.0,
+              "end": 92,
+              "file_path": "evals/bm25/mini/corpus/src/request_timeout_validation.py",
+              "metadata_score": 1.3124680341963462,
+              "rank": 3,
+              "relevant": false,
+              "score": 1.9687020512945193,
+              "start": 0
+            },
+            {
+              "content_score": 1.2219041620048106,
+              "end": 115,
+              "file_path": "evals/bm25/mini/corpus/src/timeout.py",
+              "metadata_score": 0.0,
+              "rank": 4,
+              "relevant": false,
+              "score": 1.2219041620048106,
+              "start": 0
+            }
+          ],
+          "kind": "documentation",
+          "median_latency_ms": 0.020283500000000003,
+          "metrics": {
+            "recall_at_1": 0.0,
+            "recall_at_10": 1.0,
+            "recall_at_3": 1.0,
+            "recall_at_5": 1.0,
+            "reciprocal_rank": 0.5
+          },
+          "p95_latency_ms": 0.035573,
+          "query_id": "docs-request-retry-delay",
+          "question": "request retry delay",
+          "sources": [
+            {
+              "file_path": "evals/bm25/mini/corpus/docs/recovery.md",
+              "first_character_index": 0,
+              "last_character_index": 78
+            }
+          ]
+        },
+        {
+          "hits": [
+            {
+              "content_score": 7.798738973348262,
+              "end": 70,
+              "file_path": "evals/bm25/mini/corpus/src/helpers.py",
+              "metadata_score": 0.0,
+              "rank": 1,
+              "relevant": false,
+              "score": 7.798738973348262,
+              "start": 0
+            },
+            {
+              "content_score": 0.0,
+              "end": 84,
+              "file_path": "evals/bm25/mini/corpus/src/cache_store.py",
+              "metadata_score": 3.227552854296789,
+              "rank": 2,
+              "relevant": true,
+              "score": 4.841329281445184,
+              "start": 0
+            },
+            {
+              "content_score": 1.0401710528740729,
+              "end": 79,
+              "file_path": "evals/bm25/mini/corpus/docs/cache.md",
+              "metadata_score": 1.4169495189824926,
+              "rank": 3,
+              "relevant": false,
+              "score": 3.165595331347812,
+              "start": 0
+            },
+            {
+              "content_score": 1.6280215200059431,
+              "end": 115,
+              "file_path": "evals/bm25/mini/corpus/docs/database.md",
+              "metadata_score": 0.0,
+              "rank": 4,
+              "relevant": false,
+              "score": 1.6280215200059431,
+              "start": 0
+            }
+          ],
+          "kind": "code",
+          "median_latency_ms": 0.0200295,
+          "metrics": {
+            "recall_at_1": 0.0,
+            "recall_at_10": 1.0,
+            "recall_at_3": 1.0,
+            "recall_at_5": 1.0,
+            "reciprocal_rank": 0.5
+          },
+          "p95_latency_ms": 0.021719,
+          "query_id": "code-cache-store",
+          "question": "cache store implementation",
+          "sources": [
+            {
+              "file_path": "evals/bm25/mini/corpus/src/cache_store.py",
+              "first_character_index": 0,
+              "last_character_index": 85
+            }
+          ]
+        },
+        {
+          "hits": [
+            {
+              "content_score": 4.566213812780467,
+              "end": 115,
+              "file_path": "evals/bm25/mini/corpus/src/timeout.py",
+              "metadata_score": 1.4169495189824926,
+              "rank": 1,
+              "relevant": true,
+              "score": 6.691638091254206,
+              "start": 0
+            },
+            {
+              "content_score": 0.0,
+              "end": 92,
+              "file_path": "evals/bm25/mini/corpus/src/request_timeout_validation.py",
+              "metadata_score": 4.42102599491187,
+              "rank": 2,
+              "relevant": false,
+              "score": 6.631538992367806,
+              "start": 0
+            },
+            {
+              "content_score": 0.0,
+              "end": 66,
+              "file_path": "evals/bm25/mini/corpus/docs/request_retry_delay.md",
+              "metadata_score": 1.2657999434281706,
+              "rank": 3,
+              "relevant": false,
+              "score": 1.898699915142256,
+              "start": 0
+            },
+            {
+              "content_score": 1.4328242198042558,
+              "end": 78,
+              "file_path": "evals/bm25/mini/corpus/docs/recovery.md",
+              "metadata_score": 0.0,
+              "rank": 4,
+              "relevant": false,
+              "score": 1.4328242198042558,
+              "start": 0
+            }
+          ],
+          "kind": "code",
+          "median_latency_ms": 0.020636,
+          "metrics": {
+            "recall_at_1": 1.0,
+            "recall_at_10": 1.0,
+            "recall_at_3": 1.0,
+            "recall_at_5": 1.0,
+            "reciprocal_rank": 1.0
+          },
+          "p95_latency_ms": 0.021483,
+          "query_id": "code-request-timeout-validation",
+          "question": "request timeout validation",
+          "sources": [
+            {
+              "file_path": "evals/bm25/mini/corpus/src/timeout.py",
+              "first_character_index": 0,
+              "last_character_index": 116
+            }
+          ]
+        }
+      ],
+      "run_id": "M1",
+      "source_file_count": 8
+    },
+    {
+      "build_time_ms": 0.079864,
+      "code_metrics": {
+        "mean_reciprocal_rank": 0.5,
+        "query_count": 2,
+        "recall_at_1": 0.0,
+        "recall_at_10": 1.0,
+        "recall_at_3": 1.0,
+        "recall_at_5": 1.0
+      },
+      "document_count": 9,
+      "documentation_metrics": {
+        "mean_reciprocal_rank": 0.75,
+        "query_count": 2,
+        "recall_at_1": 0.5,
+        "recall_at_10": 1.0,
+        "recall_at_3": 1.0,
+        "recall_at_5": 1.0
+      },
+      "index_size_bytes": 44166,
+      "median_latency_ms": 0.0201285,
+      "p95_latency_ms": 0.027957,
+      "parameters": {
+        "b": 0.75,
+        "k1": 1.5,
+        "metadata_weight": 2.0
+      },
+      "peak_build_memory_bytes": 34448,
+      "queries": [
+        {
+          "hits": [
+            {
+              "content_score": 2.413721134882545,
+              "end": 79,
+              "file_path": "evals/bm25/mini/corpus/docs/cache.md",
+              "metadata_score": 3.356020560045211,
+              "rank": 1,
+              "relevant": true,
+              "score": 9.125762254972967,
+              "start": 0
+            },
+            {
+              "content_score": 3.777830521263008,
+              "end": 115,
+              "file_path": "evals/bm25/mini/corpus/docs/database.md",
+              "metadata_score": 0.0,
+              "rank": 2,
+              "relevant": false,
+              "score": 3.777830521263008,
+              "start": 0
+            },
+            {
+              "content_score": 0.0,
+              "end": 84,
+              "file_path": "evals/bm25/mini/corpus/src/cache_store.py",
+              "metadata_score": 1.3627090128210644,
+              "rank": 3,
+              "relevant": false,
+              "score": 2.7254180256421288,
+              "start": 0
+            },
+            {
+              "content_score": 1.690170059358867,
+              "end": 70,
+              "file_path": "evals/bm25/mini/corpus/src/helpers.py",
+              "metadata_score": 0.0,
+              "rank": 4,
+              "relevant": false,
+              "score": 1.690170059358867,
+              "start": 0
+            }
+          ],
+          "kind": "documentation",
+          "median_latency_ms": 0.016896500000000002,
+          "metrics": {
+            "recall_at_1": 1.0,
+            "recall_at_10": 1.0,
+            "recall_at_3": 1.0,
+            "recall_at_5": 1.0,
+            "reciprocal_rank": 1.0
+          },
+          "p95_latency_ms": 0.01836,
+          "query_id": "docs-cache-configuration",
+          "question": "cache configuration",
+          "sources": [
+            {
+              "file_path": "evals/bm25/mini/corpus/docs/cache.md",
+              "first_character_index": 0,
+              "last_character_index": 79
+            }
+          ]
+        },
+        {
+          "hits": [
+            {
+              "content_score": 0.0,
+              "end": 66,
+              "file_path": "evals/bm25/mini/corpus/docs/request_retry_delay.md",
+              "metadata_score": 4.730250837688604,
+              "rank": 1,
+              "relevant": false,
+              "score": 9.460501675377207,
+              "start": 0
+            },
+            {
+              "content_score": 5.354414811896541,
+              "end": 78,
+              "file_path": "evals/bm25/mini/corpus/docs/recovery.md",
+              "metadata_score": 0.0,
+              "rank": 2,
+              "relevant": true,
+              "score": 5.354414811896541,
+              "start": 0
+            },
+            {
+              "content_score": 0.0,
+              "end": 92,
+              "file_path": "evals/bm25/mini/corpus/src/request_timeout_validation.py",
+              "metadata_score": 1.3124680341963462,
+              "rank": 3,
+              "relevant": false,
+              "score": 2.6249360683926923,
+              "start": 0
+            },
+            {
+              "content_score": 1.2219041620048106,
+              "end": 115,
+              "file_path": "evals/bm25/mini/corpus/src/timeout.py",
+              "metadata_score": 0.0,
+              "rank": 4,
+              "relevant": false,
+              "score": 1.2219041620048106,
+              "start": 0
+            }
+          ],
+          "kind": "documentation",
+          "median_latency_ms": 0.0206505,
+          "metrics": {
+            "recall_at_1": 0.0,
+            "recall_at_10": 1.0,
+            "recall_at_3": 1.0,
+            "recall_at_5": 1.0,
+            "reciprocal_rank": 0.5
+          },
+          "p95_latency_ms": 0.034868,
+          "query_id": "docs-request-retry-delay",
+          "question": "request retry delay",
+          "sources": [
+            {
+              "file_path": "evals/bm25/mini/corpus/docs/recovery.md",
+              "first_character_index": 0,
+              "last_character_index": 78
+            }
+          ]
+        },
+        {
+          "hits": [
+            {
+              "content_score": 7.798738973348262,
+              "end": 70,
+              "file_path": "evals/bm25/mini/corpus/src/helpers.py",
+              "metadata_score": 0.0,
+              "rank": 1,
+              "relevant": false,
+              "score": 7.798738973348262,
+              "start": 0
+            },
+            {
+              "content_score": 0.0,
+              "end": 84,
+              "file_path": "evals/bm25/mini/corpus/src/cache_store.py",
+              "metadata_score": 3.227552854296789,
+              "rank": 2,
+              "relevant": true,
+              "score": 6.455105708593578,
+              "start": 0
+            },
+            {
+              "content_score": 1.0401710528740729,
+              "end": 79,
+              "file_path": "evals/bm25/mini/corpus/docs/cache.md",
+              "metadata_score": 1.4169495189824926,
+              "rank": 3,
+              "relevant": false,
+              "score": 3.8740700908390577,
+              "start": 0
+            },
+            {
+              "content_score": 1.6280215200059431,
+              "end": 115,
+              "file_path": "evals/bm25/mini/corpus/docs/database.md",
+              "metadata_score": 0.0,
+              "rank": 4,
+              "relevant": false,
+              "score": 1.6280215200059431,
+              "start": 0
+            }
+          ],
+          "kind": "code",
+          "median_latency_ms": 0.0200445,
+          "metrics": {
+            "recall_at_1": 0.0,
+            "recall_at_10": 1.0,
+            "recall_at_3": 1.0,
+            "recall_at_5": 1.0,
+            "reciprocal_rank": 0.5
+          },
+          "p95_latency_ms": 0.039353,
+          "query_id": "code-cache-store",
+          "question": "cache store implementation",
+          "sources": [
+            {
+              "file_path": "evals/bm25/mini/corpus/src/cache_store.py",
+              "first_character_index": 0,
+              "last_character_index": 85
+            }
+          ]
+        },
+        {
+          "hits": [
+            {
+              "content_score": 0.0,
+              "end": 92,
+              "file_path": "evals/bm25/mini/corpus/src/request_timeout_validation.py",
+              "metadata_score": 4.42102599491187,
+              "rank": 1,
+              "relevant": false,
+              "score": 8.84205198982374,
+              "start": 0
+            },
+            {
+              "content_score": 4.566213812780467,
+              "end": 115,
+              "file_path": "evals/bm25/mini/corpus/src/timeout.py",
+              "metadata_score": 1.4169495189824926,
+              "rank": 2,
+              "relevant": true,
+              "score": 7.400112850745453,
+              "start": 0
+            },
+            {
+              "content_score": 0.0,
+              "end": 66,
+              "file_path": "evals/bm25/mini/corpus/docs/request_retry_delay.md",
+              "metadata_score": 1.2657999434281706,
+              "rank": 3,
+              "relevant": false,
+              "score": 2.531599886856341,
+              "start": 0
+            },
+            {
+              "content_score": 1.4328242198042558,
+              "end": 78,
+              "file_path": "evals/bm25/mini/corpus/docs/recovery.md",
+              "metadata_score": 0.0,
+              "rank": 4,
+              "relevant": false,
+              "score": 1.4328242198042558,
+              "start": 0
+            }
+          ],
+          "kind": "code",
+          "median_latency_ms": 0.020208,
+          "metrics": {
+            "recall_at_1": 0.0,
+            "recall_at_10": 1.0,
+            "recall_at_3": 1.0,
+            "recall_at_5": 1.0,
+            "reciprocal_rank": 0.5
+          },
+          "p95_latency_ms": 0.020705,
+          "query_id": "code-request-timeout-validation",
+          "question": "request timeout validation",
+          "sources": [
+            {
+              "file_path": "evals/bm25/mini/corpus/src/timeout.py",
+              "first_character_index": 0,
+              "last_character_index": 116
+            }
+          ]
+        }
+      ],
+      "run_id": "M2",
+      "source_file_count": 8
+    },
+    {
+      "build_time_ms": 0.076154,
+      "code_metrics": {
+        "mean_reciprocal_rank": 0.75,
+        "query_count": 2,
+        "recall_at_1": 0.5,
+        "recall_at_10": 1.0,
+        "recall_at_3": 1.0,
+        "recall_at_5": 1.0
+      },
+      "document_count": 9,
+      "documentation_metrics": {
+        "mean_reciprocal_rank": 0.75,
+        "query_count": 2,
+        "recall_at_1": 0.5,
+        "recall_at_10": 1.0,
+        "recall_at_3": 1.0,
+        "recall_at_5": 1.0
+      },
+      "index_size_bytes": 44142,
+      "median_latency_ms": 0.020038,
+      "p95_latency_ms": 0.040822,
+      "parameters": {
+        "b": 0.75,
+        "k1": 1.5,
+        "metadata_weight": 3.0
+      },
+      "peak_build_memory_bytes": 34424,
+      "queries": [
+        {
+          "hits": [
+            {
+              "content_score": 2.413721134882545,
+              "end": 79,
+              "file_path": "evals/bm25/mini/corpus/docs/cache.md",
+              "metadata_score": 3.356020560045211,
+              "rank": 1,
+              "relevant": true,
+              "score": 12.481782815018178,
+              "start": 0
+            },
+            {
+              "content_score": 0.0,
+              "end": 84,
+              "file_path": "evals/bm25/mini/corpus/src/cache_store.py",
+              "metadata_score": 1.3627090128210644,
+              "rank": 2,
+              "relevant": false,
+              "score": 4.088127038463194,
+              "start": 0
+            },
+            {
+              "content_score": 3.777830521263008,
+              "end": 115,
+              "file_path": "evals/bm25/mini/corpus/docs/database.md",
+              "metadata_score": 0.0,
+              "rank": 3,
+              "relevant": false,
+              "score": 3.777830521263008,
+              "start": 0
+            },
+            {
+              "content_score": 1.690170059358867,
+              "end": 70,
+              "file_path": "evals/bm25/mini/corpus/src/helpers.py",
+              "metadata_score": 0.0,
+              "rank": 4,
+              "relevant": false,
+              "score": 1.690170059358867,
+              "start": 0
+            }
+          ],
+          "kind": "documentation",
+          "median_latency_ms": 0.016821,
+          "metrics": {
+            "recall_at_1": 1.0,
+            "recall_at_10": 1.0,
+            "recall_at_3": 1.0,
+            "recall_at_5": 1.0,
+            "reciprocal_rank": 1.0
+          },
+          "p95_latency_ms": 0.018456,
+          "query_id": "docs-cache-configuration",
+          "question": "cache configuration",
+          "sources": [
+            {
+              "file_path": "evals/bm25/mini/corpus/docs/cache.md",
+              "first_character_index": 0,
+              "last_character_index": 79
+            }
+          ]
+        },
+        {
+          "hits": [
+            {
+              "content_score": 0.0,
+              "end": 66,
+              "file_path": "evals/bm25/mini/corpus/docs/request_retry_delay.md",
+              "metadata_score": 4.730250837688604,
+              "rank": 1,
+              "relevant": false,
+              "score": 14.19075251306581,
+              "start": 0
+            },
+            {
+              "content_score": 5.354414811896541,
+              "end": 78,
+              "file_path": "evals/bm25/mini/corpus/docs/recovery.md",
+              "metadata_score": 0.0,
+              "rank": 2,
+              "relevant": true,
+              "score": 5.354414811896541,
+              "start": 0
+            },
+            {
+              "content_score": 0.0,
+              "end": 92,
+              "file_path": "evals/bm25/mini/corpus/src/request_timeout_validation.py",
+              "metadata_score": 1.3124680341963462,
+              "rank": 3,
+              "relevant": false,
+              "score": 3.9374041025890385,
+              "start": 0
+            },
+            {
+              "content_score": 1.2219041620048106,
+              "end": 115,
+              "file_path": "evals/bm25/mini/corpus/src/timeout.py",
+              "metadata_score": 0.0,
+              "rank": 4,
+              "relevant": false,
+              "score": 1.2219041620048106,
+              "start": 0
+            }
+          ],
+          "kind": "documentation",
+          "median_latency_ms": 0.019989,
+          "metrics": {
+            "recall_at_1": 0.0,
+            "recall_at_10": 1.0,
+            "recall_at_3": 1.0,
+            "recall_at_5": 1.0,
+            "reciprocal_rank": 0.5
+          },
+          "p95_latency_ms": 0.021441,
+          "query_id": "docs-request-retry-delay",
+          "question": "request retry delay",
+          "sources": [
+            {
+              "file_path": "evals/bm25/mini/corpus/docs/recovery.md",
+              "first_character_index": 0,
+              "last_character_index": 78
+            }
+          ]
+        },
+        {
+          "hits": [
+            {
+              "content_score": 0.0,
+              "end": 84,
+              "file_path": "evals/bm25/mini/corpus/src/cache_store.py",
+              "metadata_score": 3.227552854296789,
+              "rank": 1,
+              "relevant": true,
+              "score": 9.682658562890367,
+              "start": 0
+            },
+            {
+              "content_score": 7.798738973348262,
+              "end": 70,
+              "file_path": "evals/bm25/mini/corpus/src/helpers.py",
+              "metadata_score": 0.0,
+              "rank": 2,
+              "relevant": false,
+              "score": 7.798738973348262,
+              "start": 0
+            },
+            {
+              "content_score": 1.0401710528740729,
+              "end": 79,
+              "file_path": "evals/bm25/mini/corpus/docs/cache.md",
+              "metadata_score": 1.4169495189824926,
+              "rank": 3,
+              "relevant": false,
+              "score": 5.291019609821551,
+              "start": 0
+            },
+            {
+              "content_score": 1.6280215200059431,
+              "end": 115,
+              "file_path": "evals/bm25/mini/corpus/docs/database.md",
+              "metadata_score": 0.0,
+              "rank": 4,
+              "relevant": false,
+              "score": 1.6280215200059431,
+              "start": 0
+            }
+          ],
+          "kind": "code",
+          "median_latency_ms": 0.020138,
+          "metrics": {
+            "recall_at_1": 1.0,
+            "recall_at_10": 1.0,
+            "recall_at_3": 1.0,
+            "recall_at_5": 1.0,
+            "reciprocal_rank": 1.0
+          },
+          "p95_latency_ms": 0.040822,
+          "query_id": "code-cache-store",
+          "question": "cache store implementation",
+          "sources": [
+            {
+              "file_path": "evals/bm25/mini/corpus/src/cache_store.py",
+              "first_character_index": 0,
+              "last_character_index": 85
+            }
+          ]
+        },
+        {
+          "hits": [
+            {
+              "content_score": 0.0,
+              "end": 92,
+              "file_path": "evals/bm25/mini/corpus/src/request_timeout_validation.py",
+              "metadata_score": 4.42102599491187,
+              "rank": 1,
+              "relevant": false,
+              "score": 13.263077984735611,
+              "start": 0
+            },
+            {
+              "content_score": 4.566213812780467,
+              "end": 115,
+              "file_path": "evals/bm25/mini/corpus/src/timeout.py",
+              "metadata_score": 1.4169495189824926,
+              "rank": 2,
+              "relevant": true,
+              "score": 8.817062369727946,
+              "start": 0
+            },
+            {
+              "content_score": 0.0,
+              "end": 66,
+              "file_path": "evals/bm25/mini/corpus/docs/request_retry_delay.md",
+              "metadata_score": 1.2657999434281706,
+              "rank": 3,
+              "relevant": false,
+              "score": 3.797399830284512,
+              "start": 0
+            },
+            {
+              "content_score": 1.4328242198042558,
+              "end": 78,
+              "file_path": "evals/bm25/mini/corpus/docs/recovery.md",
+              "metadata_score": 0.0,
+              "rank": 4,
+              "relevant": false,
+              "score": 1.4328242198042558,
+              "start": 0
+            }
+          ],
+          "kind": "code",
+          "median_latency_ms": 0.021231,
+          "metrics": {
+            "recall_at_1": 0.0,
+            "recall_at_10": 1.0,
+            "recall_at_3": 1.0,
+            "recall_at_5": 1.0,
+            "reciprocal_rank": 0.5
+          },
+          "p95_latency_ms": 0.067474,
+          "query_id": "code-request-timeout-validation",
+          "question": "request timeout validation",
+          "sources": [
+            {
+              "file_path": "evals/bm25/mini/corpus/src/timeout.py",
+              "first_character_index": 0,
+              "last_character_index": 116
+            }
+          ]
+        }
+      ],
+      "run_id": "M3",
+      "source_file_count": 8
+    }
+  ],
+  "schema_version": 1,
+  "suite_fingerprint": "64f10584eb6ff1d4d666294d79b97402d5e39bb261873e5173658e01069a99b9",
+  "suite_name": "bm25-mini"
+}
