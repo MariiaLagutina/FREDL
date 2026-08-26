@@ -2,6 +2,8 @@
 
 import json
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
@@ -78,3 +80,30 @@ def test_load_requires_reindex_for_changed_corpus(tmp_path: Path) -> None:
 
     with pytest.raises(IncompatibleIndexError, match="corpus differs"):
         store.load("b" * 64)
+
+
+def test_new_process_load_preserves_top_k(tmp_path: Path) -> None:
+    """A separate Python process reproduces the persisted ranking."""
+    path = tmp_path / "bm25-index.json"
+    IndexStore(path).save(_index(), FINGERPRINT)
+    script = """
+import json
+import sys
+from pathlib import Path
+from src.retrieval.index_store import IndexStore
+
+index = IndexStore(Path(sys.argv[1])).load(sys.argv[2])
+hits = index.search(("cache",), top_k=2)
+print(json.dumps([[hit.document.chunk.file_path, hit.score] for hit in hits]))
+"""
+
+    completed = subprocess.run(
+        [sys.executable, "-c", script, str(path), FINGERPRINT],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert json.loads(completed.stdout) == [
+        [file_path, score] for file_path, score in _ranking(_index())
+    ]
