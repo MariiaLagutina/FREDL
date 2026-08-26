@@ -61,6 +61,11 @@ class BM25Index:
         return self._parameters
 
     @property
+    def documents(self) -> tuple[BM25Document, ...]:
+        """Return immutable indexed documents for persistence and audits."""
+        return self._documents
+
+    @property
     def statistics(self) -> BM25CorpusStatistics:
         """Return immutable values calculated from the indexed corpus."""
         return self._statistics
