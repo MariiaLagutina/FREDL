@@ -3,8 +3,8 @@
 import pytest
 
 from src.ingestion import Chunk
-from src.retrieval import select_sources
-from src.retrieval.bm25 import BM25Document, BM25Hit
+from src.retrieval import search_sources, select_sources
+from src.retrieval.bm25 import BM25Document, BM25Hit, BM25Index
 
 
 def _hit(file_path: str, start: int, text: str, score: float) -> BM25Hit:
@@ -52,3 +52,37 @@ def test_select_sources_rejects_non_positive_k() -> None:
     """The result boundary rejects a request for no result slots."""
     with pytest.raises(ValueError, match="k must be greater than zero"):
         select_sources([], k=0)
+
+
+def test_search_sources_returns_public_sources_in_ranking_order() -> None:
+    """Raw-query search hides internal BM25 scores and documents."""
+    index = BM25Index(
+        [
+            _hit("docs/cache.md", 0, "term term", 2.0).document,
+            _hit("src/cache.py", 10, "term", 1.0).document,
+        ]
+    )
+
+    sources = search_sources(index, "term", k=2)
+
+    assert [source.file_path for source in sources] == [
+        "docs/cache.md",
+        "src/cache.py",
+    ]
+    assert sources[1].first_character_index == 10
+    assert sources[1].last_character_index == 14
+
+
+def test_search_sources_returns_empty_list_for_empty_query() -> None:
+    """An empty raw query has no fabricated source matches."""
+    index = BM25Index([_hit("src/cache.py", 0, "term", 1.0).document])
+
+    assert search_sources(index, "   ", k=1) == []
+
+
+def test_search_sources_rejects_non_positive_k() -> None:
+    """The public search boundary reports its own invalid-limit error."""
+    index = BM25Index([_hit("src/cache.py", 0, "term", 1.0).document])
+
+    with pytest.raises(ValueError, match="Search k"):
+        search_sources(index, "term", k=0)

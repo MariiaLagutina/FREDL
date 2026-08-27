@@ -3,7 +3,20 @@
 from collections.abc import Sequence
 
 from src.models import MinimalSource
-from src.retrieval.bm25 import BM25Hit
+from src.retrieval.bm25 import BM25Hit, BM25Index, BM25Retriever
+
+
+def search_sources(
+    index: BM25Index,
+    query: str,
+    k: int = 5,
+) -> list[MinimalSource]:
+    """Search one raw query against a prebuilt index."""
+    if k <= 0:
+        raise ValueError("Search k must be greater than zero")
+
+    ranked_hits = BM25Retriever(index).search(query, top_k=k)
+    return select_sources(ranked_hits, k)
 
 
 def select_sources(
