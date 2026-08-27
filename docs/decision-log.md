@@ -486,3 +486,37 @@ proves that a separate Python process reproduces exact top-k scores.
 Persist the smallest validated source of truth that can rebuild runtime state.
 Treat cache compatibility as an explicit contract rather than relying on a
 serializer to preserve private implementation details.
+
+## 2026-08-27 - Use domain names for retrieval output models
+
+**Status:** Accepted
+
+### Initial approach
+
+Name the output models `MinimalSearchResults`, `StudentSearchResults`,
+`MinimalAnswer`, and `StudentSearchResultsAndAnswer`, following the terminology
+of the original assignment schema.
+
+### Why the approach was reconsidered
+
+The `Student` prefix describes who produced the data rather than what the data
+represents. It makes reusable retrieval components appear tied to coursework
+and gives portfolio readers less information about whether a model represents
+one query or a complete retrieval run. `Minimal` is similarly ambiguous at the
+Python API boundary.
+
+### Decision
+
+Use `QuerySearchResult` for one query and `RetrievalResults` for a complete
+retrieval run. Use `QueryAnswer` and `RetrievalResultsWithAnswers` for the
+corresponding answer-bearing models. Preserve the exact assignment-compatible
+JSON field names and structure; only Python class names change.
+
+### Consequences
+
+- Public Python APIs communicate retrieval concepts without coursework-specific
+  terminology.
+- Singular and batch result types are easier to distinguish.
+- Serialized JSON remains compatible with the required submission schema.
+- References to the former class names must be updated together during the
+  rename.
