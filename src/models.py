@@ -48,7 +48,7 @@ class QueryAnswer(QuerySearchResult):
 
 
 class RetrievalResults(BaseModel):
-    """Represent batch retrieval output produced by the student pipeline."""
+    """Represent batch retrieval output produced by the search pipeline."""
 
     search_results: list[QuerySearchResult]
     k: int
