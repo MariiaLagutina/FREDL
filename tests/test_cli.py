@@ -10,6 +10,7 @@ from src.retrieval.validation import SourceValidationReport
 
 
 FINGERPRINT = "a" * 64
+PIPELINE_FINGERPRINT = "b" * 64
 
 
 def test_search_command_routes_one_raw_query() -> None:
@@ -19,6 +20,10 @@ def test_search_command_routes_one_raw_query() -> None:
             "src.cli._current_corpus_fingerprint",
             return_value=FINGERPRINT,
         ),
+        patch(
+            "src.cli._current_pipeline_fingerprint",
+            return_value=PIPELINE_FINGERPRINT,
+        ),
         patch("src.cli.run_stored_search", return_value=[]) as run_search,
     ):
         main(["search", "Where is the cache?", "--k", "3"])
@@ -26,6 +31,7 @@ def test_search_command_routes_one_raw_query() -> None:
     run_search.assert_called_once_with(
         Path("data/processed/bm25-index.json"),
         FINGERPRINT,
+        PIPELINE_FINGERPRINT,
         "Where is the cache?",
         3,
     )
@@ -37,6 +43,10 @@ def test_search_dataset_uses_assignment_paths_and_output_name() -> None:
         patch(
             "src.cli._current_corpus_fingerprint",
             return_value=FINGERPRINT,
+        ),
+        patch(
+            "src.cli._current_pipeline_fingerprint",
+            return_value=PIPELINE_FINGERPRINT,
         ),
         patch("src.cli.run_stored_retrieval") as run_retrieval,
     ):
@@ -55,6 +65,7 @@ def test_search_dataset_uses_assignment_paths_and_output_name() -> None:
     run_retrieval.assert_called_once_with(
         Path("data/processed/bm25-index.json"),
         FINGERPRINT,
+        PIPELINE_FINGERPRINT,
         Path("data/datasets/questions.json"),
         Path("data/output/search_results/Public/questions.json"),
         3,

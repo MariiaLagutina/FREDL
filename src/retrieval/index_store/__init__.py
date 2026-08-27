@@ -9,6 +9,7 @@ from src.retrieval.index_store.pipeline import (
 from src.retrieval.index_store.store import (
     IncompatibleIndexError,
     IndexStore,
+    SCHEMA_VERSION,
 )
 
 __all__ = [
@@ -19,4 +20,5 @@ __all__ = [
     "IndexBuild",
     "IndexStore",
     "PipelineConfig",
+    "SCHEMA_VERSION",
 ]
