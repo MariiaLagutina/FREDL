@@ -1,5 +1,6 @@
 """Public source-validation report models."""
 
+from src.retrieval.validation.corpus import load_source_texts
 from src.retrieval.validation.invariants import (
     MAX_SOURCE_LENGTH,
     validate_source,
@@ -16,6 +17,7 @@ __all__ = [
     "SourceValidationIssueKind",
     "SourceValidationReport",
     "MAX_SOURCE_LENGTH",
+    "load_source_texts",
     "validate_source",
     "validate_retrieval_results",
 ]
