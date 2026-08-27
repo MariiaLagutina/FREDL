@@ -37,13 +37,16 @@ Implemented:
 - code-aware identifier expansion and conservative documentation tokenization;
 - content and structural metadata terms stored as separate BM25 fields;
 - an inverted BM25 index with stable ranking and inspectable field scores;
-- a versioned, corpus-bound JSON snapshot for reusable BM25 indexes;
+- a versioned JSON snapshot bound to both corpus content and the declared
+  indexing pipeline;
 - mixed natural-language and code query tokenization;
 - validated single-query and batch retrieval with exact source coordinates;
 - assignment-compatible Python Fire commands for single-query and batch
   retrieval;
 - concise CLI failures for invalid input, missing files, malformed JSON, and
   incompatible indexes;
+- full-dataset validation of source paths, half-open character ranges, and the
+  2,000-character source limit;
 - Moulinette-compatible source IoU, Recall@K, and MRR metrics;
 - a fixed documentation/code mini-suite and BM25 experiment CLI;
 - optional JSON reports with corpus, Git, environment, latency, and memory
@@ -52,7 +55,7 @@ Implemented:
 
 Current work:
 
-- validating full-dataset source paths and character ranges.
+- exposing production index rebuilding for the pipeline-bound snapshot.
 
 ## Requirements
 
@@ -455,9 +458,11 @@ uv run python -m src search_dataset \
 ```
 
 Both commands use `data/processed/bm25-index.json` and calculate the current
-`data/raw/` corpus fingerprint automatically. A mismatch requires reindexing.
-The positive `k` value is the maximum number of exact source locations returned
-for one query.
+`data/raw/` corpus fingerprint automatically. They also calculate a pipeline
+fingerprint from the chunk-size limit, chunker and tokenizer versions, BM25
+parameters, and index schema version. A mismatch in the schema, corpus, or
+pipeline requires reindexing. The positive `k` value is the maximum number of
+exact source locations returned for one query.
 
 The batch command validates its input as `RagDataset`, loads the index once,
 searches questions in their original order, and atomically writes UTF-8 JSON.

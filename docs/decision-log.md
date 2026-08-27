@@ -607,3 +607,62 @@ wrappers.
 A sound internal API does not compensate for an incompatible external
 contract. Preserve strong domain boundaries, then adapt the public boundary to
 the system that must invoke it.
+
+## 2026-08-27 - Bind persisted indexes to the complete build pipeline
+
+**Status:** Accepted
+
+### Initial approach
+
+Determine persisted-index compatibility from the JSON schema version and a
+fingerprint of the discovered corpus paths and bytes. Raise `reindex required`
+when either value differs from the current application and corpus.
+
+### Why the approach was reconsidered
+
+An indexing algorithm can change without changing either the source files or
+the JSON field structure. For example, a tokenizer update can produce different
+`content_terms` while the stored field remains a list of strings. A chunker
+change can produce different source spans while every stored chunk remains
+valid JSON. In both cases, the previous snapshot would pass the existing
+compatibility checks even though it no longer represents the current build
+pipeline.
+
+Relying on developers to raise the schema version for every algorithm or
+configuration change would make correctness depend on a manual convention that
+the persistence layer could not verify.
+
+### Decision
+
+Define an immutable `PipelineConfig` containing the maximum chunk size, BM25
+parameters, and explicit chunker and tokenizer versions. Calculate a canonical
+SHA-256 pipeline fingerprint from that configuration together with the index
+schema version.
+
+Persist this fingerprint in schema version 2 and require it when loading an
+index. Treat the schema version, corpus fingerprint, and pipeline fingerprint
+as three independent compatibility checks. Build production indexes through a
+single builder that consumes `PipelineConfig` and returns both fingerprints
+with the runtime index.
+
+### Consequences
+
+- Changes to corpus bytes, stored representation, or declared build behavior
+  independently require reindexing.
+- Tokenizer, chunker, chunk-size, and BM25 changes cannot silently reuse stale
+  lexical fields.
+- Compatibility behavior is deterministic and can be tested without building
+  the full corpus.
+- Algorithm changes require an intentional tokenizer or chunker version update
+  when their configuration fields do not otherwise change.
+- Existing schema version 1 snapshots are intentionally incompatible and must
+  be rebuilt as schema version 2.
+- The public search boundary must calculate the same default pipeline identity
+  used by the production index builder.
+
+### Lesson
+
+Cache compatibility must describe how stored data was produced, not only what
+its serialized shape looks like or which input files existed. Make every
+behavioral input explicit, canonicalize it, and validate that identity before
+reusing derived data.
