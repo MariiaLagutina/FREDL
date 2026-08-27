@@ -1,8 +1,8 @@
 # Engineering Decision Log
 
 This log records implementation choices that were reconsidered during the
-project. Each entry explains the original approach, the problem discovered,
-the replacement decision, and the lesson to carry into later work.
+project. Every entry uses the same structure: status, initial approach, reason
+for reconsideration, replacement decision, consequences, and lesson.
 
 ## 2026-08-23 - Require the corpus to be below the project root
 
@@ -13,7 +13,7 @@ the replacement decision, and the lesson to carry into later work.
 File discovery required the corpus path to be inside the project root. The
 check also allowed the corpus root and project root to be the same directory.
 
-### Why the approach was unsafe
+### Why the approach was reconsidered
 
 Passing the project root as the corpus root would scan the student project's
 own source code and tests together with the intended vLLM corpus. The operation
@@ -48,7 +48,7 @@ safe relationship before performing any traversal or data processing.
 Binary-file detection read a fixed-size prefix and decoded that sample as a
 complete UTF-8 string.
 
-### Why the approach was unsafe
+### Why the approach was reconsidered
 
 The sample boundary could split a valid multi-byte character. A normal text
 file would then raise `UnicodeDecodeError`, be classified as binary, and be
@@ -83,7 +83,7 @@ must not change how valid content is classified.
 `SourceDocument` and `Chunk` were implemented as frozen Pydantic models, like
 the external JSON models required by the assignment.
 
-### Why the approach was inefficient
+### Why the approach was reconsidered
 
 Pydantic validation is valuable when data crosses an untrusted input or output
 boundary. Internal ingestion records are constructed by controlled project
@@ -116,12 +116,12 @@ costs that the internal data flow does not need.
 
 **Status:** Accepted
 
-### Initial approach considered
+### Initial approach
 
 Repeat a containing class or function header inside every structural chunk so
 that each method or statement carries readable context during retrieval.
 
-### Why the approach was unsafe
+### Why the approach was reconsidered
 
 Prepended text would no longer be the exact source slice identified by the
 chunk's `start` and `end` coordinates. Repeating a large prefix through overlap
@@ -150,12 +150,12 @@ evidence exactly and enrich retrieval through explicit metadata.
 
 **Status:** Accepted
 
-### Initial approach considered
+### Initial approach
 
 Invalid bytes encountered while reading a complete source file could be
 ignored or replaced to let indexing continue.
 
-### Why the approach was unsafe
+### Why the approach was reconsidered
 
 Both `errors="ignore"` and `errors="replace"` silently change the decoded
 source. The resulting text can differ from the corpus used by the evaluator,
@@ -186,12 +186,12 @@ coordinates for content that no longer matches the source of truth.
 
 **Status:** Accepted
 
-### Initial approach considered
+### Initial approach
 
 Strip emphasis markers, link syntax, heading markers, and code-fence delimiters
 before sending Markdown chunks to the embedding model.
 
-### Why the approach was premature
+### Why the approach was reconsidered
 
 Correct inline Markdown normalization requires contextual parsing. Simple
 regular expressions can corrupt identifiers, escaped markers, arithmetic,
@@ -223,12 +223,12 @@ simple baseline and require retrieval metrics to justify normalization.
 
 **Status:** Accepted
 
-### Initial approach considered
+### Initial approach
 
 Apply a fixed overlap between every pair of Markdown or plain-text chunks to
 retain context around all boundaries.
 
-### Why the approach was inefficient
+### Why the approach was reconsidered
 
 Structural blocks already preserve headings, paragraphs, lists, and fenced
 code boundaries. Repeating text across those natural boundaries would increase
@@ -268,7 +268,7 @@ Python, Markdown, and plain-text chunking modules all lived directly inside
 `src/ingestion`. The public dispatcher was another file in the same flat
 directory.
 
-### Why the approach stopped scaling
+### Why the approach was reconsidered
 
 As parsing, fallback, overlap, and audit modules accumulated, unrelated
 implementation details became visually indistinguishable. Adding another
@@ -308,7 +308,7 @@ The shared lexical scanner converted every matched unit to lowercase as soon
 as it was extracted. This produced stable case-insensitive tokens for ordinary
 text and exact identifier forms.
 
-### Why the approach lost information
+### Why the approach was reconsidered
 
 Capitalization is structural data inside code identifiers. Converting
 `SamplingParams` to `samplingparams` before code-specific processing removes
@@ -343,13 +343,13 @@ still carrying essential information during parsing.
 
 **Status:** Accepted
 
-### Initial approach considered
+### Initial approach
 
 Preserve every apostrophe form as one normalized token. This avoids fragments
 such as `isn` and `t`, but a possessive such as `model's` then cannot match a
 query containing only `model`.
 
-### Why unconditional suffix removal was unsafe
+### Why the approach was reconsidered
 
 Removing `'s` from every token would treat contractions as possessives.
 Forms such as `it's`, `he's`, and `she's` would create speculative base terms
@@ -385,12 +385,12 @@ behavior executable through exact tests.
 
 **Status:** Accepted
 
-### Initial approach considered
+### Initial approach
 
 Append path, heading, and symbol tokens to chunk content. Approximate metadata
 weight by repeating those tokens before building one BM25 field.
 
-### Why the approach was misleading
+### Why the approach was reconsidered
 
 Token repetition cannot represent a fractional weight such as `1.5` exactly.
 It also changes term frequency before `k1` saturation, field length before `b`
@@ -431,13 +431,13 @@ data duplication when the scoring model can represent it directly.
 
 **Status:** Accepted
 
-### Initial approach considered
+### Initial approach
 
 Serialize the complete live `BM25Index` object, including its private postings
 maps and derived statistics, with Python pickle. Loading would restore the
 runtime object graph directly with minimal reconstruction work.
 
-### Why the approach was rejected
+### Why the approach was reconsidered
 
 Pickle couples stored data to Python class layout and executes a Python object
 deserialization protocol that is inappropriate for an index file that may be
@@ -472,7 +472,7 @@ snapshot has been written successfully.
   seconds on the Linux development machine.
 - Schema changes require an intentional version update and reindex behavior.
 
-### Verification
+**Verification evidence:**
 
 On the 1,952-file vLLM corpus with fingerprint
 `1745355afa9ef90effcc67802ad356e439dbf8a5d954e36ad4095d88b05bf1f2`,
@@ -521,6 +521,12 @@ JSON field names and structure; only Python class names change.
 - References to the former class names must be updated together during the
   rename.
 
+### Lesson
+
+Public model names should describe their domain role, while serialization
+contracts should remain stable at external boundaries. When an assignment also
+checks specific Python symbols, compatibility aliases can preserve both goals.
+
 ## 2026-08-27 - Reject invalid retrieval limits at the CLI boundary
 
 **Status:** Accepted
@@ -551,3 +557,123 @@ parsing, before the index path is opened or the retrieval workflow is called.
 - Python callers remain protected by the existing domain-layer validation.
 - The same rule intentionally exists at both the user boundary and the domain
   boundary because they protect different callers.
+
+### Lesson
+
+Validate inexpensive user constraints before starting expensive work, while
+retaining domain-level checks for callers that bypass the command-line layer.
+
+## 2026-08-27 - Match the evaluator contract at the CLI boundary
+
+**Status:** Accepted
+
+### Initial approach
+
+Expose one `argparse` command named `search` for batch retrieval. Require users
+to pass the index path, corpus fingerprint, input dataset path, output file,
+and retrieval limit explicitly.
+
+### Why the approach was reconsidered
+
+The assignment invokes commands through Python Fire and assigns different
+contracts to `search <query>` and `search_dataset`. The explicit internal
+parameters made the implementation inspectable, but the evaluator could not
+call the public interface it required. Expected file and validation failures
+also escaped as unhandled tracebacks.
+
+### Decision
+
+Keep explicit paths and fingerprints inside reusable Python workflows. Expose
+assignment-compatible Python Fire commands for single-query and batch search,
+using the prescribed data directories by default and calculating the corpus
+fingerprint automatically. Convert expected boundary failures into concise
+stderr messages with a non-zero exit status. Retain domain-oriented result
+models while providing the exact assignment model names as compatibility
+wrappers.
+
+### Consequences
+
+- Reference evaluation scripts can call the required command names and
+  arguments directly.
+- Single-query and batch behavior are no longer conflated.
+- Internal workflows remain independently testable and configurable.
+- Expected invalid input, missing files, malformed JSON, and incompatible
+  indexes do not produce an unhandled traceback.
+- Assignment terminology remains isolated from the models used by retrieval
+  internals.
+
+### Lesson
+
+A sound internal API does not compensate for an incompatible external
+contract. Preserve strong domain boundaries, then adapt the public boundary to
+the system that must invoke it.
+
+## 2026-08-27 - Bind persisted indexes to the complete build pipeline
+
+**Status:** Accepted
+
+### Initial approach
+
+Determine persisted-index compatibility from the JSON schema version and a
+fingerprint of the discovered corpus paths and bytes. Raise `reindex required`
+when either value differs from the current application and corpus.
+
+### Why the approach was reconsidered
+
+An indexing algorithm can change without changing either the source files or
+the JSON field structure. For example, a tokenizer update can produce different
+`content_terms` while the stored field remains a list of strings. A chunker
+change can produce different source spans while every stored chunk remains
+valid JSON. In both cases, the previous snapshot would pass the existing
+compatibility checks even though it no longer represents the current build
+pipeline.
+
+Relying on developers to raise the schema version for every algorithm or
+configuration change would make correctness depend on a manual convention that
+the persistence layer could not verify.
+
+### Decision
+
+Define an immutable `PipelineConfig` containing the maximum chunk size, BM25
+parameters, and explicit chunker and tokenizer versions. Calculate a canonical
+SHA-256 pipeline fingerprint from that configuration together with the index
+schema version.
+
+Persist this fingerprint in schema version 2 and require it when loading an
+index. Treat the schema version, corpus fingerprint, and pipeline fingerprint
+as three independent compatibility checks. Build production indexes through a
+single builder that consumes `PipelineConfig` and returns both fingerprints
+with the runtime index.
+
+### Consequences
+
+- Changes to corpus bytes, stored representation, or declared build behavior
+  independently require reindexing.
+- Tokenizer, chunker, chunk-size, and BM25 changes cannot silently reuse stale
+  lexical fields.
+- Compatibility behavior is deterministic and can be tested without building
+  the full corpus.
+- Algorithm changes require an intentional tokenizer or chunker version update
+  when their configuration fields do not otherwise change.
+- Existing schema version 1 snapshots are intentionally incompatible and must
+  be rebuilt as schema version 2.
+- The public search boundary must calculate the same default pipeline identity
+  used by the production index builder.
+
+**Verification evidence:**
+
+The production command rebuilt the 1,952-file vLLM corpus as 20,096 lexical
+documents in schema version 2. The corpus fingerprint remained
+`1745355afa9ef90effcc67802ad356e439dbf8a5d954e36ad4095d88b05bf1f2`,
+and the declared pipeline fingerprint was
+`03dbf67f929d95d8e405759fb5f5fbf7effcdc89c196d4ea410018484c8046d4`.
+The documentation and code retrieval result files were byte-for-byte identical
+to the schema version 1 baseline. Source validation accepted all 500
+documentation sources and all 495 code sources.
+
+### Lesson
+
+Cache compatibility must describe how stored data was produced, not only what
+its serialized shape looks like or which input files existed. Make every
+behavioral input explicit, canonicalize it, and validate that identity before
+reusing derived data.

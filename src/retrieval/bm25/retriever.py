@@ -26,6 +26,8 @@ class BM25Retriever:
         """Tokenize one raw query and return its ranked matching chunks."""
         if not isinstance(query, str):
             raise TypeError("BM25 query must be a string")
+        if not query.strip():
+            raise ValueError("BM25 query must contain non-whitespace text")
         return self._index.search(
             tuple(self._query_tokenizer.tokenize(query)),
             top_k=top_k,

@@ -1,5 +1,7 @@
 """Tests for raw-query BM25 retrieval."""
 
+import pytest
+
 from src.ingestion import Chunk
 from src.retrieval.bm25 import (
     BM25Document,
@@ -49,10 +51,20 @@ def test_raw_symbol_query_ranks_qualified_metadata_first() -> None:
     assert hits[0].metadata_score > 0
 
 
-def test_empty_raw_query_returns_no_hits() -> None:
-    """Whitespace-only input does not fabricate retrieval candidates."""
+def test_blank_raw_query_is_rejected() -> None:
+    """Whitespace-only input is invalid rather than a successful search."""
     retriever = BM25Retriever(
         BM25Index([_document("cache.py", ("cache",), ())])
     )
 
-    assert retriever.search("   ") == []
+    with pytest.raises(ValueError, match="non-whitespace"):
+        retriever.search("   ")
+
+
+def test_nonblank_query_without_lexical_terms_returns_no_hits() -> None:
+    """Nonblank punctuation may validly normalize to no lexical terms."""
+    retriever = BM25Retriever(
+        BM25Index([_document("cache.py", ("cache",), ())])
+    )
+
+    assert retriever.search("!!!") == []

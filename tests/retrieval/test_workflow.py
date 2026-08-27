@@ -4,11 +4,48 @@ from pathlib import Path
 
 from src.ingestion import Chunk
 from src.models import RetrievalResults
-from src.retrieval import run_retrieval, run_stored_retrieval
+from src.retrieval import (
+    run_retrieval,
+    run_stored_retrieval,
+    run_stored_search,
+)
 from src.retrieval.bm25 import BM25Document, BM25Index
 from src.retrieval.index_store import IndexStore
 
 FINGERPRINT = "a" * 64
+PIPELINE_FINGERPRINT = "b" * 64
+
+
+def test_run_stored_search_loads_index_for_one_raw_query(
+    tmp_path: Path,
+) -> None:
+    """A single raw query can search one compatible stored index."""
+    index_path = tmp_path / "bm25-index.json"
+    IndexStore(index_path).save(
+        BM25Index(
+            [
+                BM25Document(
+                    chunk=Chunk("docs/cache.md", 0, 5, "cache"),
+                    content_terms=("cache",),
+                )
+            ]
+        ),
+        FINGERPRINT,
+        PIPELINE_FINGERPRINT,
+    )
+
+    sources = run_stored_search(
+        index_path,
+        FINGERPRINT,
+        PIPELINE_FINGERPRINT,
+        "Where is the cache?",
+        k=1,
+    )
+
+    assert len(sources) == 1
+    assert sources[0].file_path == "docs/cache.md"
+    assert sources[0].first_character_index == 0
+    assert sources[0].last_character_index == 5
 
 
 def test_run_retrieval_connects_input_search_and_output(
@@ -59,6 +96,7 @@ def test_run_stored_retrieval_loads_index_once_for_question_file(
             ]
         ),
         FINGERPRINT,
+        PIPELINE_FINGERPRINT,
     )
     input_path = tmp_path / "questions.json"
     input_path.write_text(
@@ -72,6 +110,7 @@ def test_run_stored_retrieval_loads_index_once_for_question_file(
     results = run_stored_retrieval(
         index_path,
         FINGERPRINT,
+        PIPELINE_FINGERPRINT,
         input_path,
         output_path,
         k=1,

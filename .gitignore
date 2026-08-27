@@ -13,6 +13,7 @@ moulinette
 
 # Assignment data, generated indices, and outputs
 data/
+reports/*.json
 
 # Downloaded model artefacts
 models/

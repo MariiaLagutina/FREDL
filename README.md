@@ -37,10 +37,16 @@ Implemented:
 - code-aware identifier expansion and conservative documentation tokenization;
 - content and structural metadata terms stored as separate BM25 fields;
 - an inverted BM25 index with stable ranking and inspectable field scores;
-- a versioned, corpus-bound JSON snapshot for reusable BM25 indexes;
+- a versioned JSON snapshot bound to both corpus content and the declared
+  indexing pipeline;
 - mixed natural-language and code query tokenization;
 - validated single-query and batch retrieval with exact source coordinates;
-- a CLI that loads one compatible index and writes retrieval results atomically;
+- assignment-compatible Python Fire commands for single-query and batch
+  retrieval;
+- concise CLI failures for invalid input, missing files, malformed JSON, and
+  incompatible indexes;
+- full-dataset validation of source paths, half-open character ranges, and the
+  2,000-character source limit;
 - Moulinette-compatible source IoU, Recall@K, and MRR metrics;
 - a fixed documentation/code mini-suite and BM25 experiment CLI;
 - optional JSON reports with corpus, Git, environment, latency, and memory
@@ -49,7 +55,7 @@ Implemented:
 
 Current work:
 
-- finalizing the persisted-index retrieval workflow for merge.
+- completing Step 15 acceptance and merge preparation.
 
 ## Requirements
 
@@ -435,30 +441,52 @@ index while accepting normal string queries.
 
 ## Retrieval Search
 
-Search a validated question dataset with a compatible persisted index:
+Build or rebuild the default pipeline-compatible index:
 
 ```bash
-.venv/bin/python -m src search \
-  --index data/processed/bm25-index.json \
-  --fingerprint 1745355afa9ef90effcc67802ad356e439dbf8a5d954e36ad4095d88b05bf1f2 \
-  --input data/datasets/UnansweredQuestions/dataset_docs_public.json \
-  --output data/processed/search-results-docs.json \
-  --k 5
+uv run python -m src index
 ```
 
-The fingerprint must match the corpus recorded in the index snapshot. A
-mismatch requires reindexing. The positive `k` value is the maximum number of
-exact source locations returned for each question.
+The command runs production ingestion over `data/raw/`, saves schema version 2
+to `data/processed/bm25-index.json`, and reports the document count together
+with the corpus and pipeline fingerprints. Generated indexes remain local and
+are not committed to Git.
 
-The command validates the input as `RagDataset`, loads the index once, searches
-questions in their original order, and atomically writes UTF-8 JSON. Internal
-BM25 scores are not included in the public result contract. Output models use
-portfolio-oriented Python names while preserving the required JSON fields.
+Search one raw query with the default compatible persisted index:
+
+```bash
+uv run python -m src search "Where is the cache implemented?" --k 5
+```
+
+Search a complete dataset and preserve its filename below the requested output
+directory:
+
+```bash
+uv run python -m src search_dataset \
+  --dataset_path data/datasets/UnansweredQuestions/dataset_docs_public.json \
+  --k 5 \
+  --save_directory data/output/search_results/UnansweredQuestions
+```
+
+Both commands use `data/processed/bm25-index.json` and calculate the current
+`data/raw/` corpus fingerprint automatically. They also calculate a pipeline
+fingerprint from the chunk-size limit, chunker and tokenizer versions, BM25
+parameters, and index schema version. A mismatch in the schema, corpus, or
+pipeline requires reindexing. The positive `k` value is the maximum number of
+exact source locations returned for one query.
+
+The batch command validates its input as `RagDataset`, loads the index once,
+searches questions in their original order, and atomically writes UTF-8 JSON.
+Expected input, file, JSON, and compatibility failures produce a concise error
+and non-zero exit status without an unhandled traceback. Internal BM25 scores
+are not included in the public result contract. Domain-oriented Python model
+names coexist with the exact assignment-compatible model names and JSON fields.
 
 The Linux full-corpus acceptance run used the 20,096-document snapshot and
 produced results for 100 documentation questions and 99 code questions at
 `k=5`. All 995 returned source locations referenced existing files and valid
-half-open character ranges.
+half-open character ranges. Rebuilding the snapshot as schema version 2
+preserved both complete result files byte for byte.
 
 ## BM25 Evaluation
 
@@ -477,8 +505,8 @@ Compare the planned metadata weights:
 ```
 
 Add `--verbose` to inspect every query, expected source, relevant rank, and
-separate content and metadata scores. Save complete machine-readable evidence
-only when needed:
+separate content and metadata scores. Generate complete machine-readable
+evidence locally only when needed:
 
 ```bash
 .venv/bin/python -m src.evaluation.bm25 \
@@ -491,7 +519,8 @@ only when needed:
 The report records the Git commit and dirty state, suite fingerprint,
 environment, parameters, file and chunk counts, documentation and code metrics,
 ranked hits, build time, recursive in-memory index size, traced peak build
-memory, and median/P95 query latency.
+memory, and median/P95 query latency. Generated JSON reports are ignored by Git;
+compact measurements and conclusions belong in the tuning log.
 
 Retrieval relevance requires an exact file path and source-range IoU of at
 least `0.05`. Documentation and code metrics are reported separately. The
@@ -507,7 +536,7 @@ Controlled parameter history and provisional measurements are recorded in
 The current checks pass:
 
 ```text
-pytest: 224 passed
+pytest: 233 passed
 flake8: passed
 mypy: passed
 ```
