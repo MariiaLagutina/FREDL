@@ -37,7 +37,10 @@ Implemented:
 - code-aware identifier expansion and conservative documentation tokenization;
 - content and structural metadata terms stored as separate BM25 fields;
 - an inverted BM25 index with stable ranking and inspectable field scores;
+- a versioned, corpus-bound JSON snapshot for reusable BM25 indexes;
 - mixed natural-language and code query tokenization;
+- validated single-query and batch retrieval with exact source coordinates;
+- a CLI that loads one compatible index and writes retrieval results atomically;
 - Moulinette-compatible source IoU, Recall@K, and MRR metrics;
 - a fixed documentation/code mini-suite and BM25 experiment CLI;
 - optional JSON reports with corpus, Git, environment, latency, and memory
@@ -46,7 +49,7 @@ Implemented:
 
 Current work:
 
-- finalizing the BM25 lexical baseline for merge.
+- finalizing the persisted-index retrieval workflow for merge.
 
 ## Requirements
 
@@ -430,6 +433,33 @@ use `(file_path, start, end)` for deterministic ordering.
 expansion. `BM25Retriever` keeps this preparation outside the mathematical
 index while accepting normal string queries.
 
+## Retrieval Search
+
+Search a validated question dataset with a compatible persisted index:
+
+```bash
+.venv/bin/python -m src search \
+  --index data/processed/bm25-index.json \
+  --fingerprint 1745355afa9ef90effcc67802ad356e439dbf8a5d954e36ad4095d88b05bf1f2 \
+  --input data/datasets/UnansweredQuestions/dataset_docs_public.json \
+  --output data/processed/search-results-docs.json \
+  --k 5
+```
+
+The fingerprint must match the corpus recorded in the index snapshot. A
+mismatch requires reindexing. The positive `k` value is the maximum number of
+exact source locations returned for each question.
+
+The command validates the input as `RagDataset`, loads the index once, searches
+questions in their original order, and atomically writes UTF-8 JSON. Internal
+BM25 scores are not included in the public result contract. Output models use
+portfolio-oriented Python names while preserving the required JSON fields.
+
+The Linux full-corpus acceptance run used the 20,096-document snapshot and
+produced results for 100 documentation questions and 99 code questions at
+`k=5`. All 995 returned source locations referenced existing files and valid
+half-open character ranges.
+
 ## BM25 Evaluation
 
 Run the neutral mini-suite control:
@@ -477,7 +507,7 @@ Controlled parameter history and provisional measurements are recorded in
 The current checks pass:
 
 ```text
-pytest: 201 passed
+pytest: 224 passed
 flake8: passed
 mypy: passed
 ```
