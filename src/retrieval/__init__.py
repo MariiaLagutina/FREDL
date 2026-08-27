@@ -8,12 +8,17 @@ from src.retrieval.results import (
     search_sources,
     select_sources,
 )
-from src.retrieval.workflow import run_retrieval, run_stored_retrieval
+from src.retrieval.workflow import (
+    run_retrieval,
+    run_stored_retrieval,
+    run_stored_search,
+)
 
 __all__ = [
     "load_rag_dataset",
     "run_retrieval",
     "run_stored_retrieval",
+    "run_stored_search",
     "save_search_results",
     "search_dataset",
     "search_question",
