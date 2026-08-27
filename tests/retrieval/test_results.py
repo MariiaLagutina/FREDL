@@ -79,11 +79,19 @@ def test_search_sources_returns_public_sources_in_ranking_order() -> None:
     assert sources[1].last_character_index == 14
 
 
-def test_search_sources_returns_empty_list_for_empty_query() -> None:
-    """An empty raw query has no fabricated source matches."""
+def test_search_sources_rejects_blank_query() -> None:
+    """The public boundary rejects a whitespace-only user query."""
     index = BM25Index([_hit("src/cache.py", 0, "term", 1.0).document])
 
-    assert search_sources(index, "   ", k=1) == []
+    with pytest.raises(ValueError, match="non-whitespace"):
+        search_sources(index, "   ", k=1)
+
+
+def test_search_sources_allows_nonblank_query_without_terms() -> None:
+    """Punctuation-only input is valid but has no lexical matches."""
+    index = BM25Index([_hit("src/cache.py", 0, "term", 1.0).document])
+
+    assert search_sources(index, "!!!", k=1) == []
 
 
 def test_search_sources_rejects_non_positive_k() -> None:
