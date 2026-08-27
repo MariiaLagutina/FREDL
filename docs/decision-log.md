@@ -1,8 +1,8 @@
 # Engineering Decision Log
 
 This log records implementation choices that were reconsidered during the
-project. Each entry explains the original approach, the problem discovered,
-the replacement decision, and the lesson to carry into later work.
+project. Every entry uses the same structure: status, initial approach, reason
+for reconsideration, replacement decision, consequences, and lesson.
 
 ## 2026-08-23 - Require the corpus to be below the project root
 
@@ -13,7 +13,7 @@ the replacement decision, and the lesson to carry into later work.
 File discovery required the corpus path to be inside the project root. The
 check also allowed the corpus root and project root to be the same directory.
 
-### Why the approach was unsafe
+### Why the approach was reconsidered
 
 Passing the project root as the corpus root would scan the student project's
 own source code and tests together with the intended vLLM corpus. The operation
@@ -48,7 +48,7 @@ safe relationship before performing any traversal or data processing.
 Binary-file detection read a fixed-size prefix and decoded that sample as a
 complete UTF-8 string.
 
-### Why the approach was unsafe
+### Why the approach was reconsidered
 
 The sample boundary could split a valid multi-byte character. A normal text
 file would then raise `UnicodeDecodeError`, be classified as binary, and be
@@ -83,7 +83,7 @@ must not change how valid content is classified.
 `SourceDocument` and `Chunk` were implemented as frozen Pydantic models, like
 the external JSON models required by the assignment.
 
-### Why the approach was inefficient
+### Why the approach was reconsidered
 
 Pydantic validation is valuable when data crosses an untrusted input or output
 boundary. Internal ingestion records are constructed by controlled project
@@ -116,12 +116,12 @@ costs that the internal data flow does not need.
 
 **Status:** Accepted
 
-### Initial approach considered
+### Initial approach
 
 Repeat a containing class or function header inside every structural chunk so
 that each method or statement carries readable context during retrieval.
 
-### Why the approach was unsafe
+### Why the approach was reconsidered
 
 Prepended text would no longer be the exact source slice identified by the
 chunk's `start` and `end` coordinates. Repeating a large prefix through overlap
@@ -150,12 +150,12 @@ evidence exactly and enrich retrieval through explicit metadata.
 
 **Status:** Accepted
 
-### Initial approach considered
+### Initial approach
 
 Invalid bytes encountered while reading a complete source file could be
 ignored or replaced to let indexing continue.
 
-### Why the approach was unsafe
+### Why the approach was reconsidered
 
 Both `errors="ignore"` and `errors="replace"` silently change the decoded
 source. The resulting text can differ from the corpus used by the evaluator,
@@ -186,12 +186,12 @@ coordinates for content that no longer matches the source of truth.
 
 **Status:** Accepted
 
-### Initial approach considered
+### Initial approach
 
 Strip emphasis markers, link syntax, heading markers, and code-fence delimiters
 before sending Markdown chunks to the embedding model.
 
-### Why the approach was premature
+### Why the approach was reconsidered
 
 Correct inline Markdown normalization requires contextual parsing. Simple
 regular expressions can corrupt identifiers, escaped markers, arithmetic,
@@ -223,12 +223,12 @@ simple baseline and require retrieval metrics to justify normalization.
 
 **Status:** Accepted
 
-### Initial approach considered
+### Initial approach
 
 Apply a fixed overlap between every pair of Markdown or plain-text chunks to
 retain context around all boundaries.
 
-### Why the approach was inefficient
+### Why the approach was reconsidered
 
 Structural blocks already preserve headings, paragraphs, lists, and fenced
 code boundaries. Repeating text across those natural boundaries would increase
@@ -268,7 +268,7 @@ Python, Markdown, and plain-text chunking modules all lived directly inside
 `src/ingestion`. The public dispatcher was another file in the same flat
 directory.
 
-### Why the approach stopped scaling
+### Why the approach was reconsidered
 
 As parsing, fallback, overlap, and audit modules accumulated, unrelated
 implementation details became visually indistinguishable. Adding another
@@ -308,7 +308,7 @@ The shared lexical scanner converted every matched unit to lowercase as soon
 as it was extracted. This produced stable case-insensitive tokens for ordinary
 text and exact identifier forms.
 
-### Why the approach lost information
+### Why the approach was reconsidered
 
 Capitalization is structural data inside code identifiers. Converting
 `SamplingParams` to `samplingparams` before code-specific processing removes
@@ -343,13 +343,13 @@ still carrying essential information during parsing.
 
 **Status:** Accepted
 
-### Initial approach considered
+### Initial approach
 
 Preserve every apostrophe form as one normalized token. This avoids fragments
 such as `isn` and `t`, but a possessive such as `model's` then cannot match a
 query containing only `model`.
 
-### Why unconditional suffix removal was unsafe
+### Why the approach was reconsidered
 
 Removing `'s` from every token would treat contractions as possessives.
 Forms such as `it's`, `he's`, and `she's` would create speculative base terms
@@ -385,12 +385,12 @@ behavior executable through exact tests.
 
 **Status:** Accepted
 
-### Initial approach considered
+### Initial approach
 
 Append path, heading, and symbol tokens to chunk content. Approximate metadata
 weight by repeating those tokens before building one BM25 field.
 
-### Why the approach was misleading
+### Why the approach was reconsidered
 
 Token repetition cannot represent a fractional weight such as `1.5` exactly.
 It also changes term frequency before `k1` saturation, field length before `b`
@@ -431,13 +431,13 @@ data duplication when the scoring model can represent it directly.
 
 **Status:** Accepted
 
-### Initial approach considered
+### Initial approach
 
 Serialize the complete live `BM25Index` object, including its private postings
 maps and derived statistics, with Python pickle. Loading would restore the
 runtime object graph directly with minimal reconstruction work.
 
-### Why the approach was rejected
+### Why the approach was reconsidered
 
 Pickle couples stored data to Python class layout and executes a Python object
 deserialization protocol that is inappropriate for an index file that may be
@@ -472,7 +472,7 @@ snapshot has been written successfully.
   seconds on the Linux development machine.
 - Schema changes require an intentional version update and reindex behavior.
 
-### Verification
+**Verification evidence:**
 
 On the 1,952-file vLLM corpus with fingerprint
 `1745355afa9ef90effcc67802ad356e439dbf8a5d954e36ad4095d88b05bf1f2`,
@@ -521,6 +521,12 @@ JSON field names and structure; only Python class names change.
 - References to the former class names must be updated together during the
   rename.
 
+### Lesson
+
+Public model names should describe their domain role, while serialization
+contracts should remain stable at external boundaries. When an assignment also
+checks specific Python symbols, compatibility aliases can preserve both goals.
+
 ## 2026-08-27 - Reject invalid retrieval limits at the CLI boundary
 
 **Status:** Accepted
@@ -551,3 +557,8 @@ parsing, before the index path is opened or the retrieval workflow is called.
 - Python callers remain protected by the existing domain-layer validation.
 - The same rule intentionally exists at both the user boundary and the domain
   boundary because they protect different callers.
+
+### Lesson
+
+Validate inexpensive user constraints before starting expensive work, while
+retaining domain-level checks for callers that bypass the command-line layer.
