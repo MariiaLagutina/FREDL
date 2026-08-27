@@ -4,7 +4,12 @@ from pathlib import Path
 
 from src.ingestion import discover_files
 from src.retrieval import run_stored_retrieval, run_stored_search
-from src.retrieval.index_store import fingerprint_corpus
+from src.retrieval.index_store import (
+    PipelineConfig,
+    SCHEMA_VERSION,
+    fingerprint_corpus,
+    fingerprint_pipeline,
+)
 from src.retrieval.validation import (
     MAX_SOURCE_LENGTH,
     SourceValidationReport,
@@ -35,6 +40,7 @@ def search(
         sources = run_stored_search(
             _below_root(root, Path(index_path)),
             fingerprint,
+            _current_pipeline_fingerprint(),
             query,
             k,
         )
@@ -61,6 +67,7 @@ def search_dataset(
         run_stored_retrieval(
             _below_root(root, Path(index_path)),
             fingerprint,
+            _current_pipeline_fingerprint(),
             dataset,
             output,
             k,
@@ -98,6 +105,14 @@ def _current_corpus_fingerprint(
     resolved_corpus = _below_root(project_root, corpus_root)
     manifest = discover_files(project_root, resolved_corpus)
     return fingerprint_corpus(project_root, manifest)
+
+
+def _current_pipeline_fingerprint() -> str:
+    """Identify the default production index build pipeline."""
+    return fingerprint_pipeline(
+        PipelineConfig(),
+        index_schema_version=SCHEMA_VERSION,
+    )
 
 
 def _below_root(project_root: Path, path: Path) -> Path:

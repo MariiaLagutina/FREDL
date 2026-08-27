@@ -42,5 +42,6 @@ class StoredBM25Index(BaseModel):
 
     schema_version: int
     corpus_fingerprint: str
+    pipeline_fingerprint: str
     parameters: StoredParameters
     documents: tuple[StoredDocument, ...]

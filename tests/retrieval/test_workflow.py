@@ -13,6 +13,7 @@ from src.retrieval.bm25 import BM25Document, BM25Index
 from src.retrieval.index_store import IndexStore
 
 FINGERPRINT = "a" * 64
+PIPELINE_FINGERPRINT = "b" * 64
 
 
 def test_run_stored_search_loads_index_for_one_raw_query(
@@ -30,11 +31,13 @@ def test_run_stored_search_loads_index_for_one_raw_query(
             ]
         ),
         FINGERPRINT,
+        PIPELINE_FINGERPRINT,
     )
 
     sources = run_stored_search(
         index_path,
         FINGERPRINT,
+        PIPELINE_FINGERPRINT,
         "Where is the cache?",
         k=1,
     )
@@ -93,6 +96,7 @@ def test_run_stored_retrieval_loads_index_once_for_question_file(
             ]
         ),
         FINGERPRINT,
+        PIPELINE_FINGERPRINT,
     )
     input_path = tmp_path / "questions.json"
     input_path.write_text(
@@ -106,6 +110,7 @@ def test_run_stored_retrieval_loads_index_once_for_question_file(
     results = run_stored_retrieval(
         index_path,
         FINGERPRINT,
+        PIPELINE_FINGERPRINT,
         input_path,
         output_path,
         k=1,
