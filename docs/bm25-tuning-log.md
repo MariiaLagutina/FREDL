@@ -295,9 +295,6 @@ evidence.
 chunking, tokenizers, `top_k`, warm-up, measured searches, and M0-M3 parameters
 match the provisional run above.
 
-**Git commit:** `42f4d0374578733dd2ffb9397e319ff2618d22bc` with
-`git_dirty=false` in the locally generated Linux report. The generated JSON
-was removed from version control after its compact evidence was recorded here.
 
 **Environment:** Linux `7.0.0-30-generic` on `x86_64` with Python `3.14.4`.
 
