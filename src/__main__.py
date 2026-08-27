@@ -7,6 +7,14 @@ from pathlib import Path
 from src.retrieval import run_stored_retrieval
 
 
+def positive_int(value: str) -> int:
+    """Parse a command-line integer that must be greater than zero."""
+    parsed = int(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be greater than zero")
+    return parsed
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the public command-line interface."""
     parser = argparse.ArgumentParser(prog="rag")
@@ -20,7 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("--fingerprint", required=True)
     search.add_argument("--input", type=Path, required=True)
     search.add_argument("--output", type=Path, required=True)
-    search.add_argument("--k", type=int, default=5)
+    search.add_argument("--k", type=positive_int, default=5)
     return parser
 
 
