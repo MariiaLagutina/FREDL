@@ -11,6 +11,7 @@ from src.retrieval.validation.models import (
     SourceValidationReport,
 )
 from src.retrieval.validation.runner import validate_retrieval_results
+from src.retrieval.validation.workflow import validate_retrieval_file
 
 __all__ = [
     "SourceValidationIssue",
@@ -20,4 +21,5 @@ __all__ = [
     "load_source_texts",
     "validate_source",
     "validate_retrieval_results",
+    "validate_retrieval_file",
 ]
