@@ -486,3 +486,68 @@ proves that a separate Python process reproduces exact top-k scores.
 Persist the smallest validated source of truth that can rebuild runtime state.
 Treat cache compatibility as an explicit contract rather than relying on a
 serializer to preserve private implementation details.
+
+## 2026-08-27 - Use domain names for retrieval output models
+
+**Status:** Accepted
+
+### Initial approach
+
+Name the output models `MinimalSearchResults`, `StudentSearchResults`,
+`MinimalAnswer`, and `StudentSearchResultsAndAnswer`, following the terminology
+of the original assignment schema.
+
+### Why the approach was reconsidered
+
+The `Student` prefix describes who produced the data rather than what the data
+represents. It makes reusable retrieval components appear tied to coursework
+and gives portfolio readers less information about whether a model represents
+one query or a complete retrieval run. `Minimal` is similarly ambiguous at the
+Python API boundary.
+
+### Decision
+
+Use `QuerySearchResult` for one query and `RetrievalResults` for a complete
+retrieval run. Use `QueryAnswer` and `RetrievalResultsWithAnswers` for the
+corresponding answer-bearing models. Preserve the exact assignment-compatible
+JSON field names and structure; only Python class names change.
+
+### Consequences
+
+- Public Python APIs communicate retrieval concepts without coursework-specific
+  terminology.
+- Singular and batch result types are easier to distinguish.
+- Serialized JSON remains compatible with the required submission schema.
+- References to the former class names must be updated together during the
+  rename.
+
+## 2026-08-27 - Reject invalid retrieval limits at the CLI boundary
+
+**Status:** Accepted
+
+### Initial approach
+
+Parse `--k` as any integer and rely on the retrieval result boundary to reject
+values less than one. This kept the invariant in the domain layer and still
+prevented an invalid result from being produced.
+
+### Why the approach was reconsidered
+
+The real Linux acceptance run loads an approximately 87 MB persisted BM25
+snapshot before control reaches the domain validation. A command with `--k 0`
+would therefore perform avoidable index deserialization before reporting a
+simple input error.
+
+### Decision
+
+Keep the domain validation as the final invariant, and also parse CLI `--k`
+with a positive-integer validator. Reject non-positive values during argument
+parsing, before the index path is opened or the retrieval workflow is called.
+
+### Consequences
+
+- Invalid interactive commands fail immediately with a focused argument error.
+- Large index files are not loaded for a request that cannot succeed.
+- Python callers remain protected by the existing domain-layer validation.
+- The same rule intentionally exists at both the user boundary and the domain
+  boundary because they protect different callers.
