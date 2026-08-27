@@ -562,3 +562,48 @@ parsing, before the index path is opened or the retrieval workflow is called.
 
 Validate inexpensive user constraints before starting expensive work, while
 retaining domain-level checks for callers that bypass the command-line layer.
+
+## 2026-08-27 - Match the evaluator contract at the CLI boundary
+
+**Status:** Accepted
+
+### Initial approach
+
+Expose one `argparse` command named `search` for batch retrieval. Require users
+to pass the index path, corpus fingerprint, input dataset path, output file,
+and retrieval limit explicitly.
+
+### Why the approach was reconsidered
+
+The assignment invokes commands through Python Fire and assigns different
+contracts to `search <query>` and `search_dataset`. The explicit internal
+parameters made the implementation inspectable, but the evaluator could not
+call the public interface it required. Expected file and validation failures
+also escaped as unhandled tracebacks.
+
+### Decision
+
+Keep explicit paths and fingerprints inside reusable Python workflows. Expose
+assignment-compatible Python Fire commands for single-query and batch search,
+using the prescribed data directories by default and calculating the corpus
+fingerprint automatically. Convert expected boundary failures into concise
+stderr messages with a non-zero exit status. Retain domain-oriented result
+models while providing the exact assignment model names as compatibility
+wrappers.
+
+### Consequences
+
+- Reference evaluation scripts can call the required command names and
+  arguments directly.
+- Single-query and batch behavior are no longer conflated.
+- Internal workflows remain independently testable and configurable.
+- Expected invalid input, missing files, malformed JSON, and incompatible
+  indexes do not produce an unhandled traceback.
+- Assignment terminology remains isolated from the models used by retrieval
+  internals.
+
+### Lesson
+
+A sound internal API does not compensate for an incompatible external
+contract. Preserve strong domain boundaries, then adapt the public boundary to
+the system that must invoke it.

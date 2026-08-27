@@ -296,7 +296,8 @@ chunking, tokenizers, `top_k`, warm-up, measured searches, and M0-M3 parameters
 match the provisional run above.
 
 **Git commit:** `42f4d0374578733dd2ffb9397e319ff2618d22bc` with
-`git_dirty=false` in `reports/bm25-mini-linux.json`.
+`git_dirty=false` in the locally generated Linux report. The generated JSON
+was removed from version control after its compact evidence was recorded here.
 
 **Environment:** Linux `7.0.0-30-generic` on `x86_64` with Python `3.14.4`.
 
@@ -323,3 +324,27 @@ measurements depend on the runtime and hardware.
 **Decision:** Keep M0 as the control and retain the earlier parameter decision.
 Use the Linux report as reproduction evidence, not as justification for a new
 metadata weight.
+
+## Full-dataset observation after CLI repair
+
+**Status:** Preliminary quality observation. Complete full-dataset metrics have
+not yet been recorded.
+
+**Constants:** The persisted 20,096-document BM25 index with `k1=1.5`,
+`b=0.75`, `metadata_weight=1.0`, and `k=5`. The repaired Python Fire CLI
+reproduced the earlier batch JSON byte for byte for both the 100-question
+documentation dataset and the 99-question code dataset.
+
+**Observation:** For code question
+`189c8b8a-e59c-4fca-92ad-c02df42cbe40`, the labelled source is
+`fused_batched_moe.py` at range `[28416, 28975)`. It was absent from the first
+five retrieved sources, so this query has Recall@5 equal to zero.
+
+**Interpretation:** Correct paths and ranges prove output validity, not
+retrieval relevance. The four-query mini-suite verifies deterministic ranking
+and controlled metadata effects but does not represent quality across all 199
+public questions.
+
+**Decision:** Preserve this miss as baseline evidence. Measure Recall@1/3/5/10
+separately for the complete documentation and code datasets before changing
+tokenization, chunking, metadata, or BM25 parameters.
