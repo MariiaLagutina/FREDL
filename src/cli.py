@@ -11,6 +11,10 @@ DEFAULT_INDEX_PATH = Path("data/processed/bm25-index.json")
 DEFAULT_CORPUS_ROOT = Path("data/raw")
 
 
+class CliError(Exception):
+    """Represent an expected user-facing command failure."""
+
+
 def search(
     query: str,
     k: int = 5,
@@ -19,15 +23,18 @@ def search(
     project_root: str = ".",
 ) -> list[dict[str, object]]:
     """Return the top-k exact source locations for one raw query."""
-    _require_positive_k(k)
-    root = Path(project_root)
-    fingerprint = _current_corpus_fingerprint(root, Path(corpus_root))
-    sources = run_stored_search(
-        _below_root(root, Path(index_path)),
-        fingerprint,
-        query,
-        k,
-    )
+    try:
+        _require_positive_k(k)
+        root = Path(project_root)
+        fingerprint = _current_corpus_fingerprint(root, Path(corpus_root))
+        sources = run_stored_search(
+            _below_root(root, Path(index_path)),
+            fingerprint,
+            query,
+            k,
+        )
+    except (OSError, UnicodeError, ValueError) as error:
+        raise CliError(_error_message(error)) from None
     return [source.model_dump() for source in sources]
 
 
@@ -40,18 +47,21 @@ def search_dataset(
     project_root: str = ".",
 ) -> str:
     """Search one question dataset and save its validated result JSON."""
-    _require_positive_k(k)
-    root = Path(project_root)
-    dataset = _below_root(root, Path(dataset_path))
-    output = _below_root(root, Path(save_directory)) / dataset.name
-    fingerprint = _current_corpus_fingerprint(root, Path(corpus_root))
-    run_stored_retrieval(
-        _below_root(root, Path(index_path)),
-        fingerprint,
-        dataset,
-        output,
-        k,
-    )
+    try:
+        _require_positive_k(k)
+        root = Path(project_root)
+        dataset = _below_root(root, Path(dataset_path))
+        output = _below_root(root, Path(save_directory)) / dataset.name
+        fingerprint = _current_corpus_fingerprint(root, Path(corpus_root))
+        run_stored_retrieval(
+            _below_root(root, Path(index_path)),
+            fingerprint,
+            dataset,
+            output,
+            k,
+        )
+    except (OSError, UnicodeError, ValueError) as error:
+        raise CliError(_error_message(error)) from None
     return str(output)
 
 
@@ -76,3 +86,14 @@ def _require_positive_k(k: int) -> None:
     """Reject an invalid limit before corpus or index I/O begins."""
     if k <= 0:
         raise ValueError("Search k must be greater than zero")
+
+
+def _error_message(error: Exception) -> str:
+    """Format an expected boundary failure without implementation details."""
+    if isinstance(error, FileNotFoundError):
+        missing_path = error.filename or str(error)
+        return f"File not found: {missing_path}"
+    if isinstance(error, NotADirectoryError):
+        invalid_path = error.filename or str(error)
+        return f"Directory not found: {invalid_path}"
+    return str(error) or error.__class__.__name__

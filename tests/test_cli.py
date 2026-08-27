@@ -60,10 +60,59 @@ def test_search_dataset_uses_assignment_paths_and_output_name() -> None:
     )
 
 
-def test_search_rejects_non_positive_k_before_corpus_scan() -> None:
+def test_search_rejects_non_positive_k_before_corpus_scan(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     """An invalid limit fails before fingerprint or index work begins."""
     with patch("src.cli._current_corpus_fingerprint") as fingerprint:
-        with pytest.raises(ValueError, match="greater than zero"):
+        with pytest.raises(SystemExit) as exit_info:
             main(["search", "cache", "--k", "0"])
 
     fingerprint.assert_not_called()
+    assert exit_info.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.err == "Error: Search k must be greater than zero\n"
+    assert "Traceback" not in captured.err
+
+
+@pytest.mark.parametrize(
+    ("failure", "message"),
+    [
+        (FileNotFoundError("questions.json"), "File not found"),
+        (ValueError("Question dataset JSON is invalid"), "JSON is invalid"),
+        (
+            ValueError(
+                "Stored BM25 index schema is incompatible; reindex required"
+            ),
+            "reindex required",
+        ),
+    ],
+)
+def test_search_dataset_reports_expected_failures_without_traceback(
+    failure: Exception,
+    message: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Expected file and validation failures remain concise for users."""
+    with (
+        patch(
+            "src.cli._current_corpus_fingerprint",
+            return_value=FINGERPRINT,
+        ),
+        patch("src.cli.run_stored_retrieval", side_effect=failure),
+    ):
+        with pytest.raises(SystemExit) as exit_info:
+            main(
+                [
+                    "search_dataset",
+                    "--dataset_path",
+                    "questions.json",
+                    "--save_directory",
+                    "results",
+                ]
+            )
+
+    assert exit_info.value.code == 2
+    captured = capsys.readouterr()
+    assert message in captured.err
+    assert "Traceback" not in captured.err
