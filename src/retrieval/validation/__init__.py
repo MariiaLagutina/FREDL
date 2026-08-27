@@ -9,6 +9,7 @@ from src.retrieval.validation.models import (
     SourceValidationIssueKind,
     SourceValidationReport,
 )
+from src.retrieval.validation.runner import validate_retrieval_results
 
 __all__ = [
     "SourceValidationIssue",
@@ -16,4 +17,5 @@ __all__ = [
     "SourceValidationReport",
     "MAX_SOURCE_LENGTH",
     "validate_source",
+    "validate_retrieval_results",
 ]
