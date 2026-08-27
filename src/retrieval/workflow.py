@@ -5,8 +5,21 @@ from pathlib import Path
 from src.models import RetrievalResults
 from src.retrieval.bm25 import BM25Index
 from src.retrieval.input import load_rag_dataset
+from src.retrieval.index_store import IndexStore
 from src.retrieval.output import save_search_results
 from src.retrieval.results import search_dataset
+
+
+def run_stored_retrieval(
+    index_path: Path,
+    corpus_fingerprint: str,
+    input_path: Path,
+    output_path: Path,
+    k: int = 5,
+) -> RetrievalResults:
+    """Load one compatible index and run retrieval for a question file."""
+    index = IndexStore(index_path).load(corpus_fingerprint)
+    return run_retrieval(index, input_path, output_path, k)
 
 
 def run_retrieval(
