@@ -2,8 +2,21 @@
 
 from collections.abc import Sequence
 
-from src.models import MinimalSource
+from src.models import MinimalSearchResults, MinimalSource, UnansweredQuestion
 from src.retrieval.bm25 import BM25Hit, BM25Index, BM25Retriever
+
+
+def search_question(
+    index: BM25Index,
+    question: UnansweredQuestion,
+    k: int = 5,
+) -> MinimalSearchResults:
+    """Search one dataset question and preserve its public identity."""
+    return MinimalSearchResults(
+        question_id=question.question_id,
+        question=question.question,
+        retrieved_sources=search_sources(index, question.question, k),
+    )
 
 
 def search_sources(

@@ -3,7 +3,8 @@
 import pytest
 
 from src.ingestion import Chunk
-from src.retrieval import search_sources, select_sources
+from src.models import UnansweredQuestion
+from src.retrieval import search_question, search_sources, select_sources
 from src.retrieval.bm25 import BM25Document, BM25Hit, BM25Index
 
 
@@ -86,3 +87,24 @@ def test_search_sources_rejects_non_positive_k() -> None:
 
     with pytest.raises(ValueError, match="Search k"):
         search_sources(index, "term", k=0)
+
+
+def test_search_question_preserves_identity_and_source_coordinates() -> None:
+    """One dataset question becomes one traceable public search result."""
+    index = BM25Index(
+        [_hit("src/cache.py", 10, "term", 1.0).document]
+    )
+    question = UnansweredQuestion(
+        question_id="question-7",
+        question="Where is the term?",
+    )
+
+    result = search_question(index, question, k=1)
+
+    assert result.question_id == "question-7"
+    assert result.question == "Where is the term?"
+    assert result.retrieved_sources[0].model_dump() == {
+        "file_path": "src/cache.py",
+        "first_character_index": 10,
+        "last_character_index": 14,
+    }
