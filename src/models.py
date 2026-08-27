@@ -33,7 +33,7 @@ class RagDataset(BaseModel):
     rag_questions: list[AnsweredQuestion | UnansweredQuestion]
 
 
-class MinimalSearchResults(BaseModel):
+class QuerySearchResult(BaseModel):
     """Represent retrieved sources for one question."""
 
     question_id: str
@@ -41,21 +41,21 @@ class MinimalSearchResults(BaseModel):
     retrieved_sources: list[MinimalSource]
 
 
-class MinimalAnswer(MinimalSearchResults):
+class QueryAnswer(QuerySearchResult):
     """Represent retrieved sources and a generated answer for one question."""
 
     answer: str
 
 
-class StudentSearchResults(BaseModel):
+class RetrievalResults(BaseModel):
     """Represent batch retrieval output produced by the student pipeline."""
 
-    search_results: list[MinimalSearchResults]
+    search_results: list[QuerySearchResult]
     k: int
 
 
-class StudentSearchResultsAndAnswer(BaseModel):
+class RetrievalResultsWithAnswers(BaseModel):
     """Represent batch retrieval and answer-generation output."""
 
-    search_results: list[MinimalAnswer]
+    search_results: list[QueryAnswer]
     k: int

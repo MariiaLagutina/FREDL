@@ -5,12 +5,12 @@ import pytest
 
 from src.models import (
     AnsweredQuestion,
-    MinimalAnswer,
-    MinimalSearchResults,
     MinimalSource,
+    QueryAnswer,
+    QuerySearchResult,
     RagDataset,
-    StudentSearchResults,
-    StudentSearchResultsAndAnswer,
+    RetrievalResults,
+    RetrievalResultsWithAnswers,
     UnansweredQuestion,
 )
 
@@ -77,9 +77,9 @@ def test_rag_dataset_parses_answered_and_unanswered_questions() -> None:
 
 def test_student_search_results_round_trip() -> None:
     """Batch search output survives JSON serialization and validation."""
-    result = StudentSearchResults(
+    result = RetrievalResults(
         search_results=[
-            MinimalSearchResults(
+            QuerySearchResult(
                 question_id="q1",
                 question="Where is the example?",
                 retrieved_sources=[make_source()],
@@ -88,7 +88,7 @@ def test_student_search_results_round_trip() -> None:
         k=5,
     )
 
-    restored = StudentSearchResults.model_validate_json(
+    restored = RetrievalResults.model_validate_json(
         result.model_dump_json()
     )
 
@@ -97,9 +97,9 @@ def test_student_search_results_round_trip() -> None:
 
 def test_student_answers_round_trip() -> None:
     """Batch answer output survives JSON serialization and validation."""
-    result = StudentSearchResultsAndAnswer(
+    result = RetrievalResultsWithAnswers(
         search_results=[
-            MinimalAnswer(
+            QueryAnswer(
                 question_id="q1",
                 question="Where is the example?",
                 retrieved_sources=[make_source()],
@@ -109,7 +109,7 @@ def test_student_answers_round_trip() -> None:
         k=5,
     )
 
-    restored = StudentSearchResultsAndAnswer.model_validate_json(
+    restored = RetrievalResultsWithAnswers.model_validate_json(
         result.model_dump_json()
     )
 
