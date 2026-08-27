@@ -14,7 +14,7 @@ def test_load_rag_dataset_reads_valid_utf8_json(tmp_path: Path) -> None:
         """
         {
           "rag_questions": [
-            {"question_id": "q-1", "question": "Где находится cache?"}
+            {"question_id": "q-1", "question": "Wo ist der Größen-Cache?"}
           ]
         }
         """,
@@ -24,7 +24,7 @@ def test_load_rag_dataset_reads_valid_utf8_json(tmp_path: Path) -> None:
     dataset = load_rag_dataset(input_path)
 
     assert dataset.rag_questions[0].question_id == "q-1"
-    assert dataset.rag_questions[0].question == "Где находится cache?"
+    assert dataset.rag_questions[0].question == "Wo ist der Größen-Cache?"
 
 
 def test_load_rag_dataset_reports_invalid_schema(tmp_path: Path) -> None:

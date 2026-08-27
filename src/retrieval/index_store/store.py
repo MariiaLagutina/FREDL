@@ -14,7 +14,7 @@ from src.retrieval.index_store.models import (
     StoredParameters,
 )
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 
 
@@ -29,10 +29,20 @@ class IndexStore:
         """Store the explicit snapshot path without touching the filesystem."""
         self._path = path
 
-    def save(self, index: BM25Index, corpus_fingerprint: str) -> None:
+    def save(
+        self,
+        index: BM25Index,
+        corpus_fingerprint: str,
+        pipeline_fingerprint: str,
+    ) -> None:
         """Atomically save exact chunks, lexical fields, and parameters."""
         _validate_fingerprint(corpus_fingerprint)
-        snapshot = _snapshot_from_index(index, corpus_fingerprint)
+        _validate_fingerprint(pipeline_fingerprint)
+        snapshot = _snapshot_from_index(
+            index,
+            corpus_fingerprint,
+            pipeline_fingerprint,
+        )
         self._path.parent.mkdir(parents=True, exist_ok=True)
         temporary_path = self._path.with_suffix(self._path.suffix + ".tmp")
         temporary_path.write_text(
@@ -41,9 +51,14 @@ class IndexStore:
         )
         temporary_path.replace(self._path)
 
-    def load(self, expected_corpus_fingerprint: str) -> BM25Index:
+    def load(
+        self,
+        expected_corpus_fingerprint: str,
+        expected_pipeline_fingerprint: str,
+    ) -> BM25Index:
         """Load a compatible snapshot without reading source documents."""
         _validate_fingerprint(expected_corpus_fingerprint)
+        _validate_fingerprint(expected_pipeline_fingerprint)
         try:
             snapshot = StoredBM25Index.model_validate_json(
                 self._path.read_text(encoding="utf-8")
@@ -59,18 +74,24 @@ class IndexStore:
             raise IncompatibleIndexError(
                 "Stored BM25 index corpus differs; reindex required"
             )
+        if snapshot.pipeline_fingerprint != expected_pipeline_fingerprint:
+            raise IncompatibleIndexError(
+                "Stored BM25 index pipeline differs; reindex required"
+            )
         return _index_from_snapshot(snapshot)
 
 
 def _snapshot_from_index(
     index: BM25Index,
     corpus_fingerprint: str,
+    pipeline_fingerprint: str,
 ) -> StoredBM25Index:
     """Convert runtime objects into the validated persistence schema."""
     parameters = index.parameters
     return StoredBM25Index(
         schema_version=SCHEMA_VERSION,
         corpus_fingerprint=corpus_fingerprint,
+        pipeline_fingerprint=pipeline_fingerprint,
         parameters=StoredParameters(
             k1=parameters.k1,
             b=parameters.b,
