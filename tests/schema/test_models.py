@@ -5,12 +5,16 @@ import pytest
 
 from src.models import (
     AnsweredQuestion,
+    MinimalAnswer,
+    MinimalSearchResults,
     MinimalSource,
     QueryAnswer,
     QuerySearchResult,
     RagDataset,
     RetrievalResults,
     RetrievalResultsWithAnswers,
+    StudentSearchResults,
+    StudentSearchResultsAndAnswer,
     UnansweredQuestion,
 )
 
@@ -114,3 +118,42 @@ def test_student_answers_round_trip() -> None:
     )
 
     assert restored == result
+
+
+def test_assignment_search_models_preserve_domain_json_contract() -> None:
+    """Required class names serialize like the domain retrieval models."""
+    assignment_result = StudentSearchResults(
+        search_results=[
+            MinimalSearchResults(
+                question_id="q1",
+                question="Where is the example?",
+                retrieved_sources=[make_source()],
+            )
+        ],
+        k=5,
+    )
+    domain_result = RetrievalResults.model_validate(
+        assignment_result.model_dump()
+    )
+
+    assert assignment_result.model_dump() == domain_result.model_dump()
+
+
+def test_assignment_answer_models_preserve_domain_json_contract() -> None:
+    """Required answer class names preserve the domain output structure."""
+    assignment_result = StudentSearchResultsAndAnswer(
+        search_results=[
+            MinimalAnswer(
+                question_id="q1",
+                question="Where is the example?",
+                retrieved_sources=[make_source()],
+                answer="It is in the example documentation.",
+            )
+        ],
+        k=5,
+    )
+    domain_result = RetrievalResultsWithAnswers.model_validate(
+        assignment_result.model_dump()
+    )
+
+    assert assignment_result.model_dump() == domain_result.model_dump()
