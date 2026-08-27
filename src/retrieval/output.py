@@ -2,11 +2,11 @@
 
 from pathlib import Path
 
-from src.models import StudentSearchResults
+from src.models import RetrievalResults
 
 
 def save_search_results(
-    results: StudentSearchResults,
+    results: RetrievalResults,
     output_path: Path,
 ) -> None:
     """Atomically write formatted retrieval results as UTF-8 JSON."""

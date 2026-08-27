@@ -3,10 +3,10 @@
 from collections.abc import Sequence
 
 from src.models import (
-    MinimalSearchResults,
     MinimalSource,
+    QuerySearchResult,
     RagDataset,
-    StudentSearchResults,
+    RetrievalResults,
     UnansweredQuestion,
 )
 from src.retrieval.bm25 import BM25Hit, BM25Index, BM25Retriever
@@ -16,12 +16,12 @@ def search_dataset(
     index: BM25Index,
     dataset: RagDataset,
     k: int = 5,
-) -> StudentSearchResults:
+) -> RetrievalResults:
     """Search every dataset question in its original order."""
     if k <= 0:
         raise ValueError("Search k must be greater than zero")
 
-    return StudentSearchResults(
+    return RetrievalResults(
         search_results=[
             search_question(index, question, k)
             for question in dataset.rag_questions
@@ -34,9 +34,9 @@ def search_question(
     index: BM25Index,
     question: UnansweredQuestion,
     k: int = 5,
-) -> MinimalSearchResults:
+) -> QuerySearchResult:
     """Search one dataset question and preserve its public identity."""
-    return MinimalSearchResults(
+    return QuerySearchResult(
         question_id=question.question_id,
         question=question.question,
         retrieved_sources=search_sources(index, question.question, k),
