@@ -660,6 +660,17 @@ with the runtime index.
 - The public search boundary must calculate the same default pipeline identity
   used by the production index builder.
 
+**Verification evidence:**
+
+The production command rebuilt the 1,952-file vLLM corpus as 20,096 lexical
+documents in schema version 2. The corpus fingerprint remained
+`1745355afa9ef90effcc67802ad356e439dbf8a5d954e36ad4095d88b05bf1f2`,
+and the declared pipeline fingerprint was
+`03dbf67f929d95d8e405759fb5f5fbf7effcdc89c196d4ea410018484c8046d4`.
+The documentation and code retrieval result files were byte-for-byte identical
+to the schema version 1 baseline. Source validation accepted all 500
+documentation sources and all 495 code sources.
+
 ### Lesson
 
 Cache compatibility must describe how stored data was produced, not only what

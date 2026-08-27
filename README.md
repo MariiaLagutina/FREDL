@@ -55,7 +55,7 @@ Implemented:
 
 Current work:
 
-- exposing production index rebuilding for the pipeline-bound snapshot.
+- completing Step 15 acceptance and merge preparation.
 
 ## Requirements
 
@@ -441,6 +441,17 @@ index while accepting normal string queries.
 
 ## Retrieval Search
 
+Build or rebuild the default pipeline-compatible index:
+
+```bash
+uv run python -m src index
+```
+
+The command runs production ingestion over `data/raw/`, saves schema version 2
+to `data/processed/bm25-index.json`, and reports the document count together
+with the corpus and pipeline fingerprints. Generated indexes remain local and
+are not committed to Git.
+
 Search one raw query with the default compatible persisted index:
 
 ```bash
@@ -474,7 +485,8 @@ names coexist with the exact assignment-compatible model names and JSON fields.
 The Linux full-corpus acceptance run used the 20,096-document snapshot and
 produced results for 100 documentation questions and 99 code questions at
 `k=5`. All 995 returned source locations referenced existing files and valid
-half-open character ranges.
+half-open character ranges. Rebuilding the snapshot as schema version 2
+preserved both complete result files byte for byte.
 
 ## BM25 Evaluation
 
