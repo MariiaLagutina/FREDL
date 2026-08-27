@@ -5,6 +5,11 @@ from pathlib import Path
 from src.ingestion import discover_files
 from src.retrieval import run_stored_retrieval, run_stored_search
 from src.retrieval.index_store import fingerprint_corpus
+from src.retrieval.validation import (
+    MAX_SOURCE_LENGTH,
+    SourceValidationReport,
+    validate_retrieval_file,
+)
 
 
 DEFAULT_INDEX_PATH = Path("data/processed/bm25-index.json")
@@ -65,6 +70,26 @@ def search_dataset(
     return str(output)
 
 
+def validate_sources(
+    results_path: str,
+    corpus_root: str = str(DEFAULT_CORPUS_ROOT),
+    project_root: str = ".",
+    max_source_length: int = MAX_SOURCE_LENGTH,
+) -> dict[str, object]:
+    """Audit every source in one retrieval-results JSON file."""
+    try:
+        root = Path(project_root)
+        report = validate_retrieval_file(
+            _below_root(root, Path(results_path)),
+            root,
+            _below_root(root, Path(corpus_root)),
+            max_source_length=max_source_length,
+        )
+    except (OSError, UnicodeError, ValueError) as error:
+        raise CliError(_error_message(error)) from None
+    return _validation_report_dict(report)
+
+
 def _current_corpus_fingerprint(
     project_root: Path,
     corpus_root: Path,
@@ -97,3 +122,27 @@ def _error_message(error: Exception) -> str:
         invalid_path = error.filename or str(error)
         return f"Directory not found: {invalid_path}"
     return str(error) or error.__class__.__name__
+
+
+def _validation_report_dict(
+    report: SourceValidationReport,
+) -> dict[str, object]:
+    """Convert an internal audit report into terminal-friendly values."""
+    return {
+        "result_count": report.result_count,
+        "source_count": report.source_count,
+        "valid_source_count": report.valid_source_count,
+        "invalid_source_count": report.invalid_source_count,
+        "passed": report.passed,
+        "issues": [
+            {
+                "kind": issue.kind.value,
+                "result_index": issue.result_index,
+                "source_index": issue.source_index,
+                "question_id": issue.question_id,
+                "file_path": issue.file_path,
+                "detail": issue.detail,
+            }
+            for issue in report.issues
+        ],
+    }
