@@ -1,5 +1,6 @@
 """Tests for the assignment-compatible Python Fire CLI."""
 
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,6 +12,40 @@ from src.retrieval.validation import SourceValidationReport
 
 FINGERPRINT = "a" * 64
 PIPELINE_FINGERPRINT = "b" * 64
+
+
+def test_index_command_builds_schema_v2_snapshot(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The public command runs production ingestion and persists its result."""
+    corpus_root = tmp_path / "data" / "raw"
+    corpus_root.mkdir(parents=True)
+    (corpus_root / "guide.md").write_text(
+        "# Cache\n\nThe cache stores chunks.\n",
+        encoding="utf-8",
+    )
+
+    main(
+        [
+            "index",
+            "--project_root",
+            str(tmp_path),
+            "--corpus_root",
+            "data/raw",
+            "--index_path",
+            "data/processed/test-index.json",
+        ]
+    )
+
+    index_path = tmp_path / "data" / "processed" / "test-index.json"
+    payload = json.loads(index_path.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == 2
+    assert len(payload["corpus_fingerprint"]) == 64
+    assert len(payload["pipeline_fingerprint"]) == 64
+    captured = capsys.readouterr()
+    assert "document_count:" in captured.out
+    assert "schema_version:       2" in captured.out
 
 
 def test_search_command_routes_one_raw_query() -> None:

@@ -5,8 +5,10 @@ from pathlib import Path
 from src.ingestion import discover_files
 from src.retrieval import run_stored_retrieval, run_stored_search
 from src.retrieval.index_store import (
+    IndexStore,
     PipelineConfig,
     SCHEMA_VERSION,
+    build_index,
     fingerprint_corpus,
     fingerprint_pipeline,
 )
@@ -23,6 +25,38 @@ DEFAULT_CORPUS_ROOT = Path("data/raw")
 
 class CliError(Exception):
     """Represent an expected user-facing command failure."""
+
+
+def index(
+    index_path: str = str(DEFAULT_INDEX_PATH),
+    corpus_root: str = str(DEFAULT_CORPUS_ROOT),
+    project_root: str = ".",
+) -> dict[str, object]:
+    """Build and save the default production BM25 index."""
+    try:
+        root = Path(project_root)
+        config = PipelineConfig()
+        build = build_index(
+            root,
+            _below_root(root, Path(corpus_root)),
+            config,
+            index_schema_version=SCHEMA_VERSION,
+        )
+        output_path = _below_root(root, Path(index_path))
+        IndexStore(output_path).save(
+            build.index,
+            build.corpus_fingerprint,
+            build.pipeline_fingerprint,
+        )
+    except (OSError, UnicodeError, ValueError) as error:
+        raise CliError(_error_message(error)) from None
+    return {
+        "index_path": str(output_path),
+        "schema_version": SCHEMA_VERSION,
+        "document_count": len(build.index.documents),
+        "corpus_fingerprint": build.corpus_fingerprint,
+        "pipeline_fingerprint": build.pipeline_fingerprint,
+    }
 
 
 def search(
