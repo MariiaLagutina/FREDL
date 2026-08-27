@@ -3,8 +3,13 @@
 import pytest
 
 from src.ingestion import Chunk
-from src.models import UnansweredQuestion
-from src.retrieval import search_question, search_sources, select_sources
+from src.models import RagDataset, UnansweredQuestion
+from src.retrieval import (
+    search_dataset,
+    search_question,
+    search_sources,
+    select_sources,
+)
 from src.retrieval.bm25 import BM25Document, BM25Hit, BM25Index
 
 
@@ -108,3 +113,35 @@ def test_search_question_preserves_identity_and_source_coordinates() -> None:
         "first_character_index": 10,
         "last_character_index": 14,
     }
+
+
+def test_search_dataset_preserves_question_order_and_reports_k() -> None:
+    """Batch search reuses one index and produces the submission model."""
+    index = BM25Index([_hit("src/cache.py", 0, "term", 1.0).document])
+    dataset = RagDataset(
+        rag_questions=[
+            UnansweredQuestion(question_id="q-1", question="First term?"),
+            UnansweredQuestion(question_id="q-2", question="Second term?"),
+        ]
+    )
+
+    result = search_dataset(index, dataset, k=1)
+
+    assert result.k == 1
+    assert [item.question_id for item in result.search_results] == [
+        "q-1",
+        "q-2",
+    ]
+    assert all(
+        len(item.retrieved_sources) == 1
+        for item in result.search_results
+    )
+
+
+def test_search_dataset_rejects_invalid_k_for_empty_dataset() -> None:
+    """An empty batch cannot bypass validation of the requested limit."""
+    index = BM25Index([])
+    dataset = RagDataset(rag_questions=[])
+
+    with pytest.raises(ValueError, match="Search k"):
+        search_dataset(index, dataset, k=0)

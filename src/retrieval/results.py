@@ -2,8 +2,32 @@
 
 from collections.abc import Sequence
 
-from src.models import MinimalSearchResults, MinimalSource, UnansweredQuestion
+from src.models import (
+    MinimalSearchResults,
+    MinimalSource,
+    RagDataset,
+    StudentSearchResults,
+    UnansweredQuestion,
+)
 from src.retrieval.bm25 import BM25Hit, BM25Index, BM25Retriever
+
+
+def search_dataset(
+    index: BM25Index,
+    dataset: RagDataset,
+    k: int = 5,
+) -> StudentSearchResults:
+    """Search every dataset question in its original order."""
+    if k <= 0:
+        raise ValueError("Search k must be greater than zero")
+
+    return StudentSearchResults(
+        search_results=[
+            search_question(index, question, k)
+            for question in dataset.rag_questions
+        ],
+        k=k,
+    )
 
 
 def search_question(
