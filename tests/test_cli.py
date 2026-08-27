@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from src.__main__ import main
+from src.retrieval.validation import SourceValidationReport
 
 
 FINGERPRINT = "a" * 64
@@ -116,3 +117,33 @@ def test_search_dataset_reports_expected_failures_without_traceback(
     captured = capsys.readouterr()
     assert message in captured.err
     assert "Traceback" not in captured.err
+
+
+def test_validate_sources_command_returns_audit_summary(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The Fire validation command exposes stable report counts."""
+    report = SourceValidationReport(result_count=100, source_count=500)
+    with patch(
+        "src.cli.validate_retrieval_file",
+        return_value=report,
+    ) as validate_file:
+        main(
+            [
+                "validate_sources",
+                "--results_path",
+                "results/docs.json",
+            ]
+        )
+
+    validate_file.assert_called_once_with(
+        Path("results/docs.json"),
+        Path("."),
+        Path("data/raw"),
+        max_source_length=2000,
+    )
+    captured = capsys.readouterr()
+    assert "result_count:         100" in captured.out
+    assert "source_count:         500" in captured.out
+    assert "invalid_source_count: 0" in captured.out
+    assert "passed:               true" in captured.out
