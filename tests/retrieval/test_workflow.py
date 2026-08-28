@@ -1,9 +1,11 @@
 """Tests for the complete retrieval file workflow."""
 
+from collections.abc import Iterable, Sequence
 from pathlib import Path
+from unittest.mock import patch
 
 from src.ingestion import Chunk
-from src.models import RetrievalResults
+from src.models import RagDataset, RetrievalResults, UnansweredQuestion
 from src.retrieval import (
     run_retrieval,
     run_stored_retrieval,
@@ -120,3 +122,66 @@ def test_run_stored_retrieval_loads_index_once_for_question_file(
         "docs/cache.md"
     )
     assert output_path.exists()
+
+
+def test_run_stored_retrieval_processes_large_batch_with_one_index_load(
+    tmp_path: Path,
+) -> None:
+    """One process preserves all identities across a 150-question batch."""
+    index = BM25Index(
+        [
+            BM25Document(
+                chunk=Chunk("docs/cache.md", 0, 5, "cache"),
+                content_terms=("cache",),
+            )
+        ]
+    )
+    questions = [
+        UnansweredQuestion(
+            question_id=f"q-{question_index:03d}",
+            question=f"Where is cache number {question_index}?",
+        )
+        for question_index in range(150)
+    ]
+    input_path = tmp_path / "questions.json"
+    input_path.write_text(
+        RagDataset(rag_questions=questions).model_dump_json(),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "results" / input_path.name
+    observed: list[str] = []
+
+    def observe(
+        batch: Sequence[UnansweredQuestion],
+    ) -> Iterable[UnansweredQuestion]:
+        observed.extend(question.question_id for question in batch)
+        return batch
+
+    with patch(
+        "src.retrieval.workflow.IndexStore.load",
+        return_value=index,
+    ) as load_index:
+        results = run_stored_retrieval(
+            tmp_path / "bm25-index.json",
+            FINGERPRINT,
+            PIPELINE_FINGERPRINT,
+            input_path,
+            output_path,
+            k=1,
+            progress=observe,
+        )
+
+    expected_ids = [question.question_id for question in questions]
+    load_index.assert_called_once_with(FINGERPRINT, PIPELINE_FINGERPRINT)
+    assert observed == expected_ids
+    assert [result.question_id for result in results.search_results] == (
+        expected_ids
+    )
+    assert [result.question for result in results.search_results] == [
+        question.question for question in questions
+    ]
+    restored = RetrievalResults.model_validate_json(
+        output_path.read_text(encoding="utf-8")
+    )
+    assert restored == results
+    assert len(restored.search_results) == 150

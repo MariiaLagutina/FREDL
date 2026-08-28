@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 import pytest
 
@@ -104,6 +104,7 @@ def test_search_dataset_uses_assignment_paths_and_output_name() -> None:
         Path("data/datasets/questions.json"),
         Path("data/output/search_results/Public/questions.json"),
         3,
+        progress=ANY,
     )
 
 

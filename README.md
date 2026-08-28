@@ -43,6 +43,7 @@ Implemented:
 - validated single-query and batch retrieval with exact source coordinates;
 - assignment-compatible Python Fire commands for single-query and batch
   retrieval;
+- terminal batch progress without coupling retrieval logic to `tqdm`;
 - concise CLI failures for invalid input, missing files, malformed JSON, and
   incompatible indexes;
 - full-dataset validation of source paths, half-open character ranges, and the
@@ -55,7 +56,7 @@ Implemented:
 
 Current work:
 
-- completing Step 15 acceptance and merge preparation.
+- validating complete batch-search behavior and performance.
 
 ## Requirements
 
@@ -476,17 +477,28 @@ pipeline requires reindexing. The positive `k` value is the maximum number of
 exact source locations returned for one query.
 
 The batch command validates its input as `RagDataset`, loads the index once,
-searches questions in their original order, and atomically writes UTF-8 JSON.
-Expected input, file, JSON, and compatibility failures produce a concise error
-and non-zero exit status without an unhandled traceback. Internal BM25 scores
-are not included in the public result contract. Domain-oriented Python model
-names coexist with the exact assignment-compatible model names and JSON fields.
+reports question progress through `tqdm`, searches questions in their original
+order, and atomically writes UTF-8 JSON. The progress iterator is injected at
+the CLI boundary, so Python workflows can use the same retrieval logic without
+terminal output. Expected input, file, JSON, and compatibility failures produce
+a concise error and non-zero exit status without an unhandled traceback.
+Internal BM25 scores are not included in the public result contract.
+Domain-oriented Python model names coexist with the exact
+assignment-compatible model names and JSON fields.
 
 The Linux full-corpus acceptance run used the 20,096-document snapshot and
 produced results for 100 documentation questions and 99 code questions at
 `k=5`. All 995 returned source locations referenced existing files and valid
 half-open character ranges. Rebuilding the snapshot as schema version 2
 preserved both complete result files byte for byte.
+
+The Linux batch acceptance run processed 100 documentation questions in one
+process. Retrieval progressed at approximately 8.67 questions per second, and
+the complete command took 16.46 seconds including fingerprint checks, loading
+the persisted index, retrieval, and JSON output. Peak resident memory was
+838,044 KiB on the development machine. The resulting file remained byte for
+byte identical to the established baseline, and source validation accepted all
+500 returned locations.
 
 ## BM25 Evaluation
 
