@@ -1,5 +1,7 @@
 """Tests for the public retrieval result boundary."""
 
+from collections.abc import Iterable, Sequence
+
 import pytest
 
 from src.ingestion import Chunk
@@ -144,6 +146,29 @@ def test_search_dataset_preserves_question_order_and_reports_k() -> None:
         len(item.retrieved_sources) == 1
         for item in result.search_results
     )
+
+
+def test_search_dataset_uses_optional_progress_without_reordering() -> None:
+    """Progress presentation observes one batch without changing results."""
+    index = BM25Index([_hit("src/cache.py", 0, "term", 1.0).document])
+    dataset = RagDataset(
+        rag_questions=[
+            UnansweredQuestion(question_id="q-1", question="First term?"),
+            UnansweredQuestion(question_id="q-2", question="Second term?"),
+        ]
+    )
+    observed: list[str] = []
+
+    def observe(
+        questions: Sequence[UnansweredQuestion],
+    ) -> Iterable[UnansweredQuestion]:
+        observed.extend(question.question_id for question in questions)
+        return questions
+
+    result = search_dataset(index, dataset, k=1, progress=observe)
+
+    assert observed == ["q-1", "q-2"]
+    assert [item.question_id for item in result.search_results] == observed
 
 
 def test_search_dataset_rejects_invalid_k_for_empty_dataset() -> None:
