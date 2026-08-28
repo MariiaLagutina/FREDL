@@ -38,6 +38,29 @@ def test_source_match_requires_exact_file_path() -> None:
     assert not sources_match(retrieved, reference)
 
 
+@pytest.mark.parametrize(
+    ("retrieved_range", "reference_range", "expected_iou", "matches"),
+    [
+        ((0, 100), (100, 200), 0.0, False),
+        ((0, 524), (475, 1000), 0.049, False),
+        ((0, 105), (95, 200), 0.05, True),
+        ((0, 100), (0, 100), 1.0, True),
+    ],
+)
+def test_source_match_exact_iou_boundaries(
+    retrieved_range: tuple[int, int],
+    reference_range: tuple[int, int],
+    expected_iou: float,
+    matches: bool,
+) -> None:
+    """Local relevance changes only at the inclusive 0.05 boundary."""
+    retrieved = _chunk("src/cache.py", *retrieved_range)
+    reference = _source("src/cache.py", *reference_range)
+
+    assert isclose(source_iou(retrieved, reference), expected_iou)
+    assert sources_match(retrieved, reference) is matches
+
+
 def test_source_match_accepts_exact_iou_threshold() -> None:
     """An IoU of exactly 0.05 satisfies the Moulinette rule."""
     retrieved = _chunk("src/cache.py", 0, 105)
