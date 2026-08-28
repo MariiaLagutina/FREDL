@@ -1,8 +1,12 @@
 """Assignment-compatible command functions for the public CLI."""
 
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 
+from tqdm import tqdm
+
 from src.ingestion import discover_files
+from src.models import UnansweredQuestion
 from src.retrieval import run_stored_retrieval, run_stored_search
 from src.retrieval.index_store import (
     IndexStore,
@@ -105,10 +109,18 @@ def search_dataset(
             dataset,
             output,
             k,
+            progress=_progress_questions,
         )
     except (OSError, UnicodeError, ValueError) as error:
         raise CliError(_error_message(error)) from None
     return str(output)
+
+
+def _progress_questions(
+    questions: Sequence[UnansweredQuestion],
+) -> Iterable[UnansweredQuestion]:
+    """Display CLI batch progress without coupling retrieval to tqdm."""
+    yield from tqdm(questions, desc="Searching", unit="question")
 
 
 def validate_sources(

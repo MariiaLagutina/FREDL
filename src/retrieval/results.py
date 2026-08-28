@@ -1,6 +1,6 @@
 """Convert ranked retrieval hits into the public source contract."""
 
-from collections.abc import Sequence
+from collections.abc import Callable, Iterable, Sequence
 
 from src.models import (
     MinimalSource,
@@ -12,19 +12,30 @@ from src.models import (
 from src.retrieval.bm25 import BM25Hit, BM25Index, BM25Retriever
 
 
+QuestionProgress = Callable[
+    [Sequence[UnansweredQuestion]],
+    Iterable[UnansweredQuestion],
+]
+
+
 def search_dataset(
     index: BM25Index,
     dataset: RagDataset,
     k: int = 5,
+    progress: QuestionProgress | None = None,
 ) -> RetrievalResults:
     """Search every dataset question in its original order."""
     if k <= 0:
         raise ValueError("Search k must be greater than zero")
 
+    questions: Iterable[UnansweredQuestion] = dataset.rag_questions
+    if progress is not None:
+        questions = progress(dataset.rag_questions)
+
     return RetrievalResults(
         search_results=[
             search_question(index, question, k)
-            for question in dataset.rag_questions
+            for question in questions
         ],
         k=k,
     )
