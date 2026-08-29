@@ -2,6 +2,18 @@
 
 from dataclasses import dataclass
 
+from src.models import MinimalSource
+
+
+@dataclass(frozen=True, slots=True)
+class RetrievalEvaluationCase:
+    """Align one labelled question with its ranked retrieved sources."""
+
+    question_id: str
+    question: str
+    references: tuple[MinimalSource, ...]
+    retrieved: tuple[MinimalSource, ...]
+
 
 @dataclass(frozen=True, slots=True)
 class RetrievalQueryMetrics:
