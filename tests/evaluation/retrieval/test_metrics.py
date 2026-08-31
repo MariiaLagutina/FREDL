@@ -124,6 +124,29 @@ def test_query_metrics_report_later_first_relevant_rank() -> None:
     assert metrics.reciprocal_rank == 0.5
 
 
+def test_persisted_sources_match_internal_chunk_metrics() -> None:
+    """File evaluation reuses the same metrics as in-memory retrieval."""
+    references = [
+        _source("src/cache.py", 0, 20),
+        _source("src/store.py", 40, 60),
+    ]
+    chunks = [
+        _chunk("src/cache.py", 0, 20),
+        _chunk("src/noise.py", 0, 20),
+        _chunk("src/store.py", 40, 60),
+    ]
+    persisted_sources = [
+        _source("src/cache.py", 0, 20),
+        _source("src/noise.py", 0, 20),
+        _source("src/store.py", 40, 60),
+    ]
+
+    assert evaluate_query(persisted_sources, references) == evaluate_query(
+        chunks,
+        references,
+    )
+
+
 def test_aggregate_metrics_average_one_fixed_query_group() -> None:
     """Documentation or code query metrics remain independently reportable."""
     metrics = aggregate_query_metrics(

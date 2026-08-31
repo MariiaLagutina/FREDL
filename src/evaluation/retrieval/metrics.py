@@ -1,6 +1,7 @@
 """Calculate source-aware retrieval metrics using Moulinette overlap."""
 
 from collections.abc import Sequence
+from typing import TypeAlias
 
 from src.evaluation.retrieval.models import (
     RetrievalMetrics,
@@ -11,33 +12,44 @@ from src.models import MinimalSource
 
 
 MOULINETTE_IOU_THRESHOLD = 0.05
+RetrievedSource: TypeAlias = Chunk | MinimalSource
 
 
-def source_iou(retrieved: Chunk, reference: MinimalSource) -> float:
+def source_iou(
+    retrieved: RetrievedSource,
+    reference: MinimalSource,
+) -> float:
     """Return intersection over union for two half-open source ranges."""
+    retrieved_path, retrieved_start, retrieved_end = _retrieved_range(
+        retrieved
+    )
     reference_length = (
         reference.last_character_index - reference.first_character_index
     )
     if reference.first_character_index < 0 or reference_length <= 0:
         raise ValueError("Reference source range must be positive")
-    if retrieved.file_path != reference.file_path:
+    if retrieved_path != reference.file_path:
         return 0.0
     intersection = max(
         0,
-        min(retrieved.end, reference.last_character_index)
-        - max(retrieved.start, reference.first_character_index),
+        min(retrieved_end, reference.last_character_index)
+        - max(retrieved_start, reference.first_character_index),
     )
-    union = len(retrieved.text) + reference_length - intersection
+    retrieved_length = retrieved_end - retrieved_start
+    union = retrieved_length + reference_length - intersection
     return intersection / union
 
 
-def sources_match(retrieved: Chunk, reference: MinimalSource) -> bool:
+def sources_match(
+    retrieved: RetrievedSource,
+    reference: MinimalSource,
+) -> bool:
     """Apply exact path equality and the Moulinette IoU threshold."""
     return source_iou(retrieved, reference) >= MOULINETTE_IOU_THRESHOLD
 
 
 def evaluate_query(
-    retrieved: Sequence[Chunk],
+    retrieved: Sequence[RetrievedSource],
     references: Sequence[MinimalSource],
 ) -> RetrievalQueryMetrics:
     """Evaluate ranked chunks against every relevant reference source."""
@@ -77,7 +89,7 @@ def aggregate_query_metrics(
 
 
 def _recall_at_k(
-    retrieved: Sequence[Chunk],
+    retrieved: Sequence[RetrievedSource],
     references: Sequence[MinimalSource],
     k: int,
 ) -> float:
@@ -91,7 +103,7 @@ def _recall_at_k(
 
 
 def _reciprocal_rank(
-    retrieved: Sequence[Chunk],
+    retrieved: Sequence[RetrievedSource],
     references: Sequence[MinimalSource],
 ) -> float:
     """Return the inverse rank of the first source-overlapping result."""
@@ -99,3 +111,16 @@ def _reciprocal_rank(
         if any(sources_match(hit, reference) for reference in references):
             return 1.0 / rank
     return 0.0
+
+
+def _retrieved_range(
+    source: RetrievedSource,
+) -> tuple[str, int, int]:
+    """Normalize internal chunks and persisted sources to one range."""
+    if isinstance(source, Chunk):
+        return source.file_path, source.start, source.end
+    return (
+        source.file_path,
+        source.first_character_index,
+        source.last_character_index,
+    )
