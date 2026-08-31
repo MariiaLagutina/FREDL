@@ -345,3 +345,56 @@ public questions.
 **Decision:** Preserve this miss as baseline evidence. Measure Recall@1/3/5/10
 separately for the complete documentation and code datasets before changing
 tokenization, chunking, metadata, or BM25 parameters.
+
+## Full public datasets - lexical BM25 baseline
+
+**Status:** Completed as the first full-dataset retrieval-quality baseline.
+
+**Date:** 2026-08-31.
+
+**Constants:** The persisted 20,096-document BM25 index with `k1=1.5`,
+`b=0.75`, `metadata_weight=1.0`, and `k=5`. Retrieval uses lexical content
+and structural metadata tokens only; embeddings and semantic vector search are
+not part of this baseline. Relevance requires an exact `file_path` match and
+half-open source-range IoU greater than or equal to `0.05`.
+
+**Evaluator Git commit:**
+`dfaf4aa479a81484b53f6435210ed9665d1d2911`.
+
+**Inputs:**
+
+| Role | Path | SHA-256 |
+| --- | --- | --- |
+| Docs ground truth | `data/datasets/AnsweredQuestions/dataset_docs_public.json` | `bbde6ed2efaf8966e8950568ee04e8ccaa3441569ba0b026642c9e6c45c2632c` |
+| Docs retrieval results | `data/output/search_results/UnansweredQuestions/dataset_docs_public.json` | `d163856fd08ac34c649d125d2a1abd4ad2c010a85713fef4764d536600857127` |
+| Code ground truth | `data/datasets/AnsweredQuestions/dataset_code_public.json` | `dfc00cd9707d23f9ebf8c604013222c1268bfcc672403d465d5246e7c6e0915c` |
+| Code retrieval results | `data/output/search_results/UnansweredQuestions/dataset_code_public.json` | `1edd60ac96b948f48875ae23cc34d9fdfb4fc8ee65eeefd60d908b3e5b3d9fd4` |
+
+**Command:**
+
+```bash
+uv run python -m src evaluate \
+  --docs_ground_truth_path data/datasets/AnsweredQuestions/dataset_docs_public.json \
+  --docs_results_path data/output/search_results/UnansweredQuestions/dataset_docs_public.json \
+  --code_ground_truth_path data/datasets/AnsweredQuestions/dataset_code_public.json \
+  --code_results_path data/output/search_results/UnansweredQuestions/dataset_code_public.json
+```
+
+**Results:**
+
+| Dataset | Queries | R@1 | R@3 | R@5 | R@10 | MRR |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Docs | 100 | 0.540000 | 0.740000 | 0.820000 | 0.820000 | 0.643000 |
+| Code | 99 | 0.484848 | 0.676768 | 0.757576 | 0.757576 | 0.595623 |
+
+**Interpretation:** The lexical baseline retrieves 82% of labelled
+documentation sources and approximately 75.8% of labelled code sources within
+the first five results. The unchanged R@5 and R@10 values show that increasing
+the result limit alone does not recover the remaining misses. Future gains
+must be demonstrated through controlled changes to tokenization, chunking,
+metadata weighting, or BM25 parameters on these same fixed inputs.
+
+**Decision:** Preserve these values as the first full public-dataset control.
+Do not change the baseline configuration from this run alone. Compare every
+future candidate against the same input hashes and report Docs and Code
+separately.
