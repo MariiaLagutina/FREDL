@@ -49,14 +49,12 @@ Implemented:
 - full-dataset validation of source paths, half-open character ranges, and the
   2,000-character source limit;
 - Moulinette-compatible source IoU, Recall@K, and MRR metrics;
+- file-based Docs and Code evaluation aligned safely by `question_id`;
+- a public local evaluator with separate Recall@1/3/5/10 and MRR reports;
 - a fixed documentation/code mini-suite and BM25 experiment CLI;
 - optional JSON reports with corpus, Git, environment, latency, and memory
   evidence;
 - automated tests organized by pipeline component.
-
-Current work:
-
-- validating complete batch-search behavior and performance.
 
 ## Requirements
 
@@ -502,6 +500,37 @@ byte identical to the established baseline, and source validation accepted all
 
 ## BM25 Evaluation
 
+Evaluate complete persisted documentation and code results against their
+labelled datasets:
+
+```bash
+uv run python -m src evaluate \
+  --docs_ground_truth_path data/datasets/AnsweredQuestions/dataset_docs_public.json \
+  --docs_results_path data/output/search_results/UnansweredQuestions/dataset_docs_public.json \
+  --code_ground_truth_path data/datasets/AnsweredQuestions/dataset_code_public.json \
+  --code_results_path data/output/search_results/UnansweredQuestions/dataset_code_public.json
+```
+
+The evaluator joins each result to its label by `question_id`, preserves
+ground-truth order, and rejects missing, unrelated, or duplicate IDs and
+mismatched question text. Expected file, JSON, and alignment failures produce
+a concise error without an unhandled traceback. The terminal report keeps Docs
+and Code separate and includes query count, Recall@1/3/5/10, and MRR.
+
+The first full public-dataset lexical BM25 baseline produced:
+
+| Dataset | Queries | R@1 | R@3 | R@5 | R@10 | MRR |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Docs | 100 | 0.540000 | 0.740000 | 0.820000 | 0.820000 | 0.643000 |
+| Code | 99 | 0.484848 | 0.676768 | 0.757576 | 0.757576 | 0.595623 |
+
+This baseline uses lexical content and structural metadata tokens only; it
+does not use embeddings or semantic vector search. A real documentation query
+was also checked manually: its top result and reference shared the exact file
+path, intersection length `1403`, union length `1405`, and IoU approximately
+`0.99858`. The result therefore satisfies the inclusive `0.05` threshold at
+rank 1, giving Recall@1/3/5/10 and reciprocal rank equal to `1.0`.
+
 Run the neutral mini-suite control:
 
 ```bash
@@ -548,7 +577,7 @@ Controlled parameter history and provisional measurements are recorded in
 The current checks pass:
 
 ```text
-pytest: 233 passed
+pytest: 292 passed
 flake8: passed
 mypy: passed
 ```
