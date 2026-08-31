@@ -38,6 +38,29 @@ def test_source_match_requires_exact_file_path() -> None:
     assert not sources_match(retrieved, reference)
 
 
+@pytest.mark.parametrize(
+    ("retrieved_range", "reference_range", "expected_iou", "matches"),
+    [
+        ((0, 100), (100, 200), 0.0, False),
+        ((0, 524), (475, 1000), 0.049, False),
+        ((0, 105), (95, 200), 0.05, True),
+        ((0, 100), (0, 100), 1.0, True),
+    ],
+)
+def test_source_match_exact_iou_boundaries(
+    retrieved_range: tuple[int, int],
+    reference_range: tuple[int, int],
+    expected_iou: float,
+    matches: bool,
+) -> None:
+    """Local relevance changes only at the inclusive 0.05 boundary."""
+    retrieved = _chunk("src/cache.py", *retrieved_range)
+    reference = _source("src/cache.py", *reference_range)
+
+    assert isclose(source_iou(retrieved, reference), expected_iou)
+    assert sources_match(retrieved, reference) is matches
+
+
 def test_source_match_accepts_exact_iou_threshold() -> None:
     """An IoU of exactly 0.05 satisfies the Moulinette rule."""
     retrieved = _chunk("src/cache.py", 0, 105)
@@ -99,6 +122,29 @@ def test_query_metrics_report_later_first_relevant_rank() -> None:
     assert metrics.recall_at_1 == 0
     assert metrics.recall_at_3 == 1
     assert metrics.reciprocal_rank == 0.5
+
+
+def test_persisted_sources_match_internal_chunk_metrics() -> None:
+    """File evaluation reuses the same metrics as in-memory retrieval."""
+    references = [
+        _source("src/cache.py", 0, 20),
+        _source("src/store.py", 40, 60),
+    ]
+    chunks = [
+        _chunk("src/cache.py", 0, 20),
+        _chunk("src/noise.py", 0, 20),
+        _chunk("src/store.py", 40, 60),
+    ]
+    persisted_sources = [
+        _source("src/cache.py", 0, 20),
+        _source("src/noise.py", 0, 20),
+        _source("src/store.py", 40, 60),
+    ]
+
+    assert evaluate_query(persisted_sources, references) == evaluate_query(
+        chunks,
+        references,
+    )
 
 
 def test_aggregate_metrics_average_one_fixed_query_group() -> None:
