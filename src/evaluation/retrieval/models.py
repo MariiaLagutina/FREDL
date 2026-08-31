@@ -1,8 +1,16 @@
 """Immutable metrics for one query and an aggregated retrieval dataset."""
 
 from dataclasses import dataclass
+from enum import Enum
 
 from src.models import MinimalSource
+
+
+class RetrievalDatasetKind(str, Enum):
+    """Identify one independently reported retrieval dataset."""
+
+    DOCS = "Docs"
+    CODE = "Code"
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,3 +44,11 @@ class RetrievalMetrics:
     recall_at_5: float
     recall_at_10: float
     mean_reciprocal_rank: float
+
+
+@dataclass(frozen=True, slots=True)
+class RetrievalEvaluationReport:
+    """Label aggregate metrics for one retrieval dataset."""
+
+    dataset: RetrievalDatasetKind
+    metrics: RetrievalMetrics
