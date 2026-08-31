@@ -2,11 +2,16 @@
 
 import json
 from pathlib import Path
-from unittest.mock import ANY, patch
+from unittest.mock import ANY, call, patch
 
 import pytest
 
 from src.__main__ import main
+from src.evaluation.retrieval import (
+    RetrievalDatasetKind,
+    RetrievalEvaluationReport,
+    RetrievalMetrics,
+)
 from src.retrieval.validation import SourceValidationReport
 
 
@@ -194,3 +199,109 @@ def test_validate_sources_command_returns_audit_summary(
     assert "source_count:         500" in captured.out
     assert "invalid_source_count: 0" in captured.out
     assert "passed:               true" in captured.out
+
+
+def test_evaluate_command_reports_docs_and_code_separately(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The public evaluator loads and labels both required datasets."""
+    metrics = RetrievalMetrics(2, 0.25, 1.0, 1.0, 1.0, 0.75)
+    with (
+        patch(
+            "src.cli.load_evaluation_cases",
+            side_effect=[(), ()],
+        ) as load_cases,
+        patch(
+            "src.cli.evaluate_cases",
+            side_effect=[
+                RetrievalEvaluationReport(
+                    RetrievalDatasetKind.DOCS,
+                    metrics,
+                ),
+                RetrievalEvaluationReport(
+                    RetrievalDatasetKind.CODE,
+                    metrics,
+                ),
+            ],
+        ) as evaluate_loaded_cases,
+    ):
+        main(
+            [
+                "evaluate",
+                "--docs_ground_truth_path",
+                "datasets/docs.json",
+                "--docs_results_path",
+                "results/docs.json",
+                "--code_ground_truth_path",
+                "datasets/code.json",
+                "--code_results_path",
+                "results/code.json",
+                "--project_root",
+                "/project",
+            ]
+        )
+
+    assert load_cases.call_args_list == [
+        call(
+            Path("/project/datasets/docs.json"),
+            Path("/project/results/docs.json"),
+        ),
+        call(
+            Path("/project/datasets/code.json"),
+            Path("/project/results/code.json"),
+        ),
+    ]
+    assert evaluate_loaded_cases.call_args_list == [
+        call(RetrievalDatasetKind.DOCS, ()),
+        call(RetrievalDatasetKind.CODE, ()),
+    ]
+    output = capsys.readouterr().out
+    assert "Docs:" in output
+    assert "Code:" in output
+    assert output.count("query_count:  2") == 2
+    assert output.count("recall_at_1:  0.250000") == 2
+    assert output.count("mrr:          0.750000") == 2
+
+
+@pytest.mark.parametrize(
+    ("failure", "message"),
+    [
+        (FileNotFoundError("docs.json"), "File not found"),
+        (ValueError("Retrieval results JSON is invalid"), "JSON is invalid"),
+        (
+            ValueError(
+                "Ground truth and retrieval results must contain the same IDs"
+            ),
+            "same IDs",
+        ),
+    ],
+)
+def test_evaluate_command_reports_expected_failures_without_traceback(
+    failure: Exception,
+    message: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Expected evaluator input failures remain concise for users."""
+    with patch(
+        "src.cli.load_evaluation_cases",
+        side_effect=failure,
+    ):
+        with pytest.raises(SystemExit) as exit_info:
+            main(
+                [
+                    "evaluate",
+                    "--docs_ground_truth_path",
+                    "docs-ground-truth.json",
+                    "--docs_results_path",
+                    "docs-results.json",
+                    "--code_ground_truth_path",
+                    "code-ground-truth.json",
+                    "--code_results_path",
+                    "code-results.json",
+                ]
+            )
+
+    assert exit_info.value.code == 2
+    captured = capsys.readouterr()
+    assert message in captured.err
+    assert "Traceback" not in captured.err

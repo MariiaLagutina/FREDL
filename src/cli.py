@@ -5,6 +5,13 @@ from pathlib import Path
 
 from tqdm import tqdm
 
+from src.evaluation.retrieval import (
+    RetrievalDatasetKind,
+    RetrievalEvaluationReport,
+    RetrievalMetrics,
+    evaluate_cases,
+    load_evaluation_cases,
+)
 from src.ingestion import discover_files
 from src.models import UnansweredQuestion
 from src.retrieval import run_stored_retrieval, run_stored_search
@@ -143,6 +150,36 @@ def validate_sources(
     return _validation_report_dict(report)
 
 
+def evaluate(
+    docs_ground_truth_path: str,
+    docs_results_path: str,
+    code_ground_truth_path: str,
+    code_results_path: str,
+    project_root: str = ".",
+) -> None:
+    """Evaluate persisted Docs and Code retrieval results separately."""
+    try:
+        root = Path(project_root)
+        docs_report = evaluate_cases(
+            RetrievalDatasetKind.DOCS,
+            load_evaluation_cases(
+                _below_root(root, Path(docs_ground_truth_path)),
+                _below_root(root, Path(docs_results_path)),
+            ),
+        )
+        code_report = evaluate_cases(
+            RetrievalDatasetKind.CODE,
+            load_evaluation_cases(
+                _below_root(root, Path(code_ground_truth_path)),
+                _below_root(root, Path(code_results_path)),
+            ),
+        )
+    except (OSError, UnicodeError, ValueError) as error:
+        raise CliError(_error_message(error)) from None
+    _print_evaluation_report(docs_report)
+    _print_evaluation_report(code_report)
+
+
 def _current_corpus_fingerprint(
     project_root: Path,
     corpus_root: Path,
@@ -207,3 +244,17 @@ def _validation_report_dict(
             for issue in report.issues
         ],
     }
+
+
+def _print_evaluation_report(
+    report: RetrievalEvaluationReport,
+) -> None:
+    """Print one labelled dataset with stable terminal field names."""
+    metrics: RetrievalMetrics = report.metrics
+    print(f"{report.dataset.value}:")
+    print(f"  query_count:  {metrics.query_count}")
+    print(f"  recall_at_1:  {metrics.recall_at_1:.6f}")
+    print(f"  recall_at_3:  {metrics.recall_at_3:.6f}")
+    print(f"  recall_at_5:  {metrics.recall_at_5:.6f}")
+    print(f"  recall_at_10: {metrics.recall_at_10:.6f}")
+    print(f"  mrr:          {metrics.mean_reciprocal_rank:.6f}")
