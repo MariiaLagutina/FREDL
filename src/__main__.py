@@ -5,7 +5,14 @@ import sys
 
 import fire
 
-from src.cli import CliError, index, search, search_dataset, validate_sources
+from src.cli import (
+    CliError,
+    evaluate,
+    index,
+    search,
+    search_dataset,
+    validate_sources,
+)
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -13,6 +20,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     try:
         fire.Fire(
             {
+                "evaluate": evaluate,
                 "index": index,
                 "search": search,
                 "search_dataset": search_dataset,
