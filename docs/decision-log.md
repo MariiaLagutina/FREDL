@@ -677,3 +677,92 @@ Cache compatibility must describe how stored data was produced, not only what
 its serialized shape looks like or which input files existed. Make every
 behavioral input explicit, canonicalize it, and validate that identity before
 reusing derived data.
+
+## 2026-09-01 - Use k1=1.4 as the unified BM25 tuning baseline
+
+**Status:** Accepted
+
+### Initial approach
+
+Use the library-default-style BM25 configuration `k1=1.5`, `b=0.75`, and
+`metadata_weight=1.0` as the fixed ranking baseline for all later experiments.
+
+### Why the approach was reconsidered
+
+Full-dataset experiments with `k1=1.2`, `1.4`, and `1.8` showed a real
+cross-dataset tradeoff. Higher `k1` favored documentation retrieval but
+reduced Code recall, while lower `k1` improved some Code cutoffs at a cost to
+Docs. The middle candidate `1.4` preserved Docs R@3, R@5, and R@10 and Code
+R@3, while gaining one Code hit at R@1, R@5, and R@10. Across both datasets,
+R@1 hit count remained unchanged and R@5 and R@10 each gained one hit.
+
+### Decision
+
+Use `k1=1.4` as the unified ranking baseline for the next single-factor
+experiments. Keep `metadata_weight=1.0`, and vary only `b` around `0.75` so
+that document-length normalization is measured independently.
+
+The complete metrics, artifact fingerprints, timings, and per-question rank
+changes are preserved in the
+[K1 experiment record](bm25-tuning-log.md#k1---term-frequency-saturation-comparison).
+
+### Consequences
+
+- New `b` experiments must build and search with `k1=1.4`.
+- The B0 run with `k1=1.5` remains the immutable original control.
+- Choosing one shared value avoids separate Docs and Code production
+  configurations.
+- The improvement is deterministic on the fixed public dataset but small, so
+  it must not be presented as broad statistical significance.
+- Later candidates must be compared against both B0 and the adopted `k1=1.4`
+  baseline where that distinction affects interpretation.
+
+### Lesson
+
+When one retrieval configuration must serve different source types, select a
+controlled compromise from aggregate and per-question evidence instead of
+optimizing one dataset in isolation.
+
+## 2026-09-01 - Use b=0.65 for unified BM25 length normalization
+
+**Status:** Accepted
+
+### Initial approach
+
+Keep `b=0.75` after selecting `k1=1.4`, using the conventional BM25 value as
+the shared document-length normalization setting for Docs and Code.
+
+### Why the approach was reconsidered
+
+The controlled `b` series exposed opposite dataset effects. Lower values
+improved early Code ranks, while `b=1.0` favoured Docs R@3 but substantially
+damaged Code at every cutoff. The intermediate `b=0.65` retained the stable
+Code R@3, R@5, and R@10 values, added three Code R@1 hits, and improved Code
+MRR. For Docs it exchanged one R@3 and R@5 hit for one R@1 and R@10 hit and a
+slightly higher MRR. The adjacent `b=0.70` candidate did not improve any
+metric over `0.65`.
+
+### Decision
+
+Use `k1=1.4`, `b=0.65`, and `metadata_weight=1.0` as the unified BM25 ranking
+configuration for the next experiment family. Stop subdividing the tested
+`b` interval.
+
+The complete metrics, fingerprints, timings, and stopping evidence are in the
+[B experiment record](bm25-tuning-log.md#b---document-length-normalization-comparison).
+
+### Consequences
+
+- New ranking experiments must hold `k1=1.4` and `b=0.65` fixed unless they
+  explicitly test an interaction involving those parameters.
+- B0 and the `k1=1.4, b=0.75` run remain immutable controls.
+- One shared configuration continues to serve Docs and Code.
+- Early Code ranking improves without reducing Code R@3, R@5, or R@10.
+- The small fixed-dataset differences remain directional evidence, not a
+  claim of broad statistical significance.
+
+### Lesson
+
+Tune document-length normalization across heterogeneous source types with
+both early-rank and deeper-recall evidence, then stop when a neighbouring
+candidate is dominated and finer search would overfit one-question changes.

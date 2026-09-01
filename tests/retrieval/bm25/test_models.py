@@ -18,11 +18,11 @@ def _chunk() -> Chunk:
     )
 
 
-def test_parameters_expose_explicit_baseline_defaults() -> None:
-    """The first lexical baseline has stable, inspectable parameters."""
+def test_parameters_expose_tuned_production_defaults() -> None:
+    """The tuned lexical defaults remain stable and inspectable."""
     assert BM25Parameters() == BM25Parameters(
-        k1=1.5,
-        b=0.75,
+        k1=1.4,
+        b=0.65,
         metadata_weight=1.0,
     )
 
