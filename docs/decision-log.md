@@ -722,3 +722,47 @@ changes are preserved in the
 When one retrieval configuration must serve different source types, select a
 controlled compromise from aggregate and per-question evidence instead of
 optimizing one dataset in isolation.
+
+## 2026-09-01 - Use b=0.65 for unified BM25 length normalization
+
+**Status:** Accepted
+
+### Initial approach
+
+Keep `b=0.75` after selecting `k1=1.4`, using the conventional BM25 value as
+the shared document-length normalization setting for Docs and Code.
+
+### Why the approach was reconsidered
+
+The controlled `b` series exposed opposite dataset effects. Lower values
+improved early Code ranks, while `b=1.0` favoured Docs R@3 but substantially
+damaged Code at every cutoff. The intermediate `b=0.65` retained the stable
+Code R@3, R@5, and R@10 values, added three Code R@1 hits, and improved Code
+MRR. For Docs it exchanged one R@3 and R@5 hit for one R@1 and R@10 hit and a
+slightly higher MRR. The adjacent `b=0.70` candidate did not improve any
+metric over `0.65`.
+
+### Decision
+
+Use `k1=1.4`, `b=0.65`, and `metadata_weight=1.0` as the unified BM25 ranking
+configuration for the next experiment family. Stop subdividing the tested
+`b` interval.
+
+The complete metrics, fingerprints, timings, and stopping evidence are in the
+[B experiment record](bm25-tuning-log.md#b---document-length-normalization-comparison).
+
+### Consequences
+
+- New ranking experiments must hold `k1=1.4` and `b=0.65` fixed unless they
+  explicitly test an interaction involving those parameters.
+- B0 and the `k1=1.4, b=0.75` run remain immutable controls.
+- One shared configuration continues to serve Docs and Code.
+- Early Code ranking improves without reducing Code R@3, R@5, or R@10.
+- The small fixed-dataset differences remain directional evidence, not a
+  claim of broad statistical significance.
+
+### Lesson
+
+Tune document-length normalization across heterogeneous source types with
+both early-rank and deeper-recall evidence, then stop when a neighbouring
+candidate is dominated and finer search would overfit one-question changes.

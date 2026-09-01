@@ -646,3 +646,79 @@ series. Keep `metadata_weight=1.0`, then vary only `b` around B0's `0.75` to
 measure document-length normalization independently. Begin with `b=0.5` and
 `b=1.0`; use the fixed datasets, corpus, chunking, `k=10`, and evaluator
 settings above.
+
+## B - document-length normalization comparison
+
+**Status:** Completed. Adopt `b=0.65` and stop this single-factor series.
+
+**Date:** 2026-09-01.
+
+**Hypothesis:** Reducing length normalization from `b=0.75` may improve early
+Code ranks without materially reducing documentation retrieval quality.
+
+**Changed factor:** Only `b`. The comparison covers `0.5`, `0.6`, `0.65`,
+`0.70`, the adopted K1 baseline's `0.75`, and `1.0`.
+
+**Constants:** B0 corpus and datasets; `k1=1.4`;
+`metadata_weight=1.0`; `max_chunk_size=2000`; documentation overlap `160`;
+code overlap `80`; 20,096 indexed documents; `k=10`;
+`max_context_length=2000`; no embeddings or vector search.
+
+**Moulinette and local evaluator results:**
+
+| b | Dataset | R@1 | R@3 | R@5 | R@10 | Local MRR |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 0.50 | Docs | 0.550000 | 0.690000 | 0.790000 | 0.860000 | 0.637980 |
+| 0.50 | Code | 0.545455 | 0.696970 | 0.787879 | 0.838384 | 0.642825 |
+| 0.60 | Docs | 0.540000 | 0.710000 | 0.790000 | 0.880000 | 0.642579 |
+| 0.60 | Code | 0.535354 | 0.676768 | 0.777778 | 0.838384 | 0.631630 |
+| 0.65 | Docs | 0.540000 | 0.730000 | 0.810000 | 0.880000 | 0.646496 |
+| 0.65 | Code | 0.525253 | 0.676768 | 0.767677 | 0.838384 | 0.627746 |
+| 0.70 | Docs | 0.530000 | 0.730000 | 0.810000 | 0.870000 | 0.641123 |
+| 0.70 | Code | 0.505051 | 0.676768 | 0.767677 | 0.838384 | 0.617404 |
+| 0.75 | Docs | 0.530000 | 0.740000 | 0.820000 | 0.870000 | 0.645623 |
+| 0.75 | Code | 0.494949 | 0.676768 | 0.767677 | 0.838384 | 0.611344 |
+| 1.00 | Docs | 0.540000 | 0.770000 | 0.820000 | 0.860000 | 0.658750 |
+| 1.00 | Code | 0.444444 | 0.656566 | 0.707071 | 0.757576 | 0.560630 |
+
+The local evaluator matched all forty Moulinette Recall values exactly for the
+ten new result files.
+
+**Fingerprints and artifact hashes:**
+
+| b | Pipeline fingerprint | Index SHA-256 | Docs result SHA-256 | Code result SHA-256 |
+| ---: | --- | --- | --- | --- |
+| 0.50 | `365dfc507e32cd6c1752b96020dfa438c8a1da3b741f84d1567f0a8b3edd4fd5` | `b4f7a950169a1b46f98b42fd557d3af97fa0529e46ac053a2efccb838e66d8d3` | `95f3c9a0fcf5fdf5278de92d25c8d112d3e1ad1b027d4ad6be85f0353e843b44` | `6ade46c70fd5d6fd22a7b36f744f12f3dddfe4ea63784eacf210704559d5b5a5` |
+| 0.60 | `3b659657a1099b2930b006247f7c64e4472ba83990986e8b4a1da50862d17f7e` | `d829e6883922c75b6810698c5112351e5f8a37f10c56746906eb1ff2e191b0e2` | `c028c0fa8608bdad89944509e1641c7fe338f8b045594c158855d01242254ccd` | `fa2d4e59eb4728e5683da7dd3546b1713cce0a939e0339466b07a33e9124e4f2` |
+| 0.65 | `ebc6d3ffc6535965b94aab7651bd837468a9c4ebefb81570818179741afe511f` | `ccda3204f24b87706eb8a01d56d39e36b27d8485da0870659af2396d33212092` | `5a77414dde064181f14c70e3f695f15c8717ed6cc04ae629513fb1014dc0c652` | `b2ff9dacad41acb46cbf21a1b96b602ddb5d7d44693dcddccceb377efcce25d0` |
+| 0.70 | `b93c76c69e7dc8861af02deb5a8e018ef225b2fc6ecff6c31fcc45bc1fa12002` | `5d0a9fae9f31eae9da880414ae05c1fcf3f543b464e7804e3c63c80d57b056fd` | `ac1643d8cfc9c5636718bf277e013101bc484ae4d5cd233c077a8a7c5913da47` | `349b8001f28ad662bfd6bfc1ae75ecae36869dc14ca06e63668f3f9eab665ea5` |
+| 1.00 | `cd94787bb092a82fab2078aa9ec219454599de6cac6556182134e56550678fa7` | `9a37d9a00571c84fbd03256f0ef8c87eefc982e159776fa4cdbea32b9df658ad` | `8751016ece2e81926068970093fd287d8c38509dee8482f947e3a2e394876337` | `a3de89531b22848efdea48d97b5a1b246906934a91cb28ef1eed2323717a1218` |
+
+**Measurements:**
+
+| b | Index seconds | Docs search seconds | Code search seconds | Search seconds per 200 queries |
+| ---: | ---: | ---: | ---: | ---: |
+| 0.50 | 25.35 | 16.52 | 15.33 | 32.01 |
+| 0.60 | 24.91 | 16.34 | 15.68 | 32.18 |
+| 0.65 | 25.30 | 16.46 | 15.43 | 32.05 |
+| 0.70 | 24.96 | 16.59 | 15.26 | 32.01 |
+| 1.00 | 25.30 | 16.53 | 15.50 | 32.19 |
+
+Runtime is retained as operational evidence but is not a ranking-selection
+criterion because these differences can reflect system load.
+
+**Interpretation:** Lower `b` values strongly improve early Code ranks but
+eventually damage Docs R@3 and R@5. Full normalization at `b=1.0` improves
+Docs R@3 but substantially reduces every Code Recall value. Relative to
+`b=0.75`, `b=0.65` gains one Docs R@1 and R@10 hit, loses one Docs R@3 and R@5
+hit, gains three Code R@1 hits, preserves Code R@3, R@5, and R@10, and raises
+MRR for both datasets. The neighbouring `b=0.70` candidate is dominated by
+`b=0.65`: all other Recall values tie, while `0.65` has higher Docs R@1 and
+R@10, higher Code R@1, and higher MRR for both datasets.
+
+**Stopping rule and decision:** Adopt `b=0.65` with `k1=1.4` and
+`metadata_weight=1.0`. Do not split the `0.65-0.70` interval further: the
+nearest tested neighbour produced no compensating gain, and the remaining
+differences on this fixed public dataset are already one-question effects.
+Preserve `b=0.75` as the prior K1 control and use `b=0.65` as the unified
+ranking baseline for the next experiment family.
