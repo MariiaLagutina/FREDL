@@ -564,3 +564,85 @@ increases would amplify the same scoring component and have low expected
 information value. Revisit higher metadata weights only if a later change
 alters metadata tokenization or field composition; that would create a new
 interaction hypothesis rather than continue this single-factor sequence.
+
+## K1 - term-frequency saturation comparison
+
+**Status:** Completed. Adopt `k1=1.4` as the ranking baseline for the next
+single-factor experiment series.
+
+**Date:** 2026-09-01.
+
+**Hypothesis:** A small reduction from B0's `k1=1.5` may limit the influence of
+repeated terms while preserving the strong exact lexical matches of the plain
+BM25 baseline.
+
+**Changed factor:** Only `k1`. The comparison covers `1.2`, `1.4`, B0's `1.5`,
+and `1.8`.
+
+**Constants:** B0 corpus and datasets; `b=0.75`; `metadata_weight=1.0`;
+`max_chunk_size=2000`; documentation overlap `160`; code overlap `80`; 20,096
+indexed documents; `k=10`; `max_context_length=2000`; no embeddings or vector
+search.
+
+**Moulinette and local evaluator results:**
+
+| k1 | Dataset | R@1 | R@3 | R@5 | R@10 | Local MRR |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 1.2 | Docs | 0.520000 | 0.730000 | 0.820000 | 0.860000 | 0.635583 |
+| 1.2 | Code | 0.515152 | 0.666667 | 0.767677 | 0.838384 | 0.619929 |
+| 1.4 | Docs | 0.530000 | 0.740000 | 0.820000 | 0.870000 | 0.645623 |
+| 1.4 | Code | 0.494949 | 0.676768 | 0.767677 | 0.838384 | 0.611344 |
+| 1.5 | Docs | 0.540000 | 0.740000 | 0.820000 | 0.870000 | 0.650123 |
+| 1.5 | Code | 0.484848 | 0.676768 | 0.757576 | 0.828283 | 0.604678 |
+| 1.8 | Docs | 0.550000 | 0.740000 | 0.810000 | 0.880000 | 0.656413 |
+| 1.8 | Code | 0.474747 | 0.676768 | 0.747475 | 0.808081 | 0.594440 |
+
+The local evaluator matched all Moulinette Recall values exactly for all six
+new result files.
+
+**Fingerprints and artifact hashes:**
+
+| k1 | Pipeline fingerprint | Index SHA-256 | Docs result SHA-256 | Code result SHA-256 |
+| ---: | --- | --- | --- | --- |
+| 1.2 | `62beb08bd6a7a49f96a8300ef79d734e8e18ebf1e8e3d0e4a6d1546294641be8` | `d5a6af9a7b057a6e61aa022d06d49a79dbd1475a2bf3e4806fee678283446f2a` | `a0e743a22279b290e281d738d6d18e33372de737675674d5072d53d4946b806f` | `052bf1504422f634695af8d57c93c2dac8cfd9c66b4727fb52b009190e67982d` |
+| 1.4 | `fffb23851d80668d302a001e19df45e2bd9f534968e721a85cf7396c78906875` | `d58ca26fd0ebee6605214ef63ae65e0b294859618c3f3924e52345c8f86b656f` | `81175b44d5631c5fa1074663ee37b491d9f3c873b6b0385f06d3d73b2390b0dc` | `359e2b975c323c137b769421bbe268fefaa77c67ed793e9827cfe4f70dd79e44` |
+| 1.8 | `838074cbc4685965fe133d7527775487f20dd68e1a4103bd7e2c5c4b5ef4b121` | `c05f9ec7d80633e372198da1646ae1d1378bd017c823c90edc7e85f98677a447` | `e828acc6c50e27735497bb010947f0ce6cdcbe1d03214321a12b92453ada84db` | `4659456084c3f3154fa4f4cf472f21032aeb44019f5d69dd7399d7c1ea319128` |
+
+**Measurements:**
+
+| k1 | Index seconds | Docs search seconds | Code search seconds | Search seconds per 200 queries |
+| ---: | ---: | ---: | ---: | ---: |
+| 1.2 | 25.36 | 16.41 | 15.54 | 32.11 |
+| 1.4 | 24.99 | 15.89 | 15.14 | 31.19 |
+| 1.8 | 24.92 | 16.16 | 15.09 | 31.41 |
+
+Runtime is retained as operational evidence but is not a ranking-selection
+criterion because these small differences can reflect system load.
+
+**Per-question evidence for `k1=1.4` versus B0:**
+
+- Docs: the labelled source for the fastest matrix multiplication kernel
+  question moved from rank 5 to rank 4. The labelled source for the sharding
+  and quantization of model weights question moved from rank 1 to rank 2.
+- Code: the labelled source for the default `z` value in
+  `selective_state_update` entered the top ten at rank 9; it was absent from
+  B0's top ten. The `OvisConfig.depths` source moved from rank 4 to rank 5.
+  The supported `W4A16Sparse24` bit values source moved from rank 7 to rank 6,
+  the `gate_up_proj` `shard_id` source moved from rank 2 to rank 1, and the
+  default `lora_int_id` source moved from rank 8 to rank 5.
+
+**Interpretation:** No candidate dominates both datasets at every cutoff.
+`k1=1.8` slightly improves Docs but reduces Code at R@1, R@5, and R@10.
+`k1=1.2` gives the highest Code R@1 but reduces Docs at R@1, R@3, and R@10.
+Relative to B0, `k1=1.4` preserves Docs R@3, R@5, and R@10 while losing one
+Docs R@1 hit. It preserves Code R@3, gains one Code hit at R@1, R@5, and R@10,
+and raises Code MRR. Across both datasets the number of R@1 hits is unchanged,
+while R@5 and R@10 each gain one hit. These are deterministic improvements on
+the fixed public dataset, but their one-question size should not be treated as
+evidence of broad statistical significance.
+
+**Decision:** Adopt `k1=1.4` as the unified ranking baseline for the next
+series. Keep `metadata_weight=1.0`, then vary only `b` around B0's `0.75` to
+measure document-length normalization independently. Begin with `b=0.5` and
+`b=1.0`; use the fixed datasets, corpus, chunking, `k=10`, and evaluator
+settings above.

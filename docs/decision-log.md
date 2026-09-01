@@ -677,3 +677,48 @@ Cache compatibility must describe how stored data was produced, not only what
 its serialized shape looks like or which input files existed. Make every
 behavioral input explicit, canonicalize it, and validate that identity before
 reusing derived data.
+
+## 2026-09-01 - Use k1=1.4 as the unified BM25 tuning baseline
+
+**Status:** Accepted
+
+### Initial approach
+
+Use the library-default-style BM25 configuration `k1=1.5`, `b=0.75`, and
+`metadata_weight=1.0` as the fixed ranking baseline for all later experiments.
+
+### Why the approach was reconsidered
+
+Full-dataset experiments with `k1=1.2`, `1.4`, and `1.8` showed a real
+cross-dataset tradeoff. Higher `k1` favored documentation retrieval but
+reduced Code recall, while lower `k1` improved some Code cutoffs at a cost to
+Docs. The middle candidate `1.4` preserved Docs R@3, R@5, and R@10 and Code
+R@3, while gaining one Code hit at R@1, R@5, and R@10. Across both datasets,
+R@1 hit count remained unchanged and R@5 and R@10 each gained one hit.
+
+### Decision
+
+Use `k1=1.4` as the unified ranking baseline for the next single-factor
+experiments. Keep `metadata_weight=1.0`, and vary only `b` around `0.75` so
+that document-length normalization is measured independently.
+
+The complete metrics, artifact fingerprints, timings, and per-question rank
+changes are preserved in the
+[K1 experiment record](bm25-tuning-log.md#k1---term-frequency-saturation-comparison).
+
+### Consequences
+
+- New `b` experiments must build and search with `k1=1.4`.
+- The B0 run with `k1=1.5` remains the immutable original control.
+- Choosing one shared value avoids separate Docs and Code production
+  configurations.
+- The improvement is deterministic on the fixed public dataset but small, so
+  it must not be presented as broad statistical significance.
+- Later candidates must be compared against both B0 and the adopted `k1=1.4`
+  baseline where that distinction affects interpretation.
+
+### Lesson
+
+When one retrieval configuration must serve different source types, select a
+controlled compromise from aggregate and per-question evidence instead of
+optimizing one dataset in isolation.
