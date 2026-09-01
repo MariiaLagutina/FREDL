@@ -389,12 +389,116 @@ uv run python -m src evaluate \
 
 **Interpretation:** The lexical baseline retrieves 82% of labelled
 documentation sources and approximately 75.8% of labelled code sources within
-the first five results. The unchanged R@5 and R@10 values show that increasing
-the result limit alone does not recover the remaining misses. Future gains
-must be demonstrated through controlled changes to tokenization, chunking,
-metadata weighting, or BM25 parameters on these same fixed inputs.
+the first five results. This run persisted only five sources per question, so
+its R@10 necessarily equals R@5 and cannot measure the effect of ranks 6-10.
+The later B0 run below corrects that limitation with `k=10`. Future gains must
+be demonstrated through controlled changes to tokenization, chunking, metadata
+weighting, or BM25 parameters on the same fixed inputs.
 
 **Decision:** Preserve these values as the first full public-dataset control.
 Do not change the baseline configuration from this run alone. Compare every
 future candidate against the same input hashes and report Docs and Code
 separately.
+
+## B0 - full public-dataset lexical BM25 control
+
+**Status:** Completed as the first official Moulinette-verified `k=10`
+full-dataset control.
+
+**Date:** 2026-09-01.
+
+**Hypothesis:** The unchanged production BM25 configuration provides a strong,
+reproducible lexical control when all ten required ranks are persisted and
+evaluated independently for documentation and code.
+
+**Changed factor:** Retrieval depth only. The earlier full-dataset observation
+persisted `k=5`; B0 persists `k=10`. No ranking, chunking, tokenization, or BM25
+parameter changed.
+
+**Constants:** `k1=1.5`, `b=0.75`, `metadata_weight=1.0`;
+`max_chunk_size=2000`; documentation overlap `160`; code overlap `80`;
+20,096 indexed documents; `max_context_length=2000`; exact `file_path` and
+source-range IoU `>=0.05`; lexical content and structural metadata only; no
+embeddings or vector search.
+
+**Git commit:** `97cefb76d7656149035138130780018df82399a2` with a clean
+`rag-18-baseline-metrics` working tree before generated artifacts were created.
+
+**Environment:** Linux `7.0.0-30-generic` on `x86_64` with Python `3.14.4`.
+
+**Fingerprints:**
+
+- corpus: `1745355afa9ef90effcc67802ad356e439dbf8a5d954e36ad4095d88b05bf1f2`;
+- pipeline: `03dbf67f929d95d8e405759fb5f5fbf7effcdc89c196d4ea410018484c8046d4`;
+- persisted B0 index SHA-256:
+  `b68963b5c9c82a1e7fefe91feb33b96873967401c95ce08e244716a16960e3d3`;
+- Docs result SHA-256:
+  `1fe4df37e49506c901b23bf36144b4301ef41a0c7aa75ba2906cd85e12664457`;
+- Code result SHA-256:
+  `cb16428f094fdfdc116ce4a9ef50c3d8720bdf2d799f33340058e5466437a8b7`.
+
+The ground-truth and question-dataset hashes remain those recorded in the
+preceding full-dataset entry.
+
+**Commands:**
+
+```bash
+uv run python -m src index \
+  --index_path data/processed/experiments/B0/bm25-index.json
+
+uv run python -m src search_dataset \
+  --dataset_path data/datasets/UnansweredQuestions/dataset_docs_public.json \
+  --save_directory data/output/experiments/B0/search_results \
+  --index_path data/processed/experiments/B0/bm25-index.json \
+  --k 10
+
+uv run python -m src search_dataset \
+  --dataset_path data/datasets/UnansweredQuestions/dataset_code_public.json \
+  --save_directory data/output/experiments/B0/search_results \
+  --index_path data/processed/experiments/B0/bm25-index.json \
+  --k 10
+
+./moulinette/moulinette-ubuntu evaluate_student_search_results \
+  data/output/experiments/B0/search_results/dataset_docs_public.json \
+  data/datasets/AnsweredQuestions/dataset_docs_public.json \
+  --k=10 --max_context_length=2000
+
+./moulinette/moulinette-ubuntu evaluate_student_search_results \
+  data/output/experiments/B0/search_results/dataset_code_public.json \
+  data/datasets/AnsweredQuestions/dataset_code_public.json \
+  --k=10 --max_context_length=2000
+```
+
+**Moulinette results:**
+
+| Dataset | Queries | R@1 | R@3 | R@5 | R@10 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Docs | 100 | 0.540000 | 0.740000 | 0.820000 | 0.870000 |
+| Code | 99 | 0.484848 | 0.676768 | 0.757576 | 0.828283 |
+
+The local evaluator matched all eight Moulinette Recall values exactly. It
+also reported Docs MRR `0.650123` and Code MRR `0.604678`; Moulinette does not
+report MRR for this command.
+
+**Measurements:**
+
+| Stage | Elapsed seconds | Peak RSS KiB |
+| --- | ---: | ---: |
+| Index build | 15.18 | 1,193,388 |
+| Docs search, 100 queries | 8.91 | 838,172 |
+| Code search, 99 queries | 8.56 | 838,292 |
+
+The combined search took `17.47` seconds for 199 queries, equivalent to
+approximately `17.56` seconds per 200 queries. The persisted index size was
+90,701,038 bytes. Moulinette validated both result files and evaluated every
+question with a labelled and retrieved source list.
+
+**Interpretation:** Ranks 6-10 recover five additional documentation questions
+and seven additional code questions beyond R@5. This raises Docs recall from
+`0.82` to `0.87` and Code recall from `0.757576` to `0.828283`. The exact local
+and official metric agreement independently validates the local evaluator;
+the metric levels themselves measure retrieval quality.
+
+**Decision:** Adopt B0 as the fixed full-dataset control for subsequent
+single-factor experiments. Preserve its commit, input hashes, corpus and
+pipeline fingerprints, `k=10`, and Moulinette settings for every comparison.
