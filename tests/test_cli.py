@@ -83,8 +83,8 @@ def test_index_command_persists_requested_bm25_parameters(
         )
     )
     assert payload["parameters"] == {
-        "b": 0.75,
-        "k1": 1.5,
+        "b": 0.65,
+        "k1": 1.4,
         "metadata_weight": 1.5,
     }
 
