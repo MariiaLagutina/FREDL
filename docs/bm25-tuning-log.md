@@ -502,3 +502,65 @@ the metric levels themselves measure retrieval quality.
 **Decision:** Adopt B0 as the fixed full-dataset control for subsequent
 single-factor experiments. Preserve its commit, input hashes, corpus and
 pipeline fingerprints, `k=10`, and Moulinette settings for every comparison.
+
+## M1 - moderate metadata boost
+
+**Status:** Completed and rejected. The planned M2 and M3 metadata-weight runs
+are cancelled by the stopping rule below.
+
+**Date:** 2026-09-01.
+
+**Hypothesis:** Increasing `metadata_weight` from `1.0` to `1.5` may improve
+exact path, heading, and symbol matches without reducing content relevance.
+
+**Changed factor:** Only `metadata_weight`, from B0's `1.0` to `1.5`.
+
+**Constants:** B0 corpus and datasets; `k1=1.5`; `b=0.75`;
+`max_chunk_size=2000`; documentation overlap `160`; code overlap `80`; 20,096
+indexed documents; `k=10`; `max_context_length=2000`; no embeddings or vector
+search.
+
+**Git commit:** `eecd2f6`, which added production-compatible CLI parameters and
+ensured that index and search commands use the same parameter-derived pipeline
+fingerprint.
+
+**Fingerprints and artifact hashes:**
+
+- corpus: `1745355afa9ef90effcc67802ad356e439dbf8a5d954e36ad4095d88b05bf1f2`;
+- M1 pipeline: `e54708fd97578cc3e34388e4f2d6a8576ad9fee347dde097301bc30390e54a33`;
+- persisted M1 index SHA-256:
+  `5bc775c996dc7bf950ca3e6e456ea6f4ffbb969b317459f3f7b2e98c401e4e7e`;
+- Docs result SHA-256:
+  `820a40f798a7a157f085d597dd616f5a988190afeef96eee6b2ac92c4df7d7a7`;
+- Code result SHA-256:
+  `f7d27597c2b0d7032a7f7998e00692538ab5b402623cc4521c827eb4372289e2`.
+
+**Moulinette results:**
+
+| Dataset | R@1 | R@3 | R@5 | R@10 | R@10 change from B0 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Docs | 0.470000 | 0.660000 | 0.750000 | 0.830000 | -0.040000 |
+| Code | 0.494949 | 0.676768 | 0.737374 | 0.828283 | 0.000000 |
+
+The local evaluator matched all eight Moulinette Recall values exactly. It
+also reported Docs MRR `0.580440` and Code MRR `0.601527`.
+
+**Measurements:** The index build took `25.03` seconds with peak RSS
+`1,193,448` KiB. Sequential Docs and Code searches took `16.53` and `15.19`
+seconds respectively, equivalent to `31.88` seconds per 200 queries. Runtime
+measurements are recorded as operational evidence but are not used to select
+the ranking parameter because system load differed from the B0 run.
+
+**Interpretation:** M1 reduced every Docs Recall value. For Code, R@1 improved
+by approximately one percentage point, R@3 and R@10 were unchanged, and R@5
+fell by approximately two percentage points. The isolated metadata increase
+therefore produced no dataset-level retrieval improvement and materially
+damaged documentation retrieval.
+
+**Stopping rule and decision:** Reject `metadata_weight=1.5` and retain the B0
+value `1.0`. Do not run the planned M2 (`2.0`) or M3 (`3.0`) experiments: M1
+already moved the primary Recall metrics in the wrong direction, while further
+increases would amplify the same scoring component and have low expected
+information value. Revisit higher metadata weights only if a later change
+alters metadata tokenization or field composition; that would create a new
+interaction hypothesis rather than continue this single-factor sequence.
