@@ -9,8 +9,8 @@ from src.ingestion.documents import Chunk
 class BM25Parameters:
     """Control field scoring and the final metadata score multiplier."""
 
-    k1: float = 1.5
-    b: float = 0.75
+    k1: float = 1.4
+    b: float = 0.65
     metadata_weight: float = 1.0
 
     def __post_init__(self) -> None:

@@ -33,6 +33,7 @@ from src.retrieval.validation import (
 
 DEFAULT_INDEX_PATH = Path("data/processed/bm25-index.json")
 DEFAULT_CORPUS_ROOT = Path("data/raw")
+DEFAULT_BM25_PARAMETERS = BM25Parameters()
 
 
 class CliError(Exception):
@@ -43,9 +44,9 @@ def index(
     index_path: str = str(DEFAULT_INDEX_PATH),
     corpus_root: str = str(DEFAULT_CORPUS_ROOT),
     project_root: str = ".",
-    k1: float = 1.5,
-    b: float = 0.75,
-    metadata_weight: float = 1.0,
+    k1: float = DEFAULT_BM25_PARAMETERS.k1,
+    b: float = DEFAULT_BM25_PARAMETERS.b,
+    metadata_weight: float = DEFAULT_BM25_PARAMETERS.metadata_weight,
 ) -> dict[str, object]:
     """Build and save a production-compatible BM25 index."""
     try:
@@ -80,9 +81,9 @@ def search(
     index_path: str = str(DEFAULT_INDEX_PATH),
     corpus_root: str = str(DEFAULT_CORPUS_ROOT),
     project_root: str = ".",
-    k1: float = 1.5,
-    b: float = 0.75,
-    metadata_weight: float = 1.0,
+    k1: float = DEFAULT_BM25_PARAMETERS.k1,
+    b: float = DEFAULT_BM25_PARAMETERS.b,
+    metadata_weight: float = DEFAULT_BM25_PARAMETERS.metadata_weight,
 ) -> list[dict[str, object]]:
     """Return the top-k exact source locations for one raw query."""
     try:
@@ -110,9 +111,9 @@ def search_dataset(
     index_path: str = str(DEFAULT_INDEX_PATH),
     corpus_root: str = str(DEFAULT_CORPUS_ROOT),
     project_root: str = ".",
-    k1: float = 1.5,
-    b: float = 0.75,
-    metadata_weight: float = 1.0,
+    k1: float = DEFAULT_BM25_PARAMETERS.k1,
+    b: float = DEFAULT_BM25_PARAMETERS.b,
+    metadata_weight: float = DEFAULT_BM25_PARAMETERS.metadata_weight,
 ) -> str:
     """Search one question dataset and save its validated result JSON."""
     try:
