@@ -15,6 +15,7 @@ from src.evaluation.retrieval import (
 from src.ingestion import discover_files
 from src.models import UnansweredQuestion
 from src.retrieval import run_stored_retrieval, run_stored_search
+from src.retrieval.bm25 import BM25Parameters
 from src.retrieval.index_store import (
     IndexStore,
     PipelineConfig,
@@ -32,6 +33,7 @@ from src.retrieval.validation import (
 
 DEFAULT_INDEX_PATH = Path("data/processed/bm25-index.json")
 DEFAULT_CORPUS_ROOT = Path("data/raw")
+DEFAULT_BM25_PARAMETERS = BM25Parameters()
 
 
 class CliError(Exception):
@@ -42,11 +44,14 @@ def index(
     index_path: str = str(DEFAULT_INDEX_PATH),
     corpus_root: str = str(DEFAULT_CORPUS_ROOT),
     project_root: str = ".",
+    k1: float = DEFAULT_BM25_PARAMETERS.k1,
+    b: float = DEFAULT_BM25_PARAMETERS.b,
+    metadata_weight: float = DEFAULT_BM25_PARAMETERS.metadata_weight,
 ) -> dict[str, object]:
-    """Build and save the default production BM25 index."""
+    """Build and save a production-compatible BM25 index."""
     try:
         root = Path(project_root)
-        config = PipelineConfig()
+        config = _pipeline_config(k1, b, metadata_weight)
         build = build_index(
             root,
             _below_root(root, Path(corpus_root)),
@@ -76,6 +81,9 @@ def search(
     index_path: str = str(DEFAULT_INDEX_PATH),
     corpus_root: str = str(DEFAULT_CORPUS_ROOT),
     project_root: str = ".",
+    k1: float = DEFAULT_BM25_PARAMETERS.k1,
+    b: float = DEFAULT_BM25_PARAMETERS.b,
+    metadata_weight: float = DEFAULT_BM25_PARAMETERS.metadata_weight,
 ) -> list[dict[str, object]]:
     """Return the top-k exact source locations for one raw query."""
     try:
@@ -85,7 +93,9 @@ def search(
         sources = run_stored_search(
             _below_root(root, Path(index_path)),
             fingerprint,
-            _current_pipeline_fingerprint(),
+            _current_pipeline_fingerprint(
+                _pipeline_config(k1, b, metadata_weight)
+            ),
             query,
             k,
         )
@@ -101,6 +111,9 @@ def search_dataset(
     index_path: str = str(DEFAULT_INDEX_PATH),
     corpus_root: str = str(DEFAULT_CORPUS_ROOT),
     project_root: str = ".",
+    k1: float = DEFAULT_BM25_PARAMETERS.k1,
+    b: float = DEFAULT_BM25_PARAMETERS.b,
+    metadata_weight: float = DEFAULT_BM25_PARAMETERS.metadata_weight,
 ) -> str:
     """Search one question dataset and save its validated result JSON."""
     try:
@@ -112,7 +125,9 @@ def search_dataset(
         run_stored_retrieval(
             _below_root(root, Path(index_path)),
             fingerprint,
-            _current_pipeline_fingerprint(),
+            _current_pipeline_fingerprint(
+                _pipeline_config(k1, b, metadata_weight)
+            ),
             dataset,
             output,
             k,
@@ -190,10 +205,25 @@ def _current_corpus_fingerprint(
     return fingerprint_corpus(project_root, manifest)
 
 
-def _current_pipeline_fingerprint() -> str:
-    """Identify the default production index build pipeline."""
+def _pipeline_config(
+    k1: float,
+    b: float,
+    metadata_weight: float,
+) -> PipelineConfig:
+    """Build the shared CLI configuration for index compatibility checks."""
+    return PipelineConfig(
+        parameters=BM25Parameters(
+            k1=k1,
+            b=b,
+            metadata_weight=metadata_weight,
+        )
+    )
+
+
+def _current_pipeline_fingerprint(config: PipelineConfig) -> str:
+    """Identify the requested production-compatible index pipeline."""
     return fingerprint_pipeline(
-        PipelineConfig(),
+        config,
         index_schema_version=SCHEMA_VERSION,
     )
 

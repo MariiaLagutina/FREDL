@@ -12,6 +12,12 @@ from src.evaluation.retrieval import (
     RetrievalEvaluationReport,
     RetrievalMetrics,
 )
+from src.retrieval.bm25 import BM25Parameters
+from src.retrieval.index_store import (
+    PipelineConfig,
+    SCHEMA_VERSION,
+    fingerprint_pipeline,
+)
 from src.retrieval.validation import SourceValidationReport
 
 
@@ -53,6 +59,36 @@ def test_index_command_builds_schema_v2_snapshot(
     assert "schema_version:       2" in captured.out
 
 
+def test_index_command_persists_requested_bm25_parameters(
+    tmp_path: Path,
+) -> None:
+    """A controlled experiment records its BM25 parameters in the index."""
+    corpus_root = tmp_path / "data" / "raw"
+    corpus_root.mkdir(parents=True)
+    (corpus_root / "guide.md").write_text("# Cache\n", encoding="utf-8")
+
+    main(
+        [
+            "index",
+            "--project_root",
+            str(tmp_path),
+            "--metadata_weight",
+            "1.5",
+        ]
+    )
+
+    payload = json.loads(
+        (tmp_path / "data" / "processed" / "bm25-index.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert payload["parameters"] == {
+        "b": 0.65,
+        "k1": 1.4,
+        "metadata_weight": 1.5,
+    }
+
+
 def test_search_command_routes_one_raw_query() -> None:
     """The Fire search command reaches the stored single-query workflow."""
     with (
@@ -75,6 +111,25 @@ def test_search_command_routes_one_raw_query() -> None:
         "Where is the cache?",
         3,
     )
+
+
+def test_search_uses_requested_bm25_pipeline_fingerprint() -> None:
+    """Search rejects accidental reuse of an index from another experiment."""
+    parameters = BM25Parameters(metadata_weight=1.5)
+    expected = fingerprint_pipeline(
+        PipelineConfig(parameters=parameters),
+        index_schema_version=SCHEMA_VERSION,
+    )
+    with (
+        patch(
+            "src.cli._current_corpus_fingerprint",
+            return_value=FINGERPRINT,
+        ),
+        patch("src.cli.run_stored_search", return_value=[]) as run_search,
+    ):
+        main(["search", "cache", "--metadata_weight", "1.5"])
+
+    assert run_search.call_args.args[2] == expected
 
 
 def test_search_dataset_uses_assignment_paths_and_output_name() -> None:

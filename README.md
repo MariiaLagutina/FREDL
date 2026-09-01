@@ -531,6 +531,21 @@ path, intersection length `1403`, union length `1405`, and IoU approximately
 `0.99858`. The result therefore satisfies the inclusive `0.05` threshold at
 rank 1, giving Recall@1/3/5/10 and reciprocal rank equal to `1.0`.
 
+The tuned production defaults are `k1=1.4`, `b=0.65`, and
+`metadata_weight=1.0`. A full index build and both batch searches invoked
+without explicit BM25 flags reproduced the selected experiment byte for byte.
+The index contains 20,096 lexical documents and has pipeline fingerprint
+`ebc6d3ffc6535965b94aab7651bd837468a9c4ebefb81570818179741afe511f`.
+Moulinette and the local evaluator reported identical Recall values:
+
+| Dataset | Queries | R@1 | R@3 | R@5 | R@10 | MRR |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Docs | 100 | 0.540000 | 0.730000 | 0.810000 | 0.880000 | 0.646496 |
+| Code | 99 | 0.525253 | 0.676768 | 0.767677 | 0.838384 | 0.627746 |
+
+These are plain BM25 results over lexical content and structural metadata;
+the tuned configuration still does not use embeddings or vector search.
+
 Run the neutral mini-suite control:
 
 ```bash
@@ -577,7 +592,7 @@ Controlled parameter history and provisional measurements are recorded in
 The current checks pass:
 
 ```text
-pytest: 292 passed
+pytest: 294 passed
 flake8: passed
 mypy: passed
 ```
