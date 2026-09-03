@@ -20,6 +20,32 @@ class RetrievalErrorCategory(str, Enum):
 
 
 @dataclass(frozen=True, slots=True)
+class RetrievalMissAnnotation:
+    """Store one human-reviewed causal classification."""
+
+    question_id: str
+    category: RetrievalErrorCategory
+    hypothesis: str
+    proposed_fix: str
+    next_test: str
+
+    def __post_init__(self) -> None:
+        """Require a complete review record."""
+        if not all(
+            value.strip()
+            for value in (
+                self.question_id,
+                self.hypothesis,
+                self.proposed_fix,
+                self.next_test,
+            )
+        ):
+            raise ValueError(
+                "Retrieval miss annotation fields must not be empty"
+            )
+
+
+@dataclass(frozen=True, slots=True)
 class RetrievalMissEvidence:
     """Capture ranked evidence for one question missed in the top five."""
 
