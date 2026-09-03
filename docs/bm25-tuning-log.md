@@ -722,3 +722,86 @@ nearest tested neighbour produced no compensating gain, and the remaining
 differences on this fixed public dataset are already one-question effects.
 Preserve `b=0.75` as the prior K1 control and use `b=0.65` as the unified
 ranking baseline for the next experiment family.
+
+## Phase 19 - retrieval error analysis
+
+**Status:** Completed for all top-five misses in the adopted Phase 18 run.
+
+**Date:** 2026-09-03.
+
+**Inputs:** The `FINAL` result files produced with `k1=1.4`, `b=0.65`,
+`metadata_weight=1.0`, and `k=10`, together with the unchanged public Docs and
+Code ground-truth datasets.
+
+Generate a reviewable Markdown report from the adopted Phase 18 result files:
+
+```bash
+uv run python -m src analyze_retrieval_errors \
+  --docs_ground_truth_path data/datasets/AnsweredQuestions/dataset_docs_public.json \
+  --docs_results_path data/output/experiments/FINAL/search_results/dataset_docs_public.json \
+  --code_ground_truth_path data/datasets/AnsweredQuestions/dataset_code_public.json \
+  --code_results_path data/output/experiments/FINAL/search_results/dataset_code_public.json
+```
+
+The command writes
+`data/output/evaluation/retrieval-error-analysis.md`. The generated report is
+local evidence and is excluded from Git. It preserves ground-truth question
+order and lists every top-five miss with its labelled source, all ten ranked
+sources, the first relevant rank when one exists, the exact reference excerpt,
+and the top-three retrieved excerpts. Human-reviewed classifications are stored
+separately from measured rankings in the local
+`data/output/evaluation/retrieval-error-annotations.json` artifact.
+
+**Classification method:** Rank positions, source paths, and half-open ranges
+provide deterministic evidence for `relevant_below_top_5`, `chunk_boundary`,
+and overlapping `duplicate_results`. Content review compares the question,
+reference excerpt, and top-three retrieved excerpts before assigning one
+dominant category to each remaining miss. A repeated file path alone is not a
+duplicate: retrieved ranges must overlap. Each reviewed miss records a
+hypothesis, proposed fix, and one next test.
+
+**Results:**
+
+| Category | Docs | Code | Total |
+| --- | ---: | ---: | ---: |
+| `wrong_file` | 6 | 1 | 7 |
+| `relevant_below_top_5` | 7 | 7 | 14 |
+| `chunk_boundary` | 2 | 1 | 3 |
+| `lost_identifier` | 1 | 11 | 12 |
+| `paraphrase` | 1 | 2 | 3 |
+| `duplicate_results` | 0 | 0 | 0 |
+| `noisy_metadata` | 2 | 1 | 3 |
+| **Total top-five misses** | **19** | **23** | **42** |
+
+All 42 misses have exactly one category. Docs' dominant category is
+`relevant_below_top_5` with seven misses, closely followed by `wrong_file`
+with six. Code's dominant category is `lost_identifier` with eleven misses.
+
+**Representative evidence:**
+
+- The Docs question asking which `LLM` method generates embeddings retrieves
+  the implementation of `LLM.embed` at rank two, but the label requires
+  `docs/models/pooling_models.md`. This is `wrong_file`: retrieval understood
+  the subject but did not satisfy the dataset's source kind.
+- The Code question asking for `FP8_MIN` and `FP8_MAX` retrieves general FP8
+  utilities and benchmarks instead of their definitions in
+  `triton_flash_attention.py`. This is `lost_identifier`.
+- The Marlin MOE CUDA-architecture question retrieves an adjacent range in the
+  correct `CMakeLists.txt`, separated from the label by two characters. This is
+  `chunk_boundary`.
+- Seven misses in each dataset already contain the labelled source at ranks
+  6-10. Increasing retrieval depth exposes these sources but does not improve
+  top-five recall; ranking must move them above the evaluation cutoff.
+
+**Interpretation:** Documentation errors are split between insufficient early
+ranking and returning a semantically useful source of the wrong kind. Code
+errors are much more concentrated: exact class, method, parameter, attribute,
+and constant identifiers are present in the questions but their labelled
+definitions are not selected. No top-five miss contains overlapping retrieved
+ranges, so duplicate results are not a supported explanation for this run.
+
+**Next test:** Start with an identifier-aware lexical ranking experiment that
+preserves complete snake_case, CamelCase, private-attribute, and uppercase
+constant identifiers as high-value query terms. Measure Docs and Code
+separately against the unchanged `FINAL` control. Treat a Docs-versus-Code path
+preference as a separate later factor so that any effect remains attributable.
