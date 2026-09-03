@@ -1,9 +1,11 @@
 """Retrieval evaluation with exact source-aware relevance rules."""
 
+from src.evaluation.retrieval.error_analysis import collect_top_five_misses
 from src.evaluation.retrieval.error_models import (
     RetrievalErrorAnalysisReport,
     RetrievalErrorCategory,
     RetrievalMissAnalysis,
+    RetrievalMissEvidence,
 )
 from src.evaluation.retrieval.evaluator import evaluate_cases
 from src.evaluation.retrieval.metrics import (
@@ -28,9 +30,11 @@ __all__ = [
     "RetrievalEvaluationReport",
     "RetrievalMetrics",
     "RetrievalMissAnalysis",
+    "RetrievalMissEvidence",
     "RetrievalEvaluationCase",
     "RetrievalQueryMetrics",
     "aggregate_query_metrics",
+    "collect_top_five_misses",
     "evaluate_cases",
     "evaluate_query",
     "load_evaluation_cases",

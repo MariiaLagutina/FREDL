@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from src.evaluation.retrieval.models import RetrievalDatasetKind
+from src.models import MinimalSource
 
 
 class RetrievalErrorCategory(str, Enum):
@@ -16,6 +17,36 @@ class RetrievalErrorCategory(str, Enum):
     PARAPHRASE = "paraphrase"
     DUPLICATE_RESULTS = "duplicate_results"
     NOISY_METADATA = "noisy_metadata"
+
+
+@dataclass(frozen=True, slots=True)
+class RetrievalMissEvidence:
+    """Capture ranked evidence for one question missed in the top five."""
+
+    question_id: str
+    question: str
+    references: tuple[MinimalSource, ...]
+    retrieved: tuple[MinimalSource, ...]
+    relevant_rank: int | None
+
+    def __post_init__(self) -> None:
+        """Keep top-five miss evidence internally consistent."""
+        if not self.question_id.strip():
+            raise ValueError("Retrieval miss question ID must not be empty")
+        if not self.question.strip():
+            raise ValueError("Retrieval miss question must not be empty")
+        if not self.references:
+            raise ValueError("Retrieval miss must have reference sources")
+        if self.relevant_rank is not None:
+            if self.relevant_rank <= 5:
+                raise ValueError(
+                    "Relevant rank for a top-five miss must be greater "
+                    "than five"
+                )
+            if self.relevant_rank > len(self.retrieved):
+                raise ValueError(
+                    "Relevant rank must refer to a retrieved source"
+                )
 
 
 @dataclass(frozen=True, slots=True)
