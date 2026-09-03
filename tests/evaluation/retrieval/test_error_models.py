@@ -6,8 +6,10 @@ from src.evaluation.retrieval.error_models import (
     RetrievalErrorAnalysisReport,
     RetrievalErrorCategory,
     RetrievalMissAnalysis,
+    RetrievalMissEvidence,
 )
 from src.evaluation.retrieval.models import RetrievalDatasetKind
+from src.models import MinimalSource
 
 
 def _miss(
@@ -103,3 +105,20 @@ def test_empty_report_has_no_dominant_category() -> None:
     )
 
     assert report.dominant_category is None
+
+
+def test_miss_evidence_rejects_rank_outside_retrieved_sources() -> None:
+    source = MinimalSource(
+        file_path="docs/cache.md",
+        first_character_index=0,
+        last_character_index=20,
+    )
+
+    with pytest.raises(ValueError, match="refer to a retrieved source"):
+        RetrievalMissEvidence(
+            question_id="docs-001",
+            question="Where is the cache configured?",
+            references=(source,),
+            retrieved=(source,) * 6,
+            relevant_rank=7,
+        )
