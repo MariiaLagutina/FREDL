@@ -360,3 +360,53 @@ def test_evaluate_command_reports_expected_failures_without_traceback(
     captured = capsys.readouterr()
     assert message in captured.err
     assert "Traceback" not in captured.err
+
+
+def test_analyze_retrieval_errors_writes_docs_and_code_report(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The CLI exposes the generated report path and miss counts."""
+    docs_cases = ("docs-case",)
+    code_cases = ("code-case",)
+    with (
+        patch(
+            "src.cli.load_evaluation_cases",
+            side_effect=[docs_cases, code_cases],
+        ),
+        patch("src.cli.write_error_analysis_markdown") as write_report,
+        patch(
+            "src.cli.collect_top_five_misses",
+            side_effect=[("docs-miss",), ("code-1", "code-2")],
+        ),
+    ):
+        main(
+            [
+                "analyze_retrieval_errors",
+                "--docs_ground_truth_path",
+                "datasets/docs.json",
+                "--docs_results_path",
+                "results/docs.json",
+                "--code_ground_truth_path",
+                "datasets/code.json",
+                "--code_results_path",
+                "results/code.json",
+                "--output_path",
+                "reports/errors.md",
+                "--project_root",
+                "/project",
+            ]
+        )
+
+    write_report.assert_called_once_with(
+        Path("/project/reports/errors.md"),
+        (
+            (RetrievalDatasetKind.DOCS, docs_cases),
+            (RetrievalDatasetKind.CODE, code_cases),
+        ),
+        Path("/project"),
+        {},
+    )
+    output = capsys.readouterr().out
+    assert "docs_top_5_misses: 1" in output
+    assert "code_top_5_misses: 2" in output
+    assert "/project/reports/errors.md" in output
