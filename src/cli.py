@@ -9,9 +9,12 @@ from src.evaluation.retrieval import (
     RetrievalDatasetKind,
     RetrievalEvaluationReport,
     RetrievalMetrics,
+    collect_top_five_misses,
     evaluate_cases,
     load_evaluation_cases,
+    write_error_analysis_markdown,
 )
+from src.evaluation.retrieval.error_annotations import load_error_annotations
 from src.ingestion import discover_files
 from src.models import UnansweredQuestion
 from src.retrieval import run_stored_retrieval, run_stored_search
@@ -34,6 +37,12 @@ from src.retrieval.validation import (
 DEFAULT_INDEX_PATH = Path("data/processed/bm25-index.json")
 DEFAULT_CORPUS_ROOT = Path("data/raw")
 DEFAULT_BM25_PARAMETERS = BM25Parameters()
+DEFAULT_ERROR_ANALYSIS_PATH = Path(
+    "data/output/evaluation/retrieval-error-analysis.md"
+)
+DEFAULT_ERROR_ANNOTATIONS_PATH = Path(
+    "data/output/evaluation/retrieval-error-annotations.json"
+)
 
 
 class CliError(Exception):
@@ -193,6 +202,51 @@ def evaluate(
         raise CliError(_error_message(error)) from None
     _print_evaluation_report(docs_report)
     _print_evaluation_report(code_report)
+
+
+def analyze_retrieval_errors(
+    docs_ground_truth_path: str,
+    docs_results_path: str,
+    code_ground_truth_path: str,
+    code_results_path: str,
+    output_path: str = str(DEFAULT_ERROR_ANALYSIS_PATH),
+    annotations_path: str = str(DEFAULT_ERROR_ANNOTATIONS_PATH),
+    project_root: str = ".",
+) -> dict[str, object]:
+    """Write reviewable top-five miss evidence for Docs and Code."""
+    try:
+        root = Path(project_root)
+        docs_cases = load_evaluation_cases(
+            _below_root(root, Path(docs_ground_truth_path)),
+            _below_root(root, Path(docs_results_path)),
+        )
+        code_cases = load_evaluation_cases(
+            _below_root(root, Path(code_ground_truth_path)),
+            _below_root(root, Path(code_results_path)),
+        )
+        resolved_output = _below_root(root, Path(output_path))
+        resolved_annotations = _below_root(root, Path(annotations_path))
+        annotations = (
+            load_error_annotations(resolved_annotations)
+            if resolved_annotations.exists()
+            else {}
+        )
+        write_error_analysis_markdown(
+            resolved_output,
+            (
+                (RetrievalDatasetKind.DOCS, docs_cases),
+                (RetrievalDatasetKind.CODE, code_cases),
+            ),
+            root,
+            annotations,
+        )
+    except (OSError, UnicodeError, ValueError) as error:
+        raise CliError(_error_message(error)) from None
+    return {
+        "output_path": str(resolved_output),
+        "docs_top_5_misses": len(collect_top_five_misses(docs_cases)),
+        "code_top_5_misses": len(collect_top_five_misses(code_cases)),
+    }
 
 
 def _current_corpus_fingerprint(
