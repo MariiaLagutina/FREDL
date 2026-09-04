@@ -979,3 +979,80 @@ and `100` already yield identical saved rankings. If this experiment family is
 continued, fix the smallest informative depth at `20` and vary only the exact
 identifier weight to test whether a stronger signal can promote the five
 nearest labelled Code chunks.
+
+## B3 - stronger exact-identifier weight at depth 20
+
+**Status:** Completed and rejected. Close the post-BM25 exact-identifier
+reranking family and keep the `FINAL` ranking configuration.
+
+**Date:** 2026-09-04.
+
+**Hypothesis:** B2 exposed five nearby labelled Code chunks within the first
+twenty BM25 candidates, but the fixed `0.10` bonus may have been too small to
+promote them. A stronger exact-identifier weight may improve the Phase 19
+`lost_identifier` group at a fixed minimal candidate depth.
+
+**Changed factor:** Only `identifier_match_weight`, from the B2 control `0.10`
+to `0.20`, `0.50`, and the maximum supported value `1.00`.
+
+**Constants:** Candidate depth `20`; the adopted `FINAL` index and public
+datasets; `k1=1.4`; `b=0.65`; `metadata_weight=1.0`;
+`max_chunk_size=2000`; documentation overlap `160`; code overlap `80`; 20,096
+indexed documents; output `k=10`; no embeddings or vector search. This lexical
+retrieval experiment ran on CPU. Run commit:
+`33b5552a5ab7ccb3f85ada1630e61f2b42516b6a`.
+
+Run each Docs and Code dataset with the same command shape, substituting the
+three weights and their matching output directories:
+
+```bash
+uv run python -m src search_dataset \
+  --dataset_path data/datasets/AnsweredQuestions/dataset_code_public.json \
+  --save_directory data/output/experiments/B3/weight_0_20 \
+  --k 10 \
+  --index_path data/processed/experiments/FINAL/bm25-index.json \
+  --identifier_match_weight 0.20 \
+  --identifier_candidate_depth 20
+```
+
+**Results:**
+
+| Weight | Dataset | R@1 | R@3 | R@5 | R@10 | MRR |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 0.10 | Docs | 0.540000 | 0.730000 | 0.820000 | 0.880000 | 0.648813 |
+| 0.10 | Code | 0.525253 | 0.686869 | 0.767677 | 0.838384 | 0.628094 |
+| 0.20 | Docs | 0.540000 | 0.740000 | 0.820000 | 0.870000 | 0.649635 |
+| 0.20 | Code | 0.515152 | 0.696970 | 0.747475 | 0.838384 | 0.623212 |
+| 0.50 | Docs | 0.540000 | 0.750000 | 0.810000 | 0.870000 | 0.649397 |
+| 0.50 | Code | 0.525253 | 0.686869 | 0.747475 | 0.838384 | 0.625076 |
+| 1.00 | Docs | 0.540000 | 0.750000 | 0.810000 | 0.870000 | 0.649397 |
+| 1.00 | Code | 0.535354 | 0.686869 | 0.747475 | 0.838384 | 0.631810 |
+
+**Result hashes:**
+
+| Weight | Docs SHA-256 | Code SHA-256 |
+| ---: | --- | --- |
+| 0.20 | `7da7c8ee85d330ec201974a2c5ae01b1fdd84b6a104796cd7ad9f20bb6eb5d9b` | `013d3a5c935be528a77285be0265115094c84000def72579e60dc7d637c00dcc` |
+| 0.50 | `685810891377384bf27489391c4819e50d537ae4cb9cf593f1cf5424f611107e` | `ed89d1fb4b01d9997b8aebe1dd0363e7ed01b27ab8bafb759a8452cdfaefc00b` |
+| 1.00 | `232623330bba4fd91b02044dce93c688f792cd870fbdf8cf29486f54f092d461` | `24d842158e4256eebea4c01353c3c0d7f152a1bb3519e6c0c88163e1b230e881` |
+
+**Per-question evidence:** Relative to weight `0.10`, the three candidates
+produce `3/3`, `4/4`, and `4/4` improved/regressed Docs first-relevant ranks.
+For Code they produce `2/4`, `3/4`, and `4/4` improved/regressed ranks. Every
+candidate removes two previously successful Code questions from the top five.
+Most importantly, none improves any of the eleven reviewed
+`lost_identifier` questions.
+
+**Interpretation:** Stronger bonuses increasingly rearrange unrelated queries
+without correcting the diagnosed identifier misses. Weight `1.00` gives the
+highest Code R@1 and MRR in this series, but its Code R@5 is two questions below
+the control and the intended error group remains unchanged. Aggregate gains in
+one cutoff therefore do not justify adoption.
+
+**Stopping rule and decision:** Reject all B3 candidates and retain the
+unchanged `FINAL` configuration. Do not test weights above `1.00`: the exact
+identifier contribution would dominate rather than lightly rerank BM25, while
+regressions are already visible. Close the post-BM25 exact-identifier reranking
+family after B1-B3. The next experiment must inspect and change identifier
+placement in indexed structural metadata rather than applying another ranking
+bonus.
