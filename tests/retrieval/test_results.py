@@ -200,6 +200,40 @@ def test_identifier_reranking_promotes_candidate_pool_match() -> None:
         "Where is FP8_MIN defined?",
         k=1,
         identifier_match_weight=0.2,
+        identifier_candidate_depth=10,
     )
 
     assert sources[0].file_path == "z-definition.py"
+
+
+def test_disabled_identifier_depth_keeps_requested_candidate_set() -> None:
+    """Depth zero keeps reranking inside the requested result set."""
+    index = BM25Index(
+        [
+            BM25Document(
+                Chunk("a-general.py", 0, 7, "general"),
+                content_terms=("defined",),
+            ),
+            BM25Document(
+                Chunk("z-definition.py", 0, 10, "definition"),
+                content_terms=("fp8_min",),
+            ),
+        ]
+    )
+
+    sources = search_sources(
+        index,
+        "Where is FP8_MIN defined?",
+        k=1,
+        identifier_match_weight=0.2,
+    )
+
+    assert sources[0].file_path == "a-general.py"
+
+
+def test_negative_identifier_candidate_depth_is_rejected() -> None:
+    """Candidate expansion requires a non-negative explicit depth."""
+    index = BM25Index([_hit("src/cache.py", 0, "term", 1.0).document])
+
+    with pytest.raises(ValueError, match="candidate depth"):
+        search_sources(index, "term", identifier_candidate_depth=-1)
