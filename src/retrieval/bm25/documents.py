@@ -46,7 +46,8 @@ def build_bm25_documents(
             BM25Document(
                 chunk=chunk,
                 content_terms=content_terms,
-                metadata_terms=_metadata_terms(chunk, symbols, identifiers),
+                metadata_terms=_metadata_terms(chunk, symbols),
+                identifier_terms=_identifier_terms(chunk, identifiers),
             )
         )
     return documents
@@ -55,7 +56,6 @@ def build_bm25_documents(
 def _metadata_terms(
     chunk: Chunk,
     symbols: Sequence[PythonSymbolSpan],
-    identifiers: Sequence[PythonIdentifierSpan],
 ) -> tuple[str, ...]:
     """Return stable unique path, section, and symbol terms."""
     values = [chunk.file_path, *chunk.section_path]
@@ -63,10 +63,25 @@ def _metadata_terms(
         if symbol.start < chunk.end and chunk.start < symbol.end:
             values.append(symbol.qualified_name)
             values.append(symbol.qualified_name.rsplit(".", 1)[-1])
-    for identifier in identifiers:
-        if identifier.start < chunk.end and chunk.start < identifier.end:
-            values.append(identifier.identifier)
+    terms: list[str] = []
+    tokenizer = CodeTokenizer()
+    for value in values:
+        for term in tokenizer.tokenize(value):
+            if term not in terms:
+                terms.append(term)
+    return tuple(terms)
 
+
+def _identifier_terms(
+    chunk: Chunk,
+    identifiers: Sequence[PythonIdentifierSpan],
+) -> tuple[str, ...]:
+    """Return stable unique structural identifiers for one exact chunk."""
+    values = [
+        identifier.identifier
+        for identifier in identifiers
+        if identifier.start < chunk.end and chunk.start < identifier.end
+    ]
     terms: list[str] = []
     tokenizer = CodeTokenizer()
     for value in values:

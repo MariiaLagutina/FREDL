@@ -1,4 +1,4 @@
-"""Build and query an explainable two-field BM25 index."""
+"""Build and query an explainable multi-field BM25 index."""
 
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
@@ -31,17 +31,26 @@ class BM25Index:
         self._metadata_lengths = tuple(
             len(document.metadata_terms) for document in self._documents
         )
+        self._identifier_lengths = tuple(
+            len(document.identifier_terms) for document in self._documents
+        )
         self._content_postings = _build_postings(
             document.content_terms for document in self._documents
         )
         self._metadata_postings = _build_postings(
             document.metadata_terms for document in self._documents
         )
+        self._identifier_postings = _build_postings(
+            document.identifier_terms for document in self._documents
+        )
         content_frequencies = _document_frequencies(
             self._content_postings
         )
         metadata_frequencies = _document_frequencies(
             self._metadata_postings
+        )
+        identifier_frequencies = _document_frequencies(
+            self._identifier_postings
         )
         self._statistics = BM25CorpusStatistics(
             document_count=len(self._documents),
@@ -52,6 +61,12 @@ class BM25Index:
             ),
             metadata_document_frequencies=tuple(
                 sorted(metadata_frequencies.items())
+            ),
+            average_identifier_length=_average_length(
+                self._identifier_lengths
+            ),
+            identifier_document_frequencies=tuple(
+                sorted(identifier_frequencies.items())
             ),
         )
 
@@ -94,15 +109,27 @@ class BM25Index:
             self._metadata_lengths,
             self._statistics.average_metadata_length,
         )
+        identifier_scores = self._score_field(
+            terms,
+            self._identifier_postings,
+            self._identifier_lengths,
+            self._statistics.average_identifier_length,
+        )
 
         hits: list[BM25Hit] = []
-        candidate_indexes = content_scores.keys() | metadata_scores.keys()
+        candidate_indexes = (
+            content_scores.keys()
+            | metadata_scores.keys()
+            | identifier_scores.keys()
+        )
         for document_index in candidate_indexes:
             content_score = content_scores.get(document_index, 0.0)
             metadata_score = metadata_scores.get(document_index, 0.0)
+            identifier_score = identifier_scores.get(document_index, 0.0)
             score = (
                 content_score
                 + self._parameters.metadata_weight * metadata_score
+                + self._parameters.identifier_weight * identifier_score
             )
             if score > 0:
                 hits.append(
@@ -111,6 +138,7 @@ class BM25Index:
                         score=score,
                         content_score=content_score,
                         metadata_score=metadata_score,
+                        identifier_score=identifier_score,
                     )
                 )
 

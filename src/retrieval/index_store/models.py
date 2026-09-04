@@ -23,6 +23,7 @@ class StoredDocument(BaseModel):
     chunk: StoredChunk
     content_terms: tuple[str, ...]
     metadata_terms: tuple[str, ...]
+    identifier_terms: tuple[str, ...]
 
 
 class StoredParameters(BaseModel):
@@ -33,6 +34,7 @@ class StoredParameters(BaseModel):
     k1: float
     b: float
     metadata_weight: float
+    identifier_weight: float
 
 
 class StoredBM25Index(BaseModel):

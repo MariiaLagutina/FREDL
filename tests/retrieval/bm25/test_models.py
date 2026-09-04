@@ -24,6 +24,7 @@ def test_parameters_expose_tuned_production_defaults() -> None:
         k1=1.4,
         b=0.65,
         metadata_weight=1.0,
+        identifier_weight=0.0,
     )
 
 
@@ -34,6 +35,7 @@ def test_parameters_expose_tuned_production_defaults() -> None:
         ({"b": -0.1}, "b"),
         ({"b": 1.1}, "b"),
         ({"metadata_weight": -1.0}, "metadata weight"),
+        ({"identifier_weight": -1.0}, "identifier weight"),
     ],
 )
 def test_parameters_reject_invalid_values(
@@ -51,11 +53,13 @@ def test_document_keeps_source_and_search_fields_separate() -> None:
         chunk=_chunk(),
         content_terms=("cache", "lookup"),
         metadata_terms=("src", "cache", "py"),
+        identifier_terms=("cache",),
     )
 
     assert document.chunk.text == "cache"
     assert document.content_terms == ("cache", "lookup")
     assert document.metadata_terms == ("src", "cache", "py")
+    assert document.identifier_terms == ("cache",)
     assert document.key == (
         "data/raw/corpus/src/cache.py",
         10,
