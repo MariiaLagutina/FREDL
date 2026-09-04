@@ -17,9 +17,6 @@ from src.retrieval.bm25 import (
 )
 
 
-IDENTIFIER_RERANK_CANDIDATES = 10
-
-
 QuestionProgress = Callable[
     [Sequence[UnansweredQuestion]],
     Iterable[UnansweredQuestion],
@@ -32,6 +29,7 @@ def search_dataset(
     k: int = 5,
     progress: QuestionProgress | None = None,
     identifier_match_weight: float = 0.0,
+    identifier_candidate_depth: int = 0,
 ) -> RetrievalResults:
     """Search every dataset question in its original order."""
     if k <= 0:
@@ -48,6 +46,7 @@ def search_dataset(
                 question,
                 k,
                 identifier_match_weight=identifier_match_weight,
+                identifier_candidate_depth=identifier_candidate_depth,
             )
             for question in questions
         ],
@@ -61,6 +60,7 @@ def search_question(
     k: int = 5,
     *,
     identifier_match_weight: float = 0.0,
+    identifier_candidate_depth: int = 0,
 ) -> QuerySearchResult:
     """Search one dataset question and preserve its public identity."""
     return QuerySearchResult(
@@ -71,6 +71,7 @@ def search_question(
             question.question,
             k,
             identifier_match_weight=identifier_match_weight,
+            identifier_candidate_depth=identifier_candidate_depth,
         ),
     )
 
@@ -81,16 +82,19 @@ def search_sources(
     k: int = 5,
     *,
     identifier_match_weight: float = 0.0,
+    identifier_candidate_depth: int = 0,
 ) -> list[MinimalSource]:
     """Search one raw query against a prebuilt index."""
     if k <= 0:
         raise ValueError("Search k must be greater than zero")
+    if identifier_candidate_depth < 0:
+        raise ValueError("Identifier candidate depth must not be negative")
 
     reranker = IdentifierReranker(match_weight=identifier_match_weight)
     candidate_count = (
         k
         if identifier_match_weight == 0
-        else max(k, IDENTIFIER_RERANK_CANDIDATES)
+        else max(k, identifier_candidate_depth)
     )
     ranked_hits = BM25Retriever(index).search(query, top_k=candidate_count)
     if identifier_match_weight > 0:
