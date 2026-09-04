@@ -178,3 +178,28 @@ def test_search_dataset_rejects_invalid_k_for_empty_dataset() -> None:
 
     with pytest.raises(ValueError, match="Search k"):
         search_dataset(index, dataset, k=0)
+
+
+def test_identifier_reranking_promotes_candidate_pool_match() -> None:
+    """Experimental reranking can promote a close exact identifier hit."""
+    index = BM25Index(
+        [
+            BM25Document(
+                Chunk("a-general.py", 0, 7, "general"),
+                content_terms=("defined",),
+            ),
+            BM25Document(
+                Chunk("z-definition.py", 0, 10, "definition"),
+                content_terms=("fp8_min",),
+            ),
+        ]
+    )
+
+    sources = search_sources(
+        index,
+        "Where is FP8_MIN defined?",
+        k=1,
+        identifier_match_weight=0.2,
+    )
+
+    assert sources[0].file_path == "z-definition.py"

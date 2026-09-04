@@ -110,6 +110,7 @@ def test_search_command_routes_one_raw_query() -> None:
         PIPELINE_FINGERPRINT,
         "Where is the cache?",
         3,
+        identifier_match_weight=0.0,
     )
 
 
@@ -154,6 +155,8 @@ def test_search_dataset_uses_assignment_paths_and_output_name() -> None:
                 "data/output/search_results/Public",
                 "--k",
                 "3",
+                "--identifier_match_weight",
+                "0.1",
             ]
         )
 
@@ -165,6 +168,7 @@ def test_search_dataset_uses_assignment_paths_and_output_name() -> None:
         Path("data/output/search_results/Public/questions.json"),
         3,
         progress=ANY,
+        identifier_match_weight=0.1,
     )
 
 

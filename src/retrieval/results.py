@@ -9,7 +9,15 @@ from src.models import (
     RetrievalResults,
     UnansweredQuestion,
 )
-from src.retrieval.bm25 import BM25Hit, BM25Index, BM25Retriever
+from src.retrieval.bm25 import (
+    BM25Hit,
+    BM25Index,
+    BM25Retriever,
+    IdentifierReranker,
+)
+
+
+IDENTIFIER_RERANK_CANDIDATES = 10
 
 
 QuestionProgress = Callable[
@@ -23,6 +31,7 @@ def search_dataset(
     dataset: RagDataset,
     k: int = 5,
     progress: QuestionProgress | None = None,
+    identifier_match_weight: float = 0.0,
 ) -> RetrievalResults:
     """Search every dataset question in its original order."""
     if k <= 0:
@@ -34,7 +43,12 @@ def search_dataset(
 
     return RetrievalResults(
         search_results=[
-            search_question(index, question, k)
+            search_question(
+                index,
+                question,
+                k,
+                identifier_match_weight=identifier_match_weight,
+            )
             for question in questions
         ],
         k=k,
@@ -45,12 +59,19 @@ def search_question(
     index: BM25Index,
     question: UnansweredQuestion,
     k: int = 5,
+    *,
+    identifier_match_weight: float = 0.0,
 ) -> QuerySearchResult:
     """Search one dataset question and preserve its public identity."""
     return QuerySearchResult(
         question_id=question.question_id,
         question=question.question,
-        retrieved_sources=search_sources(index, question.question, k),
+        retrieved_sources=search_sources(
+            index,
+            question.question,
+            k,
+            identifier_match_weight=identifier_match_weight,
+        ),
     )
 
 
@@ -58,12 +79,24 @@ def search_sources(
     index: BM25Index,
     query: str,
     k: int = 5,
+    *,
+    identifier_match_weight: float = 0.0,
 ) -> list[MinimalSource]:
     """Search one raw query against a prebuilt index."""
     if k <= 0:
         raise ValueError("Search k must be greater than zero")
 
-    ranked_hits = BM25Retriever(index).search(query, top_k=k)
+    reranker = IdentifierReranker(match_weight=identifier_match_weight)
+    candidate_count = (
+        k
+        if identifier_match_weight == 0
+        else max(k, IDENTIFIER_RERANK_CANDIDATES)
+    )
+    ranked_hits = BM25Retriever(index).search(query, top_k=candidate_count)
+    if identifier_match_weight > 0:
+        ranked_hits = [
+            result.hit for result in reranker.rerank(query, ranked_hits)
+        ]
     return select_sources(ranked_hits, k)
 
 

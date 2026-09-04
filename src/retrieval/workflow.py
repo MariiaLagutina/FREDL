@@ -20,13 +20,20 @@ def run_stored_search(
     pipeline_fingerprint: str,
     query: str,
     k: int = 5,
+    *,
+    identifier_match_weight: float = 0.0,
 ) -> list[MinimalSource]:
     """Load one compatible index and search one raw query."""
     index = IndexStore(index_path).load(
         corpus_fingerprint,
         pipeline_fingerprint,
     )
-    return search_sources(index, query, k)
+    return search_sources(
+        index,
+        query,
+        k,
+        identifier_match_weight=identifier_match_weight,
+    )
 
 
 def run_stored_retrieval(
@@ -37,6 +44,7 @@ def run_stored_retrieval(
     output_path: Path,
     k: int = 5,
     progress: QuestionProgress | None = None,
+    identifier_match_weight: float = 0.0,
 ) -> RetrievalResults:
     """Load one compatible index and run retrieval for a question file."""
     index = IndexStore(index_path).load(
@@ -49,6 +57,7 @@ def run_stored_retrieval(
         output_path,
         k,
         progress,
+        identifier_match_weight,
     )
 
 
@@ -58,9 +67,16 @@ def run_retrieval(
     output_path: Path,
     k: int = 5,
     progress: QuestionProgress | None = None,
+    identifier_match_weight: float = 0.0,
 ) -> RetrievalResults:
     """Load questions, search one index, and save validated results."""
     dataset = load_rag_dataset(input_path)
-    results = search_dataset(index, dataset, k, progress)
+    results = search_dataset(
+        index,
+        dataset,
+        k,
+        progress,
+        identifier_match_weight,
+    )
     save_search_results(results, output_path)
     return results
