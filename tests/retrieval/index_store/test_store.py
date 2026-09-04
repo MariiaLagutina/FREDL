@@ -22,16 +22,23 @@ def _index() -> BM25Index:
             chunk=Chunk("docs/cache.md", 0, 5, "cache", ("Cache",)),
             content_terms=("cache",),
             metadata_terms=("docs", "cache"),
+            identifier_terms=(),
         ),
         BM25Document(
             chunk=Chunk("src/cache.py", 0, 6, "lookup"),
             content_terms=("lookup",),
             metadata_terms=("src", "cache"),
+            identifier_terms=("cache",),
         ),
     ]
     return BM25Index(
         documents,
-        BM25Parameters(k1=1.2, b=0.5, metadata_weight=1.5),
+        BM25Parameters(
+            k1=1.2,
+            b=0.5,
+            metadata_weight=1.5,
+            identifier_weight=0.25,
+        ),
     )
 
 

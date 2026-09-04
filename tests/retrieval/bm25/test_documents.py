@@ -89,8 +89,9 @@ def test_python_chunk_gets_only_intersecting_identifiers() -> None:
 
     result = build_bm25_documents(document, [chunk])[0]
 
-    assert "first_limit" in result.metadata_terms
-    assert "second_limit" not in result.metadata_terms
+    assert "first_limit" in result.identifier_terms
+    assert "second_limit" not in result.identifier_terms
+    assert "first_limit" not in result.metadata_terms
 
 
 def test_builder_skips_chunks_without_content_terms() -> None:

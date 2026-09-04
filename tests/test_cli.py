@@ -25,7 +25,7 @@ FINGERPRINT = "a" * 64
 PIPELINE_FINGERPRINT = "b" * 64
 
 
-def test_index_command_builds_schema_v2_snapshot(
+def test_index_command_builds_current_schema_snapshot(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -51,12 +51,12 @@ def test_index_command_builds_schema_v2_snapshot(
 
     index_path = tmp_path / "data" / "processed" / "test-index.json"
     payload = json.loads(index_path.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
     assert len(payload["corpus_fingerprint"]) == 64
     assert len(payload["pipeline_fingerprint"]) == 64
     captured = capsys.readouterr()
     assert "document_count:" in captured.out
-    assert "schema_version:       2" in captured.out
+    assert "schema_version:       3" in captured.out
 
 
 def test_index_command_persists_requested_bm25_parameters(
@@ -86,6 +86,7 @@ def test_index_command_persists_requested_bm25_parameters(
         "b": 0.65,
         "k1": 1.4,
         "metadata_weight": 1.5,
+        "identifier_weight": 0.0,
     }
 
 

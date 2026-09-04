@@ -56,11 +56,12 @@ def index(
     k1: float = DEFAULT_BM25_PARAMETERS.k1,
     b: float = DEFAULT_BM25_PARAMETERS.b,
     metadata_weight: float = DEFAULT_BM25_PARAMETERS.metadata_weight,
+    identifier_weight: float = DEFAULT_BM25_PARAMETERS.identifier_weight,
 ) -> dict[str, object]:
     """Build and save a production-compatible BM25 index."""
     try:
         root = Path(project_root)
-        config = _pipeline_config(k1, b, metadata_weight)
+        config = _pipeline_config(k1, b, metadata_weight, identifier_weight)
         build = build_index(
             root,
             _below_root(root, Path(corpus_root)),
@@ -93,6 +94,7 @@ def search(
     k1: float = DEFAULT_BM25_PARAMETERS.k1,
     b: float = DEFAULT_BM25_PARAMETERS.b,
     metadata_weight: float = DEFAULT_BM25_PARAMETERS.metadata_weight,
+    identifier_weight: float = DEFAULT_BM25_PARAMETERS.identifier_weight,
     identifier_match_weight: float = 0.0,
     identifier_candidate_depth: int = 0,
 ) -> list[dict[str, object]]:
@@ -105,7 +107,7 @@ def search(
             _below_root(root, Path(index_path)),
             fingerprint,
             _current_pipeline_fingerprint(
-                _pipeline_config(k1, b, metadata_weight)
+                _pipeline_config(k1, b, metadata_weight, identifier_weight)
             ),
             query,
             k,
@@ -127,6 +129,7 @@ def search_dataset(
     k1: float = DEFAULT_BM25_PARAMETERS.k1,
     b: float = DEFAULT_BM25_PARAMETERS.b,
     metadata_weight: float = DEFAULT_BM25_PARAMETERS.metadata_weight,
+    identifier_weight: float = DEFAULT_BM25_PARAMETERS.identifier_weight,
     identifier_match_weight: float = 0.0,
     identifier_candidate_depth: int = 0,
 ) -> str:
@@ -141,7 +144,7 @@ def search_dataset(
             _below_root(root, Path(index_path)),
             fingerprint,
             _current_pipeline_fingerprint(
-                _pipeline_config(k1, b, metadata_weight)
+                _pipeline_config(k1, b, metadata_weight, identifier_weight)
             ),
             dataset,
             output,
@@ -271,6 +274,7 @@ def _pipeline_config(
     k1: float,
     b: float,
     metadata_weight: float,
+    identifier_weight: float,
 ) -> PipelineConfig:
     """Build the shared CLI configuration for index compatibility checks."""
     return PipelineConfig(
@@ -278,6 +282,7 @@ def _pipeline_config(
             k1=k1,
             b=b,
             metadata_weight=metadata_weight,
+            identifier_weight=identifier_weight,
         )
     )
 
