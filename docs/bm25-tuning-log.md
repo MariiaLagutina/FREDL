@@ -805,3 +805,92 @@ preserves complete snake_case, CamelCase, private-attribute, and uppercase
 constant identifiers as high-value query terms. Measure Docs and Code
 separately against the unchanged `FINAL` control. Treat a Docs-versus-Code path
 preference as a separate later factor so that any effect remains attributable.
+
+## B1 - exact-identifier lexical reranking
+
+**Status:** Completed and rejected. Keep the `FINAL` ranking configuration.
+
+**Date:** 2026-09-04.
+
+**Hypothesis:** A bounded bonus for complete structured identifiers may promote
+the labelled Code chunks responsible for the Phase 19 `lost_identifier`
+misses without materially reducing documentation retrieval quality.
+
+**Changed factor:** Only the exact-identifier reranking weight. The comparison
+covers the disabled control `0.00` and candidates `0.05`, `0.10`, and `0.20`.
+The reranker recognizes complete snake_case, CamelCase, private, uppercase,
+and dotted query identifiers. It reorders the existing top-ten BM25 candidates
+and applies at most three bonuses per hit.
+
+**Constants:** The adopted `FINAL` index and public datasets; `k1=1.4`;
+`b=0.65`; `metadata_weight=1.0`; `max_chunk_size=2000`; documentation overlap
+`160`; code overlap `80`; 20,096 indexed documents; `k=10`; no embeddings or
+vector search. Run commit: `2c885793402323bc31476a9f78c5906d17c35a4e`.
+
+Run each Docs and Code dataset with the same command shape, substituting the
+four weights and their matching output directories:
+
+```bash
+uv run python -m src search_dataset \
+  --dataset_path data/datasets/AnsweredQuestions/dataset_code_public.json \
+  --save_directory data/output/experiments/B1/weight_0_10 \
+  --k 10 \
+  --index_path data/processed/experiments/FINAL/bm25-index.json \
+  --identifier_match_weight 0.10
+```
+
+Evaluate any saved pair with the unchanged local evaluator:
+
+```bash
+uv run python -m src evaluate \
+  --docs_ground_truth_path data/datasets/AnsweredQuestions/dataset_docs_public.json \
+  --docs_results_path data/output/experiments/B1/weight_0_10/dataset_docs_public.json \
+  --code_ground_truth_path data/datasets/AnsweredQuestions/dataset_code_public.json \
+  --code_results_path data/output/experiments/B1/weight_0_10/dataset_code_public.json
+```
+
+**Results:**
+
+| Weight | Dataset | R@1 | R@3 | R@5 | R@10 | MRR |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 0.00 | Docs | 0.540000 | 0.730000 | 0.810000 | 0.880000 | 0.646496 |
+| 0.00 | Code | 0.525253 | 0.676768 | 0.767677 | 0.838384 | 0.627746 |
+| 0.05 | Docs | 0.540000 | 0.730000 | 0.810000 | 0.880000 | 0.648163 |
+| 0.05 | Code | 0.525253 | 0.666667 | 0.777778 | 0.838384 | 0.625978 |
+| 0.10 | Docs | 0.540000 | 0.730000 | 0.810000 | 0.880000 | 0.647925 |
+| 0.10 | Code | 0.525253 | 0.686869 | 0.767677 | 0.838384 | 0.628094 |
+| 0.20 | Docs | 0.540000 | 0.730000 | 0.820000 | 0.880000 | 0.648996 |
+| 0.20 | Code | 0.515152 | 0.696970 | 0.757576 | 0.838384 | 0.623549 |
+
+The `0.00` result hashes exactly match the adopted `FINAL` hashes, confirming
+that the disabled reranker preserves the control. Relative to that control,
+the per-question first-relevant ranks changed as follows:
+
+| Weight | Docs improved | Docs regressed | Code improved | Code regressed | `lost_identifier` improved |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 0.05 | 2 | 1 | 4 | 2 | 0/11 |
+| 0.10 | 3 | 2 | 6 | 3 | 0/11 |
+| 0.20 | 3 | 3 | 6 | 6 | 0/11 |
+
+**Result hashes:**
+
+| Weight | Docs SHA-256 | Code SHA-256 |
+| ---: | --- | --- |
+| 0.00 | `5a77414dde064181f14c70e3f695f15c8717ed6cc04ae629513fb1014dc0c652` | `b2ff9dacad41acb46cbf21a1b96b602ddb5d7d44693dcddccceb377efcce25d0` |
+| 0.05 | `d873d6bc3e3e5dcb597160e6f83b50e9a077c1829cfe141226dc072dd1605ba5` | `d4fb9ba211ce7620ab00a5c0b090c34933c40a204938676e43464b1d799e316d` |
+| 0.10 | `74b764c7767a69dcc9ec0c05db7e168832ae682027d635511353864a72931ca7` | `14c3d939aababab6c12ebcc0db44161301b7e5cc4d4f0e16329cf785df5daf5f` |
+| 0.20 | `45dd8a23981ff32bbb97b1fa3b9ec5d906f2fbde03126c281ca6ad82b4707321` | `e4adb92925c6fe9161fcc7284b978d8b70e57a8273b5a449560f302cceed29cf` |
+
+**Interpretation:** Aggregate rankings move, but none of the eleven Code
+`lost_identifier` misses improves at any tested weight. The `0.05` candidate
+gains one net Code R@5 hit while reducing Code R@3 and MRR. The `0.10`
+candidate slightly raises Code R@3 and MRR but changes non-target questions
+instead of the diagnosed error group. The `0.20` candidate reduces Code R@1,
+R@5, and MRR. A stronger bonus is therefore not justified.
+
+**Stopping rule and decision:** Reject exact-identifier reranking and retain
+the unchanged `FINAL` configuration. Before another ranking experiment,
+measure the labelled chunks' deeper BM25 ranks and inspect whether their full
+identifiers are present in indexed terms. This distinguishes insufficient
+candidate depth from missing identifier evidence and prevents an unguided
+parameter sweep.
