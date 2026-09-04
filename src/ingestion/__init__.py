@@ -16,6 +16,10 @@ from src.ingestion.documents import (
 )
 from src.ingestion.files import CorpusFile, FileKind, discover_files
 from src.ingestion.chunking.python.chunker import chunk_python_document
+from src.ingestion.chunking.python.identifiers import (
+    extract_python_identifier_spans,
+    PythonIdentifierSpan,
+)
 from src.ingestion.chunking.python.symbols import (
     extract_python_symbol_spans,
     PythonSymbolSpan,
@@ -31,12 +35,14 @@ __all__ = [
     "CorpusFile",
     "FileKind",
     "PythonSymbolSpan",
+    "PythonIdentifierSpan",
     "SourceDocument",
     "audit_corpus",
     "audit_documents",
     "chunk_document",
     "discover_files",
     "extract_python_symbol_spans",
+    "extract_python_identifier_spans",
     "chunk_python_document",
     "chunk_text_document",
     "make_chunk",

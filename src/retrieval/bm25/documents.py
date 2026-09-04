@@ -4,9 +4,11 @@ from collections.abc import Sequence
 
 from src.ingestion import (
     Chunk,
+    extract_python_identifier_spans,
     extract_python_symbol_spans,
     FileKind,
     PythonSymbolSpan,
+    PythonIdentifierSpan,
     SourceDocument,
 )
 from src.retrieval.bm25.models import BM25Document
@@ -20,6 +22,11 @@ def build_bm25_documents(
     """Create searchable documents without changing exact chunk evidence."""
     symbols = (
         extract_python_symbol_spans(document)
+        if document.kind is FileKind.PYTHON
+        else ()
+    )
+    identifiers = (
+        extract_python_identifier_spans(document)
         if document.kind is FileKind.PYTHON
         else ()
     )
@@ -39,7 +46,7 @@ def build_bm25_documents(
             BM25Document(
                 chunk=chunk,
                 content_terms=content_terms,
-                metadata_terms=_metadata_terms(chunk, symbols),
+                metadata_terms=_metadata_terms(chunk, symbols, identifiers),
             )
         )
     return documents
@@ -48,6 +55,7 @@ def build_bm25_documents(
 def _metadata_terms(
     chunk: Chunk,
     symbols: Sequence[PythonSymbolSpan],
+    identifiers: Sequence[PythonIdentifierSpan],
 ) -> tuple[str, ...]:
     """Return stable unique path, section, and symbol terms."""
     values = [chunk.file_path, *chunk.section_path]
@@ -55,6 +63,9 @@ def _metadata_terms(
         if symbol.start < chunk.end and chunk.start < symbol.end:
             values.append(symbol.qualified_name)
             values.append(symbol.qualified_name.rsplit(".", 1)[-1])
+    for identifier in identifiers:
+        if identifier.start < chunk.end and chunk.start < identifier.end:
+            values.append(identifier.identifier)
 
     terms: list[str] = []
     tokenizer = CodeTokenizer()
