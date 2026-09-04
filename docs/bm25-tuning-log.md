@@ -894,3 +894,88 @@ measure the labelled chunks' deeper BM25 ranks and inspect whether their full
 identifiers are present in indexed terms. This distinguishes insufficient
 candidate depth from missing identifier evidence and prevents an unguided
 parameter sweep.
+
+## B2 - identifier reranking candidate depth
+
+**Status:** Completed and rejected. Keep the `FINAL` ranking configuration.
+
+**Date:** 2026-09-04.
+
+**Hypothesis:** B1 may have failed because all eleven labelled Code chunks in
+the `lost_identifier` group ranked below the top-ten reranking pool. Expanding
+that pool while holding the exact-identifier bonus fixed may expose and promote
+the relevant chunks.
+
+**Pre-run diagnostic:** The labelled Code chunks had original BM25 ranks `15`,
+`16`, `17`, `19`, `19`, `19`, `26`, `34`, `84`, and `89`; one was below rank
+`200` or had no lexical match. Seven labelled chunks contained at least one
+complete structured query identifier in their indexed content or metadata
+terms. Therefore depths `20`, `50`, and `100` cover progressively wider parts
+of the observed range without changing the index.
+
+**Changed factor:** Only `identifier_candidate_depth`, from B1's top-ten pool
+to `20`, `50`, and `100`. The exact-identifier match weight remains `0.10` and
+at most three bonuses apply to each hit.
+
+**Constants:** The adopted `FINAL` index and public datasets; `k1=1.4`;
+`b=0.65`; `metadata_weight=1.0`; `max_chunk_size=2000`; documentation overlap
+`160`; code overlap `80`; 20,096 indexed documents; output `k=10`; no
+embeddings or vector search. Run commit:
+`a44668551be7cd0754ee20d2869db0edcd2009e1`.
+This lexical retrieval experiment ran on CPU; CUDA appears only in the text of
+one evaluation question.
+
+Run each Docs and Code dataset with the same command shape, substituting the
+three depths and their matching output directories:
+
+```bash
+uv run python -m src search_dataset \
+  --dataset_path data/datasets/AnsweredQuestions/dataset_code_public.json \
+  --save_directory data/output/experiments/B2/depth_20 \
+  --k 10 \
+  --index_path data/processed/experiments/FINAL/bm25-index.json \
+  --identifier_match_weight 0.10 \
+  --identifier_candidate_depth 20
+```
+
+**Results:**
+
+| Depth | Dataset | R@1 | R@3 | R@5 | R@10 | MRR |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 10 | Docs | 0.540000 | 0.730000 | 0.810000 | 0.880000 | 0.647925 |
+| 10 | Code | 0.525253 | 0.686869 | 0.767677 | 0.838384 | 0.628094 |
+| 20 | Docs | 0.540000 | 0.730000 | 0.820000 | 0.880000 | 0.648813 |
+| 20 | Code | 0.525253 | 0.686869 | 0.767677 | 0.838384 | 0.628094 |
+| 50 | Docs | 0.540000 | 0.730000 | 0.820000 | 0.880000 | 0.648813 |
+| 50 | Code | 0.525253 | 0.686869 | 0.767677 | 0.838384 | 0.628094 |
+| 100 | Docs | 0.540000 | 0.730000 | 0.820000 | 0.880000 | 0.648813 |
+| 100 | Code | 0.525253 | 0.686869 | 0.767677 | 0.838384 | 0.628094 |
+
+**Result hashes:**
+
+| Depth | Docs SHA-256 | Code SHA-256 |
+| ---: | --- | --- |
+| 20 | `7680ae86ad622136231034ba126a981a6c17b05d3cd4275757dccea2fd8b35c2` | `b1914f2924874627711f733b95497feb6eef2640c37594c7997e8210490da02d` |
+| 50 | `7680ae86ad622136231034ba126a981a6c17b05d3cd4275757dccea2fd8b35c2` | `6c869baa010be2f1355ea9e9043ee3d682994d224f6f74de453cfb2c5fb5b048` |
+| 100 | `7680ae86ad622136231034ba126a981a6c17b05d3cd4275757dccea2fd8b35c2` | `6c869baa010be2f1355ea9e9043ee3d682994d224f6f74de453cfb2c5fb5b048` |
+
+**Per-question evidence:** Relative to depth `10`, every tested depth promotes
+the Marlin MOE documentation label from outside the saved top ten to rank five,
+while the classify-endpoint input-format label falls from rank nine to outside
+the saved top ten. No Code first-relevant rank changes at any depth, and none
+of the eleven `lost_identifier` questions improves. Depths `50` and `100`
+produce identical top-ten outputs, and neither changes the aggregate metrics
+beyond depth `20`.
+
+**Interpretation:** Candidate availability is necessary but not sufficient.
+The fixed `0.10` exact-match bonus cannot move the deeper labelled Code chunks
+above stronger general lexical matches. Increasing depth alone only exchanges
+two Docs results and has no Code effect, so the additional candidates do not
+justify changing the production configuration.
+
+**Stopping rule and decision:** Reject candidate-depth expansion and retain the
+unchanged `FINAL` configuration. Do not test depths above `100`: depths `50`
+and `100` already yield identical saved rankings. If this experiment family is
+continued, fix the smallest informative depth at `20` and vary only the exact
+identifier weight to test whether a stronger signal can promote the five
+nearest labelled Code chunks.
