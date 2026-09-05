@@ -7,14 +7,41 @@ from src.evaluation.retrieval.error_models import (
     RetrievalErrorCategory,
     RetrievalMissAnalysis,
     RetrievalMissEvidence,
+    ReferenceMatchability,
 )
-from src.evaluation.retrieval.metrics import sources_match
+from src.evaluation.retrieval.metrics import source_iou, sources_match
+from src.ingestion import Chunk
 from src.evaluation.retrieval.models import RetrievalEvaluationCase
 from src.models import MinimalSource
 
 
 TOP_FIVE = 5
 MAX_BOUNDARY_GAP = 2
+
+
+def assess_reference_matchability(
+    reference: MinimalSource,
+    chunks: Sequence[Chunk],
+) -> ReferenceMatchability:
+    """Find the indexed chunk with the greatest IoU for one reference."""
+    same_file = [
+        chunk for chunk in chunks if chunk.file_path == reference.file_path
+    ]
+    if not same_file:
+        return ReferenceMatchability(reference, None, 0.0)
+    best = max(
+        same_file,
+        key=lambda chunk: (source_iou(chunk, reference), -chunk.start),
+    )
+    return ReferenceMatchability(
+        reference=reference,
+        best_chunk=MinimalSource(
+            file_path=best.file_path,
+            first_character_index=best.start,
+            last_character_index=best.end,
+        ),
+        maximum_iou=source_iou(best, reference),
+    )
 
 
 def classify_structural_miss(

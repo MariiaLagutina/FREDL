@@ -1,6 +1,7 @@
 """Retrieval evaluation with exact source-aware relevance rules."""
 
 from src.evaluation.retrieval.error_analysis import (
+    assess_reference_matchability,
     classify_ranked_miss,
     classify_structural_miss,
     collect_top_five_misses,
@@ -10,6 +11,7 @@ from src.evaluation.retrieval.error_models import (
     RetrievalErrorCategory,
     RetrievalMissAnalysis,
     RetrievalMissEvidence,
+    ReferenceMatchability,
 )
 from src.evaluation.retrieval.error_report import (
     render_error_analysis_markdown,
@@ -39,9 +41,11 @@ __all__ = [
     "RetrievalMetrics",
     "RetrievalMissAnalysis",
     "RetrievalMissEvidence",
+    "ReferenceMatchability",
     "RetrievalEvaluationCase",
     "RetrievalQueryMetrics",
     "aggregate_query_metrics",
+    "assess_reference_matchability",
     "classify_ranked_miss",
     "classify_structural_miss",
     "collect_top_five_misses",
