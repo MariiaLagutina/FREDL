@@ -1056,3 +1056,116 @@ regressions are already visible. Close the post-BM25 exact-identifier reranking
 family after B1-B3. The next experiment must inspect and change identifier
 placement in indexed structural metadata rather than applying another ranking
 bonus.
+
+## B4 - structural identifier metadata
+
+**Status:** Completed and rejected for ranking. Keep the separate identifier
+field disabled by default and retain the unchanged `FINAL` ranking.
+
+**Date:** 2026-09-04 to 2026-09-05.
+
+**Hypothesis:** The B1-B3 bonus could not distinguish a definition or assignment
+from an incidental identifier occurrence. Placing identifiers found at Python
+AST structural sites in index metadata may promote the labelled Code chunks
+without changing their exact source text.
+
+**Constants:** Public Docs and Code datasets; 20,096 documents; `k1=1.4`;
+`b=0.65`; `metadata_weight=1.0`; `max_chunk_size=2000`; documentation overlap
+`160`; code overlap `80`; output `k=10`; lexical retrieval on CPU; no embeddings
+or vector search.
+
+### B4a - identifiers mixed into the existing metadata field
+
+The first implementation added function parameters, assignment targets, and
+keyword argument names to the existing path, heading, and symbol field. Run
+commit: `5d34ccb91b8bacf3b21f1f17ff765b4e41d530e0`.
+
+| Dataset | R@1 | R@3 | R@5 | R@10 | MRR |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Docs | 0.490000 | 0.690000 | 0.760000 | 0.840000 | 0.605679 |
+| Code | 0.505051 | 0.717172 | 0.787879 | 0.848485 | 0.620551 |
+
+Two of the eleven `lost_identifier` references entered the top ten:
+`_is_remote_reader` at rank four and `use_bitsandbytes_4bit` at rank eight.
+Across all Code questions, fourteen improved, fourteen regressed, and
+seventy-one were unchanged. Mixing the terms changed the metadata document
+frequencies shared by Docs and Code and caused unacceptable Docs regressions.
+
+Result hashes: Docs
+`5110f2cba00b1b4be7662ead130836556760318748dd9b732e27edc3f0a5bbe7`;
+Code `d5bc9de969015837332985464983739faebad37129ef9f67eb456300e9f3863a`.
+
+### B4b - independent structural identifier field
+
+The second implementation introduced independently scored `identifier_terms`
+and schema version 3. A zero weight reproduced both `FINAL` result files byte
+for byte, proving that field separation alone preserves the baseline. Run
+commit: `f8b559eadd7672fd4b7a0666f8171010ddaf9a80`.
+
+| Weight | Dataset | R@1 | R@3 | R@5 | R@10 | MRR |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 0.10 | Docs | 0.540000 | 0.730000 | 0.800000 | 0.860000 | 0.643302 |
+| 0.10 | Code | 0.535354 | 0.676768 | 0.767677 | 0.838384 | 0.633566 |
+| 0.25 | Docs | 0.530000 | 0.710000 | 0.790000 | 0.860000 | 0.632813 |
+| 0.25 | Code | 0.525253 | 0.696970 | 0.757576 | 0.858586 | 0.634800 |
+| 0.50 | Docs | 0.520000 | 0.690000 | 0.770000 | 0.840000 | 0.617980 |
+| 0.50 | Code | 0.535354 | 0.696970 | 0.767677 | 0.848485 | 0.638195 |
+
+At weight `0.10`, none of the target group improved. At `0.25` and `0.50`,
+only `_is_remote_reader` entered the top ten, at ranks nine and eight. Separate
+field statistics prevented identifier terms from changing the original
+metadata IDF, but additional Code scores still displaced Docs results in the
+shared ranking.
+
+### B4c - assignment targets only
+
+The final variant removed parameters and keyword arguments from the identifier
+field and retained only assignment targets, including attributes, destructuring,
+augmented assignment, and named expressions. Run commit:
+`e9f7983c58a35e96a7bb2ad1049bca50ee3a4fc4`.
+
+Build each candidate with the same command shape, substituting its weight and
+matching directory:
+
+```bash
+uv run python -m src index \
+  --index_path data/processed/experiments/B4-assignments/weight_0_25/bm25-index.json \
+  --k1 1.4 \
+  --b 0.65 \
+  --metadata_weight 1.0 \
+  --identifier_weight 0.25
+```
+
+| Weight | Dataset | R@1 | R@3 | R@5 | R@10 | MRR |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 0.00 | Docs | 0.540000 | 0.730000 | 0.810000 | 0.880000 | 0.647925 |
+| 0.00 | Code | 0.525253 | 0.686869 | 0.767677 | 0.838384 | 0.628094 |
+| 0.25 | Docs | 0.530000 | 0.700000 | 0.790000 | 0.860000 | 0.632714 |
+| 0.25 | Code | 0.535354 | 0.707071 | 0.747475 | 0.858586 | 0.640384 |
+| 0.50 | Docs | 0.520000 | 0.680000 | 0.770000 | 0.840000 | 0.618968 |
+| 0.50 | Code | 0.515152 | 0.707071 | 0.747475 | 0.858586 | 0.631041 |
+| 1.00 | Docs | 0.480000 | 0.640000 | 0.720000 | 0.800000 | 0.579357 |
+| 1.00 | Code | 0.454545 | 0.686869 | 0.737374 | 0.797980 | 0.585943 |
+
+At weight `0.25`, ten Code questions improved and seven regressed; at `0.50`,
+nine improved and thirteen regressed; at `1.00`, thirteen improved and
+twenty-three regressed. `_is_remote_reader` and `intermediate_tensors` reached
+rank ten at `0.25` and rank eight at `0.50`. At `1.00`, the three target hits
+were `_is_remote_reader` at six, `use_bitsandbytes_4bit` at eight, and
+`intermediate_tensors` at ten. No target entered the top five.
+
+**Assignment-only result hashes:**
+
+| Weight | Docs SHA-256 | Code SHA-256 |
+| ---: | --- | --- |
+| 0.25 | `8e8cb5b705462ed96a50dd19ee7ac746f4473d921b70f8ec0f1aaf4c5c55ded9` | `415468df8401121fd481b845452d6eec347446e45f1ff1bd4e0bf19a43d4007a` |
+| 0.50 | `910c1ac13fd04a9786eb1be37f36753bed83ef24a0767f8e65416ac8d7264631` | `cc16c58b9184e9b651aab402a6b73eff4041d2ed23e57e6c8d0e7f5cd2a17bd0` |
+| 1.00 | `1a105b34851ddcf0e5903e3b044be8fddf506b8672871d29f071f5b17bf2edbb` | `02a00e311766e0898581c8d08befbb9a0c80841c1838ed686e8f38b35debf612` |
+
+**Stopping rule and decision:** Reject every nonzero B4 weight. The signal can
+promote a few intended chunks, but no candidate improves the target top-five
+errors and every candidate regresses Docs and some Code questions. Do not test
+higher or intermediate weights. Retain the independent field with default
+weight `0` so the experiment remains reproducible without changing `FINAL`.
+Next inspect each target identifier's location relative to the labelled range
+and its generated chunks before proposing another ranking change.
