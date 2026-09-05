@@ -16,8 +16,8 @@ def _python_document(text: str) -> SourceDocument:
     )
 
 
-def test_extracts_parameters_assignments_and_keyword_arguments() -> None:
-    """Only identifiers at selected structural sites become metadata."""
+def test_extracts_assignment_targets_without_other_identifiers() -> None:
+    """Parameters and keyword arguments do not enter the focused field."""
     source = (
         "LIMIT = 4\n"
         "def run(value, *, enabled=False):\n"
@@ -28,23 +28,18 @@ def test_extracts_parameters_assignments_and_keyword_arguments() -> None:
 
     assert [span.identifier for span in spans] == [
         "LIMIT",
-        "value",
-        "enabled",
         "result",
-        "option",
     ]
     assert all(source[span.start:span.end] for span in spans)
 
 
-def test_extracts_destructured_and_variable_arguments() -> None:
-    """Nested targets and both variable parameter forms remain visible."""
+def test_extracts_destructured_assignment_targets() -> None:
+    """Nested assignment targets remain visible without parameters."""
     source = "def collect(*items, **options):\n    first, *rest = items\n"
 
     spans = extract_python_identifier_spans(_python_document(source))
 
     assert [span.identifier for span in spans] == [
-        "items",
-        "options",
         "first",
         "rest",
     ]
