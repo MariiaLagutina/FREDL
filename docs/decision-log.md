@@ -766,3 +766,52 @@ The complete metrics, fingerprints, timings, and stopping evidence are in the
 Tune document-length normalization across heterogeneous source types with
 both early-rank and deeper-recall evidence, then stop when a neighbouring
 candidate is dominated and finer search would overfit one-question changes.
+
+## 2026-09-05 - Keep structural identifier scoring independent and disabled
+
+**Status:** Accepted
+
+### Initial approach
+
+Add Python parameters, assignment targets, and keyword argument names to the
+existing BM25 metadata field so definitions and assignments receive more
+structural evidence than incidental identifier occurrences.
+
+### Why the approach was reconsidered
+
+Mixing identifiers with paths, headings, and symbols changed shared metadata
+document frequencies and substantially regressed Docs. Giving identifiers an
+independent field restored a byte-identical control at weight zero, but every
+tested nonzero weight still traded a few Code improvements for Docs and Code
+regressions. Restricting the field to assignment targets improved precision but
+did not move any of the eleven target `lost_identifier` misses into the top
+five.
+
+### Decision
+
+Persist structural identifiers in an independent schema-versioned BM25 field
+with its own corpus statistics and inspectable score. Keep
+`identifier_weight=0.0` as the default and do not enable the field in the
+`FINAL` ranking configuration. Retain assignment targets as the narrow field
+definition while the next diagnostic checks identifier, chunk, and labelled
+range alignment.
+
+The controlled variants, metrics, artifact hashes, and stopping evidence are
+preserved in the
+[B4 experiment record](bm25-tuning-log.md#b4---structural-identifier-metadata).
+
+### Consequences
+
+- A zero identifier weight reproduces both `FINAL` result files byte for byte.
+- Identifier experiments no longer change path, heading, or symbol statistics.
+- Nonzero weights remain explicit experimental inputs and require compatible
+  indexes.
+- Schema version 3 prevents older two-field snapshots from loading silently.
+- Future work must diagnose labelled-range alignment before adding another
+  identifier weight or ranking bonus.
+
+### Lesson
+
+An independently scored feature can make an experiment attributable and
+reproducible without making the feature beneficial. Preserve the safe control,
+reject unsupported weights, and investigate the remaining error mechanism.
