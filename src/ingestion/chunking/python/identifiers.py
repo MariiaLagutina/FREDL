@@ -1,4 +1,4 @@
-"""Extract identifiers used at structurally meaningful Python sites."""
+"""Extract identifiers used as Python assignment targets."""
 
 import ast
 from dataclasses import dataclass
@@ -30,7 +30,7 @@ class PythonIdentifierSpan:
 def extract_python_identifier_spans(
     document: SourceDocument,
 ) -> tuple[PythonIdentifierSpan, ...]:
-    """Return parameters, assignment targets, and keyword argument names."""
+    """Return identifiers used as assignment targets in source order."""
     if document.kind is not FileKind.PYTHON:
         raise ValueError("Python identifier extraction requires Python source")
 
@@ -42,15 +42,7 @@ def extract_python_identifier_spans(
     source_map = _PythonSourceMap(document.text)
     identifiers: list[PythonIdentifierSpan] = []
     for node in ast.walk(module):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            for argument in _function_arguments(node.args):
-                _append_identifier(
-                    identifiers,
-                    argument.arg,
-                    argument,
-                    source_map,
-                )
-        elif isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+        if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
             targets = (
                 node.targets
                 if isinstance(node, ast.Assign)
@@ -73,20 +65,8 @@ def extract_python_identifier_spans(
                     target_node,
                     source_map,
                 )
-        elif isinstance(node, ast.keyword) and node.arg is not None:
-            _append_identifier(identifiers, node.arg, node, source_map)
 
     return tuple(identifiers)
-
-
-def _function_arguments(arguments: ast.arguments) -> tuple[ast.arg, ...]:
-    """Return every declared function parameter in source categories."""
-    values = [*arguments.posonlyargs, *arguments.args, *arguments.kwonlyargs]
-    if arguments.vararg is not None:
-        values.append(arguments.vararg)
-    if arguments.kwarg is not None:
-        values.append(arguments.kwarg)
-    return tuple(values)
 
 
 def _target_identifiers(node: ast.AST) -> tuple[tuple[str, ast.AST], ...]:
