@@ -4,11 +4,13 @@ from src.evaluation.retrieval import (
     RetrievalErrorCategory,
     RetrievalEvaluationCase,
     RetrievalMissEvidence,
+    assess_reference_matchability,
     classify_ranked_miss,
     classify_structural_miss,
     collect_top_five_misses,
 )
 from src.models import MinimalSource
+from src.ingestion import Chunk
 
 
 def _source(file_path: str, start: int = 0, end: int = 20) -> MinimalSource:
@@ -142,3 +144,24 @@ def test_leaves_distant_same_file_chunk_for_content_review() -> None:
     )
 
     assert classify_structural_miss(evidence) is None
+
+
+def test_reference_matchability_detects_impossible_chunk_geometry() -> None:
+    """A tiny reference inside a large chunk reports its true maximum IoU."""
+    reference = _source("src/cache.py", 100, 112)
+    chunk = Chunk("src/cache.py", 0, 1000, "x" * 1000)
+
+    result = assess_reference_matchability(reference, [chunk])
+
+    assert result.best_chunk == _source("src/cache.py", 0, 1000)
+    assert result.maximum_iou == 0.012
+
+
+def test_reference_matchability_reports_missing_indexed_file() -> None:
+    """Missing files cannot silently appear evaluator-matchable."""
+    reference = _source("src/missing.py", 10, 20)
+
+    result = assess_reference_matchability(reference, [])
+
+    assert result.best_chunk is None
+    assert result.maximum_iou == 0
