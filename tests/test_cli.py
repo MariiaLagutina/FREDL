@@ -113,8 +113,8 @@ def test_search_command_routes_one_raw_query() -> None:
         3,
         identifier_match_weight=0.0,
         identifier_candidate_depth=0,
-        auxiliary_path_penalty=0.0,
-        path_candidate_depth=0,
+        auxiliary_path_penalty=0.5,
+        path_candidate_depth=20,
     )
 
 
@@ -163,6 +163,10 @@ def test_search_dataset_uses_assignment_paths_and_output_name() -> None:
                 "0.1",
                 "--identifier_candidate_depth",
                 "50",
+                "--auxiliary_path_penalty",
+                "0",
+                "--path_candidate_depth",
+                "0",
             ]
         )
 
