@@ -383,11 +383,18 @@ def test_analyze_retrieval_errors_writes_docs_and_code_report(
             side_effect=[docs_cases, code_cases],
         ),
         patch("src.cli.write_error_analysis_markdown") as write_report,
+        patch("src.cli._current_corpus_fingerprint", return_value=FINGERPRINT),
+        patch(
+            "src.cli._current_pipeline_fingerprint",
+            return_value=PIPELINE_FINGERPRINT,
+        ),
+        patch("src.cli.IndexStore") as index_store,
         patch(
             "src.cli.collect_top_five_misses",
             side_effect=[("docs-miss",), ("code-1", "code-2")],
         ),
     ):
+        index_store.return_value.load.return_value.documents = ()
         main(
             [
                 "analyze_retrieval_errors",
@@ -414,6 +421,14 @@ def test_analyze_retrieval_errors_writes_docs_and_code_report(
         ),
         Path("/project"),
         {},
+        (),
+    )
+    index_store.assert_called_once_with(
+        Path("/project/data/processed/bm25-index.json")
+    )
+    index_store.return_value.load.assert_called_once_with(
+        FINGERPRINT,
+        PIPELINE_FINGERPRINT,
     )
     output = capsys.readouterr().out
     assert "docs_top_5_misses: 1" in output

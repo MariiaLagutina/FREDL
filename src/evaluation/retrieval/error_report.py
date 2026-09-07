@@ -36,11 +36,17 @@ def write_error_analysis_markdown(
     datasets: Sequence[EvaluationDataset],
     project_root: Path,
     annotations: Mapping[str, RetrievalMissAnnotation] | None = None,
+    indexed_chunks: Sequence[Chunk] | None = None,
 ) -> None:
     """Write top-five miss evidence for human classification."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
-        render_error_analysis_markdown(datasets, project_root, annotations),
+        render_error_analysis_markdown(
+            datasets,
+            project_root,
+            annotations,
+            indexed_chunks,
+        ),
         encoding="utf-8",
     )
 
