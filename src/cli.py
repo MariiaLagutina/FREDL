@@ -222,7 +222,13 @@ def analyze_retrieval_errors(
     code_results_path: str,
     output_path: str = str(DEFAULT_ERROR_ANALYSIS_PATH),
     annotations_path: str = str(DEFAULT_ERROR_ANNOTATIONS_PATH),
+    index_path: str = str(DEFAULT_INDEX_PATH),
+    corpus_root: str = str(DEFAULT_CORPUS_ROOT),
     project_root: str = ".",
+    k1: float = DEFAULT_BM25_PARAMETERS.k1,
+    b: float = DEFAULT_BM25_PARAMETERS.b,
+    metadata_weight: float = DEFAULT_BM25_PARAMETERS.metadata_weight,
+    identifier_weight: float = DEFAULT_BM25_PARAMETERS.identifier_weight,
 ) -> dict[str, object]:
     """Write reviewable top-five miss evidence for Docs and Code."""
     try:
@@ -242,6 +248,16 @@ def analyze_retrieval_errors(
             if resolved_annotations.exists()
             else {}
         )
+        config = _pipeline_config(
+            k1,
+            b,
+            metadata_weight,
+            identifier_weight,
+        )
+        index = IndexStore(_below_root(root, Path(index_path))).load(
+            _current_corpus_fingerprint(root, Path(corpus_root)),
+            _current_pipeline_fingerprint(config),
+        )
         write_error_analysis_markdown(
             resolved_output,
             (
@@ -250,6 +266,7 @@ def analyze_retrieval_errors(
             ),
             root,
             annotations,
+            tuple(document.chunk for document in index.documents),
         )
     except (OSError, UnicodeError, ValueError) as error:
         raise CliError(_error_message(error)) from None
