@@ -23,6 +23,9 @@ QuestionProgress = Callable[
     Iterable[UnansweredQuestion],
 ]
 
+DEFAULT_AUXILIARY_PATH_PENALTY = 0.5
+DEFAULT_PATH_CANDIDATE_DEPTH = 20
+
 
 def search_dataset(
     index: BM25Index,
@@ -31,8 +34,8 @@ def search_dataset(
     progress: QuestionProgress | None = None,
     identifier_match_weight: float = 0.0,
     identifier_candidate_depth: int = 0,
-    auxiliary_path_penalty: float = 0.0,
-    path_candidate_depth: int = 0,
+    auxiliary_path_penalty: float = DEFAULT_AUXILIARY_PATH_PENALTY,
+    path_candidate_depth: int = DEFAULT_PATH_CANDIDATE_DEPTH,
 ) -> RetrievalResults:
     """Search every dataset question in its original order."""
     if k <= 0:
@@ -66,8 +69,8 @@ def search_question(
     *,
     identifier_match_weight: float = 0.0,
     identifier_candidate_depth: int = 0,
-    auxiliary_path_penalty: float = 0.0,
-    path_candidate_depth: int = 0,
+    auxiliary_path_penalty: float = DEFAULT_AUXILIARY_PATH_PENALTY,
+    path_candidate_depth: int = DEFAULT_PATH_CANDIDATE_DEPTH,
 ) -> QuerySearchResult:
     """Search one dataset question and preserve its public identity."""
     return QuerySearchResult(
@@ -92,8 +95,8 @@ def search_sources(
     *,
     identifier_match_weight: float = 0.0,
     identifier_candidate_depth: int = 0,
-    auxiliary_path_penalty: float = 0.0,
-    path_candidate_depth: int = 0,
+    auxiliary_path_penalty: float = DEFAULT_AUXILIARY_PATH_PENALTY,
+    path_candidate_depth: int = DEFAULT_PATH_CANDIDATE_DEPTH,
 ) -> list[MinimalSource]:
     """Search one raw query against a prebuilt index."""
     if k <= 0:

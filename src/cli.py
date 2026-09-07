@@ -17,7 +17,12 @@ from src.evaluation.retrieval import (
 from src.evaluation.retrieval.error_annotations import load_error_annotations
 from src.ingestion import discover_files
 from src.models import UnansweredQuestion
-from src.retrieval import run_stored_retrieval, run_stored_search
+from src.retrieval import (
+    DEFAULT_AUXILIARY_PATH_PENALTY,
+    DEFAULT_PATH_CANDIDATE_DEPTH,
+    run_stored_retrieval,
+    run_stored_search,
+)
 from src.retrieval.bm25 import BM25Parameters
 from src.retrieval.index_store import (
     IndexStore,
@@ -97,8 +102,8 @@ def search(
     identifier_weight: float = DEFAULT_BM25_PARAMETERS.identifier_weight,
     identifier_match_weight: float = 0.0,
     identifier_candidate_depth: int = 0,
-    auxiliary_path_penalty: float = 0.0,
-    path_candidate_depth: int = 0,
+    auxiliary_path_penalty: float = DEFAULT_AUXILIARY_PATH_PENALTY,
+    path_candidate_depth: int = DEFAULT_PATH_CANDIDATE_DEPTH,
 ) -> list[dict[str, object]]:
     """Return the top-k exact source locations for one raw query."""
     try:
@@ -136,8 +141,8 @@ def search_dataset(
     identifier_weight: float = DEFAULT_BM25_PARAMETERS.identifier_weight,
     identifier_match_weight: float = 0.0,
     identifier_candidate_depth: int = 0,
-    auxiliary_path_penalty: float = 0.0,
-    path_candidate_depth: int = 0,
+    auxiliary_path_penalty: float = DEFAULT_AUXILIARY_PATH_PENALTY,
+    path_candidate_depth: int = DEFAULT_PATH_CANDIDATE_DEPTH,
 ) -> str:
     """Search one question dataset and save its validated result JSON."""
     try:
