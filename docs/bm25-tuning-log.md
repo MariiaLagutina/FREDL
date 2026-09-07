@@ -836,7 +836,9 @@ uv run python -m src search_dataset \
   --save_directory data/output/experiments/B1/weight_0_10 \
   --k 10 \
   --index_path data/processed/experiments/FINAL/bm25-index.json \
-  --identifier_match_weight 0.10
+  --identifier_match_weight 0.10 \
+  --auxiliary_path_penalty 0 \
+  --path_candidate_depth 0
 ```
 
 Evaluate any saved pair with the unchanged local evaluator:

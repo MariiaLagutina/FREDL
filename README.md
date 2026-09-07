@@ -446,7 +446,7 @@ Build or rebuild the default pipeline-compatible index:
 uv run python -m src index
 ```
 
-The command runs production ingestion over `data/raw/`, saves schema version 2
+The command runs production ingestion over `data/raw/`, saves schema version 3
 to `data/processed/bm25-index.json`, and reports the document count together
 with the corpus and pipeline fingerprints. Generated indexes remain local and
 are not committed to Git.
@@ -484,11 +484,18 @@ Internal BM25 scores are not included in the public result contract.
 Domain-oriented Python model names coexist with the exact
 assignment-compatible model names and JSON fields.
 
+Production search retrieves up to 20 BM25 candidates and applies a bounded
+post-ranking penalty of `0.50` only to paths containing exact `examples` or
+`tests` directory segments. This promotes close primary documentation and
+production-code candidates without changing BM25 scores, directly boosting a
+source type, or using embeddings. Pass `--auxiliary_path_penalty 0` and
+`--path_candidate_depth 0` to run the unmodified BM25 ranking explicitly.
+
 The Linux full-corpus acceptance run used the 20,096-document snapshot and
 produced results for 100 documentation questions and 99 code questions at
 `k=5`. All 995 returned source locations referenced existing files and valid
-half-open character ranges. Rebuilding the snapshot as schema version 2
-preserved both complete result files byte for byte.
+half-open character ranges. The schema-version-3 snapshot with identifier
+scoring disabled preserved the unmodified BM25 control files byte for byte.
 
 The Linux batch acceptance run processed 100 documentation questions in one
 process. Retrieval progressed at approximately 8.67 questions per second, and
@@ -531,20 +538,25 @@ path, intersection length `1403`, union length `1405`, and IoU approximately
 `0.99858`. The result therefore satisfies the inclusive `0.05` threshold at
 rank 1, giving Recall@1/3/5/10 and reciprocal rank equal to `1.0`.
 
-The tuned production defaults are `k1=1.4`, `b=0.65`, and
-`metadata_weight=1.0`. A full index build and both batch searches invoked
-without explicit BM25 flags reproduced the selected experiment byte for byte.
-The index contains 20,096 lexical documents and has pipeline fingerprint
-`ebc6d3ffc6535965b94aab7651bd837468a9c4ebefb81570818179741afe511f`.
-Moulinette and the local evaluator reported identical Recall values:
+The tuned production defaults are `k1=1.4`, `b=0.65`,
+`metadata_weight=1.0`, `identifier_weight=0.0`, an auxiliary-path penalty of
+`0.50`, and a path candidate depth of `20`. Both batch searches invoked
+without explicit ranking flags reproduced the selected experiment byte for
+byte. The compatible schema-version-3 index contains 20,096 lexical documents
+and has pipeline fingerprint
+`1e17bff570fcb04de292fbcedafd6ff56e122594d886dabedb0d52894fdcde9e`.
+The local evaluator reported:
 
 | Dataset | Queries | R@1 | R@3 | R@5 | R@10 | MRR |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Docs | 100 | 0.540000 | 0.730000 | 0.810000 | 0.880000 | 0.646496 |
-| Code | 99 | 0.525253 | 0.676768 | 0.767677 | 0.838384 | 0.627746 |
+| Docs | 100 | 0.560000 | 0.770000 | 0.850000 | 0.900000 | 0.672052 |
+| Code | 99 | 0.535354 | 0.707071 | 0.787879 | 0.848485 | 0.641186 |
 
-These are plain BM25 results over lexical content and structural metadata;
-the tuned configuration still does not use embeddings or vector search.
+These results use lexical BM25 over content and structural metadata followed
+by the deterministic auxiliary-path reranker. The configuration does not use
+embeddings or vector search. The complete control series, per-question
+comparison, artifact hashes, and stopping evidence are in the
+[B5 experiment record](docs/bm25-tuning-log.md#b5---auxiliary-path-reranking).
 
 Run the neutral mini-suite control:
 
