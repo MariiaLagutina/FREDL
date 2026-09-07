@@ -1169,3 +1169,113 @@ higher or intermediate weights. Retain the independent field with default
 weight `0` so the experiment remains reproducible without changing `FINAL`.
 Next inspect each target identifier's location relative to the labelled range
 and its generated chunks before proposing another ranking change.
+
+## B5 - auxiliary path reranking
+
+**Status:** Completed and adopted as the new retrieval candidate.
+
+**Date:** 2026-09-08.
+
+**Hypothesis:** Chunks under exact `examples` and `tests` directory segments
+often repeat production APIs and documentation language but are less direct
+answers for the public questions. A small post-BM25 penalty for only those
+auxiliary paths may promote the already retrieved primary documentation and
+production code without changing lexical scoring or favoring either Docs or
+Code explicitly.
+
+**Constants:** Public Docs and Code datasets; the schema-v3 B4 zero-weight
+index, which reproduces `FINAL`; 20,096 documents; `k1=1.4`; `b=0.65`;
+`metadata_weight=1.0`; `identifier_weight=0`; `max_chunk_size=2000`;
+documentation overlap `160`; code overlap `80`; output `k=10`; lexical
+retrieval on CPU; no embeddings or vector search. Run commit:
+`feffd507a8e9e688efb545675e25eb89d017baa6`.
+
+The reranker subtracts a fixed score only when a candidate path contains an
+exact directory segment named `examples` or `tests`. Similar names are not
+penalized, production paths receive no bonus, and the unchanged BM25 order is
+the tie-breaker. The disabled penalty preserves the original ranking.
+
+Run each Docs and Code dataset with the same command shape, substituting the
+dataset name, output directory, penalty, and candidate depth:
+
+```bash
+uv run python -m src search_dataset \
+  --dataset_path data/datasets/AnsweredQuestions/dataset_docs_public.json \
+  --save_directory data/output/experiments/B5-path/depth_20/search_results \
+  --k 10 \
+  --index_path data/processed/experiments/B4-assignments/weight_0_00/bm25-index.json \
+  --k1 1.4 \
+  --b 0.65 \
+  --metadata_weight 1.0 \
+  --identifier_weight 0.0 \
+  --auxiliary_path_penalty 0.50 \
+  --path_candidate_depth 20
+```
+
+Evaluate each saved Docs and Code pair with the unchanged local evaluator:
+
+```bash
+uv run python -m src evaluate \
+  --docs_ground_truth_path data/datasets/AnsweredQuestions/dataset_docs_public.json \
+  --docs_results_path data/output/experiments/B5-path/depth_20/search_results/dataset_docs_public.json \
+  --code_ground_truth_path data/datasets/AnsweredQuestions/dataset_code_public.json \
+  --code_results_path data/output/experiments/B5-path/depth_20/search_results/dataset_code_public.json
+```
+
+### B5a - penalty sweep at candidate depth 10
+
+| Penalty | Dataset | R@1 | R@3 | R@5 | R@10 | MRR |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 0.00 (`FINAL`) | Docs | 0.540000 | 0.730000 | 0.810000 | 0.880000 | 0.647925 |
+| 0.00 (`FINAL`) | Code | 0.525253 | 0.686869 | 0.767677 | 0.838384 | 0.628094 |
+| 0.05 | Docs | 0.540000 | 0.740000 | 0.820000 | 0.880000 | 0.648302 |
+| 0.05 | Code | 0.525253 | 0.686869 | 0.767677 | 0.838384 | 0.630692 |
+| 0.10 | Docs | 0.540000 | 0.750000 | 0.830000 | 0.880000 | 0.649885 |
+| 0.10 | Code | 0.525253 | 0.686869 | 0.777778 | 0.838384 | 0.631534 |
+| 0.20 | Docs | 0.540000 | 0.770000 | 0.840000 | 0.880000 | 0.656095 |
+| 0.20 | Code | 0.535354 | 0.707071 | 0.787879 | 0.838384 | 0.640176 |
+| 0.30 | Docs | 0.550000 | 0.770000 | 0.850000 | 0.880000 | 0.663274 |
+| 0.30 | Code | 0.535354 | 0.707071 | 0.787879 | 0.838384 | 0.640176 |
+| 0.50 | Docs | 0.560000 | 0.770000 | 0.850000 | 0.880000 | 0.669940 |
+| 0.50 | Code | 0.535354 | 0.707071 | 0.787879 | 0.838384 | 0.640176 |
+| 0.75 | Docs | 0.560000 | 0.770000 | 0.850000 | 0.880000 | 0.669940 |
+| 0.75 | Code | 0.535354 | 0.707071 | 0.787879 | 0.838384 | 0.640176 |
+| 1.00 | Docs | 0.560000 | 0.770000 | 0.850000 | 0.880000 | 0.669940 |
+| 1.00 | Code | 0.535354 | 0.707071 | 0.787879 | 0.838384 | 0.640176 |
+
+At penalty `0.50`, ten Docs and ten Code questions improved relative to
+`FINAL`, none regressed, four Docs questions and two Code questions entered
+the top five, and none left it. Penalties `0.75` and `1.00` produced identical
+first-relevant ranks, so `0.50` is the smallest tested value on the best
+plateau and stronger penalties are unnecessary.
+
+### B5b - candidate depth at penalty 0.50
+
+| Candidate depth | Dataset | R@1 | R@3 | R@5 | R@10 | MRR |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 10 | Docs | 0.560000 | 0.770000 | 0.850000 | 0.880000 | 0.669940 |
+| 10 | Code | 0.535354 | 0.707071 | 0.787879 | 0.838384 | 0.640176 |
+| 15 | Docs | 0.560000 | 0.770000 | 0.850000 | 0.900000 | 0.672052 |
+| 15 | Code | 0.535354 | 0.707071 | 0.787879 | 0.838384 | 0.640176 |
+| 20 | Docs | 0.560000 | 0.770000 | 0.850000 | 0.900000 | 0.672052 |
+| 20 | Code | 0.535354 | 0.707071 | 0.787879 | 0.848485 | 0.641186 |
+
+Depth `15` recovered two previously missing Docs references at ranks nine and
+ten. Depth `20` retained both and additionally recovered one previously
+missing Code reference at rank ten. Relative to `FINAL`, the selected depth-20
+configuration improved twelve Docs and eleven Code questions, regressed none,
+and increased Docs R@5 from `0.81` to `0.85`. This provides a five-question
+margin above the required Docs R@5 threshold of `0.80`.
+
+**Selected result hashes:** Docs
+`7e40738fdf083c372abbefa82843a2fb18a2e4d24cac2d16e6f2d912fbb54d28`;
+Code `8affaec8ce8153e4a1c0e8d385582a7ee6e4266db9100b5ec53a39494fa8bbd4`.
+
+**Stopping rule and decision:** Adopt `auxiliary_path_penalty=0.50` and
+`path_candidate_depth=20` as the B5 candidate. Stop increasing the penalty
+because `0.50` through `1.00` has the same relevant ranks. Stop increasing
+candidate depth in this experiment because depth `20` already extends beyond
+the returned top ten, improves both datasets without any per-question
+regression, and further expansion would increase search work for an unproven
+tail benefit. The improvement comes from a narrow, explainable corpus
+structure signal and does not replace or alter standard BM25 scoring.
