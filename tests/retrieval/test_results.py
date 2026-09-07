@@ -1,6 +1,7 @@
 """Tests for the public retrieval result boundary."""
 
 from collections.abc import Iterable, Sequence
+from unittest.mock import patch
 
 import pytest
 
@@ -237,3 +238,39 @@ def test_negative_identifier_candidate_depth_is_rejected() -> None:
 
     with pytest.raises(ValueError, match="candidate depth"):
         search_sources(index, "term", identifier_candidate_depth=-1)
+
+
+def test_auxiliary_path_penalty_can_promote_deeper_regular_source() -> None:
+    """A regular source can enter top-k from the requested candidate pool."""
+    hits = [
+        _hit(
+            f"data/raw/project/examples/example-{rank}.py",
+            rank * 10,
+            "term",
+            10 - rank / 10,
+        )
+        for rank in range(5)
+    ]
+    hits.append(_hit("data/raw/project/docs/guide.md", 100, "term", 9.0))
+    index = BM25Index([hit.document for hit in hits])
+
+    with patch("src.retrieval.results.BM25Retriever") as retriever:
+        retriever.return_value.search.return_value = hits
+        sources = search_sources(
+            index,
+            "term",
+            k=5,
+            auxiliary_path_penalty=0.1,
+            path_candidate_depth=10,
+        )
+
+    assert sources[0].file_path == "data/raw/project/docs/guide.md"
+    retriever.return_value.search.assert_called_once_with("term", top_k=10)
+
+
+def test_negative_path_candidate_depth_is_rejected() -> None:
+    """Candidate depth cannot silently invert the requested pool."""
+    index = BM25Index([])
+
+    with pytest.raises(ValueError, match="Path candidate depth"):
+        search_sources(index, "term", path_candidate_depth=-1)

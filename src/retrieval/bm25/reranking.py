@@ -9,6 +9,44 @@ from src.retrieval.tokenization.shared import normalize_lexeme, scan_lexemes
 
 
 _CAMEL_CASE_PATTERN = re.compile(r"[a-z][A-Z]|[A-Z]{2,}[a-z]")
+_AUXILIARY_PATH_SEGMENTS = frozenset({"examples", "tests"})
+
+
+@dataclass(frozen=True, slots=True)
+class PathRerankHit:
+    """Expose an optional auxiliary-path penalty for one BM25 hit."""
+
+    hit: BM25Hit
+    penalty: float
+    score: float
+
+
+@dataclass(frozen=True, slots=True)
+class AuxiliaryPathReranker:
+    """Penalize examples and tests without preferring one result dataset."""
+
+    penalty_weight: float = 0.0
+
+    def __post_init__(self) -> None:
+        """Require a bounded non-negative fraction of the BM25 score."""
+        if not 0 <= self.penalty_weight <= 1:
+            raise ValueError(
+                "Auxiliary path penalty must be between zero and one"
+            )
+
+    def rerank(self, hits: Sequence[BM25Hit]) -> list[PathRerankHit]:
+        """Lower auxiliary sources while preserving deterministic ties."""
+        reranked = [self._score_hit(hit) for hit in hits]
+        reranked.sort(
+            key=lambda result: (-result.score, result.hit.document.key)
+        )
+        return reranked
+
+    def _score_hit(self, hit: BM25Hit) -> PathRerankHit:
+        segments = set(hit.document.chunk.file_path.split("/"))
+        is_auxiliary = bool(segments & _AUXILIARY_PATH_SEGMENTS)
+        penalty = hit.score * self.penalty_weight if is_auxiliary else 0.0
+        return PathRerankHit(hit=hit, penalty=penalty, score=hit.score-penalty)
 
 
 @dataclass(frozen=True, slots=True)

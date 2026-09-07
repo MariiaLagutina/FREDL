@@ -10,8 +10,10 @@ from src.retrieval.bm25.models import (
 )
 from src.retrieval.bm25.retriever import BM25Retriever
 from src.retrieval.bm25.reranking import (
+    AuxiliaryPathReranker,
     IdentifierReranker,
     IdentifierRerankHit,
+    PathRerankHit,
 )
 
 __all__ = [
@@ -21,7 +23,9 @@ __all__ = [
     "BM25Index",
     "BM25Parameters",
     "BM25Retriever",
+    "AuxiliaryPathReranker",
     "IdentifierReranker",
     "IdentifierRerankHit",
+    "PathRerankHit",
     "build_bm25_documents",
 ]

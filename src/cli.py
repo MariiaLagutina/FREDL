@@ -97,6 +97,8 @@ def search(
     identifier_weight: float = DEFAULT_BM25_PARAMETERS.identifier_weight,
     identifier_match_weight: float = 0.0,
     identifier_candidate_depth: int = 0,
+    auxiliary_path_penalty: float = 0.0,
+    path_candidate_depth: int = 0,
 ) -> list[dict[str, object]]:
     """Return the top-k exact source locations for one raw query."""
     try:
@@ -113,6 +115,8 @@ def search(
             k,
             identifier_match_weight=identifier_match_weight,
             identifier_candidate_depth=identifier_candidate_depth,
+            auxiliary_path_penalty=auxiliary_path_penalty,
+            path_candidate_depth=path_candidate_depth,
         )
     except (OSError, UnicodeError, ValueError) as error:
         raise CliError(_error_message(error)) from None
@@ -132,6 +136,8 @@ def search_dataset(
     identifier_weight: float = DEFAULT_BM25_PARAMETERS.identifier_weight,
     identifier_match_weight: float = 0.0,
     identifier_candidate_depth: int = 0,
+    auxiliary_path_penalty: float = 0.0,
+    path_candidate_depth: int = 0,
 ) -> str:
     """Search one question dataset and save its validated result JSON."""
     try:
@@ -152,6 +158,8 @@ def search_dataset(
             progress=_progress_questions,
             identifier_match_weight=identifier_match_weight,
             identifier_candidate_depth=identifier_candidate_depth,
+            auxiliary_path_penalty=auxiliary_path_penalty,
+            path_candidate_depth=path_candidate_depth,
         )
     except (OSError, UnicodeError, ValueError) as error:
         raise CliError(_error_message(error)) from None
