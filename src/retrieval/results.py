@@ -13,6 +13,7 @@ from src.retrieval.bm25 import (
     BM25Hit,
     BM25Index,
     BM25Retriever,
+    AuxiliaryPathReranker,
     IdentifierReranker,
 )
 
@@ -30,6 +31,8 @@ def search_dataset(
     progress: QuestionProgress | None = None,
     identifier_match_weight: float = 0.0,
     identifier_candidate_depth: int = 0,
+    auxiliary_path_penalty: float = 0.0,
+    path_candidate_depth: int = 0,
 ) -> RetrievalResults:
     """Search every dataset question in its original order."""
     if k <= 0:
@@ -47,6 +50,8 @@ def search_dataset(
                 k,
                 identifier_match_weight=identifier_match_weight,
                 identifier_candidate_depth=identifier_candidate_depth,
+                auxiliary_path_penalty=auxiliary_path_penalty,
+                path_candidate_depth=path_candidate_depth,
             )
             for question in questions
         ],
@@ -61,6 +66,8 @@ def search_question(
     *,
     identifier_match_weight: float = 0.0,
     identifier_candidate_depth: int = 0,
+    auxiliary_path_penalty: float = 0.0,
+    path_candidate_depth: int = 0,
 ) -> QuerySearchResult:
     """Search one dataset question and preserve its public identity."""
     return QuerySearchResult(
@@ -72,6 +79,8 @@ def search_question(
             k,
             identifier_match_weight=identifier_match_weight,
             identifier_candidate_depth=identifier_candidate_depth,
+            auxiliary_path_penalty=auxiliary_path_penalty,
+            path_candidate_depth=path_candidate_depth,
         ),
     )
 
@@ -83,23 +92,34 @@ def search_sources(
     *,
     identifier_match_weight: float = 0.0,
     identifier_candidate_depth: int = 0,
+    auxiliary_path_penalty: float = 0.0,
+    path_candidate_depth: int = 0,
 ) -> list[MinimalSource]:
     """Search one raw query against a prebuilt index."""
     if k <= 0:
         raise ValueError("Search k must be greater than zero")
     if identifier_candidate_depth < 0:
         raise ValueError("Identifier candidate depth must not be negative")
+    if path_candidate_depth < 0:
+        raise ValueError("Path candidate depth must not be negative")
+    if identifier_match_weight > 0 and auxiliary_path_penalty > 0:
+        raise ValueError("Experimental rerankers cannot be combined")
 
     reranker = IdentifierReranker(match_weight=identifier_match_weight)
-    candidate_count = (
-        k
-        if identifier_match_weight == 0
-        else max(k, identifier_candidate_depth)
-    )
+    path_reranker = AuxiliaryPathReranker(auxiliary_path_penalty)
+    candidate_count = k
+    if identifier_match_weight > 0:
+        candidate_count = max(candidate_count, identifier_candidate_depth)
+    if auxiliary_path_penalty > 0:
+        candidate_count = max(candidate_count, path_candidate_depth)
     ranked_hits = BM25Retriever(index).search(query, top_k=candidate_count)
     if identifier_match_weight > 0:
         ranked_hits = [
             result.hit for result in reranker.rerank(query, ranked_hits)
+        ]
+    if auxiliary_path_penalty > 0:
+        ranked_hits = [
+            result.hit for result in path_reranker.rerank(ranked_hits)
         ]
     return select_sources(ranked_hits, k)
 

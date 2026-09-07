@@ -23,6 +23,8 @@ def run_stored_search(
     *,
     identifier_match_weight: float = 0.0,
     identifier_candidate_depth: int = 0,
+    auxiliary_path_penalty: float = 0.0,
+    path_candidate_depth: int = 0,
 ) -> list[MinimalSource]:
     """Load one compatible index and search one raw query."""
     index = IndexStore(index_path).load(
@@ -35,6 +37,8 @@ def run_stored_search(
         k,
         identifier_match_weight=identifier_match_weight,
         identifier_candidate_depth=identifier_candidate_depth,
+        auxiliary_path_penalty=auxiliary_path_penalty,
+        path_candidate_depth=path_candidate_depth,
     )
 
 
@@ -48,6 +52,8 @@ def run_stored_retrieval(
     progress: QuestionProgress | None = None,
     identifier_match_weight: float = 0.0,
     identifier_candidate_depth: int = 0,
+    auxiliary_path_penalty: float = 0.0,
+    path_candidate_depth: int = 0,
 ) -> RetrievalResults:
     """Load one compatible index and run retrieval for a question file."""
     index = IndexStore(index_path).load(
@@ -62,6 +68,8 @@ def run_stored_retrieval(
         progress,
         identifier_match_weight,
         identifier_candidate_depth,
+        auxiliary_path_penalty,
+        path_candidate_depth,
     )
 
 
@@ -73,6 +81,8 @@ def run_retrieval(
     progress: QuestionProgress | None = None,
     identifier_match_weight: float = 0.0,
     identifier_candidate_depth: int = 0,
+    auxiliary_path_penalty: float = 0.0,
+    path_candidate_depth: int = 0,
 ) -> RetrievalResults:
     """Load questions, search one index, and save validated results."""
     dataset = load_rag_dataset(input_path)
@@ -83,6 +93,8 @@ def run_retrieval(
         progress,
         identifier_match_weight,
         identifier_candidate_depth,
+        auxiliary_path_penalty,
+        path_candidate_depth,
     )
     save_search_results(results, output_path)
     return results
