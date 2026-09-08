@@ -6,6 +6,11 @@ from src.generation.backend.config import (
     GenerationConfig,
     select_device,
 )
+from src.generation.backend.generator import (
+    ChatMessage,
+    GenerationError,
+    generate_answer,
+)
 from src.generation.backend.runtime import (
     GenerationBackendLoadError,
     GenerationRuntime,
@@ -15,13 +20,16 @@ from src.generation.backend.runtime import (
 )
 
 __all__ = [
+    "ChatMessage",
     "DEFAULT_MODEL_NAME",
     "DevicePreference",
     "GenerationBackendLoadError",
     "GenerationConfig",
+    "GenerationError",
     "GenerationRuntime",
     "LoadedGenerationBackend",
     "TransformersRuntime",
+    "generate_answer",
     "load_generation_backend",
     "select_device",
 ]
