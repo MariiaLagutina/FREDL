@@ -3,7 +3,12 @@
 from src.generation.backend import (
     DEFAULT_MODEL_NAME,
     DevicePreference,
+    GenerationBackendLoadError,
     GenerationConfig,
+    GenerationRuntime,
+    LoadedGenerationBackend,
+    TransformersRuntime,
+    load_generation_backend,
     select_device,
 )
 from src.generation.context import (
@@ -20,10 +25,15 @@ __all__ = [
     "ContextBuilder",
     "DEFAULT_MODEL_NAME",
     "DevicePreference",
+    "GenerationBackendLoadError",
     "GenerationConfig",
+    "GenerationRuntime",
+    "LoadedGenerationBackend",
     "HuggingFaceTokenCounter",
     "TokenCounter",
+    "TransformersRuntime",
     "build_context",
+    "load_generation_backend",
     "load_ranked_source_texts",
     "select_device",
 ]
