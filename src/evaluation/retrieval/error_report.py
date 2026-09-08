@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import TypeAlias
 
 from src.evaluation.retrieval.error_analysis import (
+    assess_reference_matchability,
     classify_structural_miss,
     collect_top_five_misses,
 )
@@ -21,6 +22,7 @@ from src.evaluation.retrieval.models import (
     RetrievalEvaluationCase,
 )
 from src.models import MinimalSource
+from src.ingestion import Chunk
 
 
 EvaluationDataset: TypeAlias = tuple[
@@ -34,11 +36,17 @@ def write_error_analysis_markdown(
     datasets: Sequence[EvaluationDataset],
     project_root: Path,
     annotations: Mapping[str, RetrievalMissAnnotation] | None = None,
+    indexed_chunks: Sequence[Chunk] | None = None,
 ) -> None:
     """Write top-five miss evidence for human classification."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
-        render_error_analysis_markdown(datasets, project_root, annotations),
+        render_error_analysis_markdown(
+            datasets,
+            project_root,
+            annotations,
+            indexed_chunks,
+        ),
         encoding="utf-8",
     )
 
@@ -47,6 +55,7 @@ def render_error_analysis_markdown(
     datasets: Sequence[EvaluationDataset],
     project_root: Path,
     annotations: Mapping[str, RetrievalMissAnnotation] | None = None,
+    indexed_chunks: Sequence[Chunk] | None = None,
 ) -> str:
     """Render datasets and ranked sources in a stable review format."""
     lines = [
@@ -108,6 +117,10 @@ def render_error_analysis_markdown(
             )
             lines.extend(["", "**Reference excerpts:**"])
             for number, source in enumerate(miss.references, start=1):
+                if indexed_chunks is not None:
+                    lines.extend(
+                        _matchability_lines(source, indexed_chunks)
+                    )
                 lines.extend(
                     _excerpt_section(
                         f"Reference {number}",
@@ -126,6 +139,25 @@ def render_error_analysis_markdown(
                 )
             lines.extend(_analysis_lines(analysis))
     return "\n".join(lines) + "\n"
+
+
+def _matchability_lines(
+    reference: MinimalSource,
+    indexed_chunks: Sequence[Chunk],
+) -> list[str]:
+    """Render the best indexed overlap and a clear evaluator warning."""
+    matchability = assess_reference_matchability(reference, indexed_chunks)
+    best = (
+        _source_label(matchability.best_chunk)
+        if matchability.best_chunk is not None
+        else "none"
+    )
+    status = "matchable" if matchability.maximum_iou >= 0.05 else "unmatchable"
+    return [
+        "",
+        f"**Best indexed chunk:** `{best}`",
+        f"**Maximum IoU:** {matchability.maximum_iou:.6f} ({status})",
+    ]
 
 
 def _category_summary(

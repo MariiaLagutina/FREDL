@@ -76,6 +76,24 @@ class RetrievalMissEvidence:
 
 
 @dataclass(frozen=True, slots=True)
+class ReferenceMatchability:
+    """Describe whether an indexed chunk can satisfy one reference range."""
+
+    reference: MinimalSource
+    best_chunk: MinimalSource | None
+    maximum_iou: float
+
+    def __post_init__(self) -> None:
+        """Require a bounded score and consistent best-chunk evidence."""
+        if not 0 <= self.maximum_iou <= 1:
+            raise ValueError(
+                "Reference maximum IoU must be between zero and one"
+            )
+        if self.best_chunk is None and self.maximum_iou != 0:
+            raise ValueError("Missing best chunk requires zero maximum IoU")
+
+
+@dataclass(frozen=True, slots=True)
 class RetrievalMissAnalysis:
     """Record one classified top-five miss and its follow-up action."""
 

@@ -9,7 +9,7 @@ from src.retrieval.bm25 import BM25Parameters
 
 
 CHUNKER_VERSION = 1
-TOKENIZER_VERSION = 1
+TOKENIZER_VERSION = 2
 
 
 @dataclass(frozen=True, slots=True)

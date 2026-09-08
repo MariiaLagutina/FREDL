@@ -1,6 +1,7 @@
 """Tests for the public retrieval result boundary."""
 
 from collections.abc import Iterable, Sequence
+from unittest.mock import patch
 
 import pytest
 
@@ -178,3 +179,140 @@ def test_search_dataset_rejects_invalid_k_for_empty_dataset() -> None:
 
     with pytest.raises(ValueError, match="Search k"):
         search_dataset(index, dataset, k=0)
+
+
+def test_identifier_reranking_promotes_candidate_pool_match() -> None:
+    """Experimental reranking can promote a close exact identifier hit."""
+    index = BM25Index(
+        [
+            BM25Document(
+                Chunk("a-general.py", 0, 7, "general"),
+                content_terms=("defined",),
+            ),
+            BM25Document(
+                Chunk("z-definition.py", 0, 10, "definition"),
+                content_terms=("fp8_min",),
+            ),
+        ]
+    )
+
+    sources = search_sources(
+        index,
+        "Where is FP8_MIN defined?",
+        k=1,
+        identifier_match_weight=0.2,
+        identifier_candidate_depth=10,
+        auxiliary_path_penalty=0.0,
+        path_candidate_depth=0,
+    )
+
+    assert sources[0].file_path == "z-definition.py"
+
+
+def test_disabled_identifier_depth_keeps_requested_candidate_set() -> None:
+    """Depth zero keeps reranking inside the requested result set."""
+    index = BM25Index(
+        [
+            BM25Document(
+                Chunk("a-general.py", 0, 7, "general"),
+                content_terms=("defined",),
+            ),
+            BM25Document(
+                Chunk("z-definition.py", 0, 10, "definition"),
+                content_terms=("fp8_min",),
+            ),
+        ]
+    )
+
+    sources = search_sources(
+        index,
+        "Where is FP8_MIN defined?",
+        k=1,
+        identifier_match_weight=0.2,
+        auxiliary_path_penalty=0.0,
+        path_candidate_depth=0,
+    )
+
+    assert sources[0].file_path == "a-general.py"
+
+
+def test_negative_identifier_candidate_depth_is_rejected() -> None:
+    """Candidate expansion requires a non-negative explicit depth."""
+    index = BM25Index([_hit("src/cache.py", 0, "term", 1.0).document])
+
+    with pytest.raises(ValueError, match="candidate depth"):
+        search_sources(index, "term", identifier_candidate_depth=-1)
+
+
+def test_auxiliary_path_penalty_can_promote_deeper_regular_source() -> None:
+    """A regular source can enter top-k from the requested candidate pool."""
+    hits = [
+        _hit(
+            f"data/raw/project/examples/example-{rank}.py",
+            rank * 10,
+            "term",
+            10 - rank / 10,
+        )
+        for rank in range(5)
+    ]
+    hits.append(_hit("data/raw/project/docs/guide.md", 100, "term", 9.0))
+    index = BM25Index([hit.document for hit in hits])
+
+    with patch("src.retrieval.results.BM25Retriever") as retriever:
+        retriever.return_value.search.return_value = hits
+        sources = search_sources(
+            index,
+            "term",
+            k=5,
+            auxiliary_path_penalty=0.1,
+            path_candidate_depth=10,
+        )
+
+    assert sources[0].file_path == "data/raw/project/docs/guide.md"
+    retriever.return_value.search.assert_called_once_with("term", top_k=10)
+
+
+def test_default_search_uses_adopted_path_reranking_parameters() -> None:
+    """Public search applies the adopted auxiliary-path configuration."""
+    hits = [
+        _hit("data/raw/project/tests/test_cache.py", 0, "term", 10.0),
+        _hit("data/raw/project/src/cache.py", 10, "term", 9.0),
+    ]
+    index = BM25Index([hit.document for hit in hits])
+
+    with patch("src.retrieval.results.BM25Retriever") as retriever:
+        retriever.return_value.search.return_value = hits
+        sources = search_sources(index, "term", k=1)
+
+    assert sources[0].file_path == "data/raw/project/src/cache.py"
+    retriever.return_value.search.assert_called_once_with("term", top_k=20)
+
+
+def test_path_reranking_can_be_disabled_for_plain_bm25() -> None:
+    """Explicit zero values preserve the unmodified BM25 candidate order."""
+    hits = [
+        _hit("data/raw/project/tests/test_cache.py", 0, "term", 10.0),
+        _hit("data/raw/project/src/cache.py", 10, "term", 9.0),
+    ]
+    index = BM25Index([hit.document for hit in hits])
+
+    with patch("src.retrieval.results.BM25Retriever") as retriever:
+        retriever.return_value.search.return_value = hits[:1]
+        sources = search_sources(
+            index,
+            "term",
+            k=1,
+            auxiliary_path_penalty=0.0,
+            path_candidate_depth=0,
+        )
+
+    assert sources[0].file_path == "data/raw/project/tests/test_cache.py"
+    retriever.return_value.search.assert_called_once_with("term", top_k=1)
+
+
+def test_negative_path_candidate_depth_is_rejected() -> None:
+    """Candidate depth cannot silently invert the requested pool."""
+    index = BM25Index([])
+
+    with pytest.raises(ValueError, match="Path candidate depth"):
+        search_sources(index, "term", path_candidate_depth=-1)

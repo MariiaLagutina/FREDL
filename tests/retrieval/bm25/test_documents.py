@@ -71,6 +71,29 @@ def test_python_body_chunk_inherits_qualified_symbol_terms() -> None:
     assert "get_item" in result.metadata_terms
 
 
+def test_python_chunk_gets_only_intersecting_identifiers() -> None:
+    """Structural identifiers enrich their own chunk, not the whole file."""
+    source = "FIRST_LIMIT = 1\nSECOND_LIMIT = 2\n"
+    document = SourceDocument(
+        file_path="data/raw/corpus/limits.py",
+        kind=FileKind.PYTHON,
+        text=source,
+    )
+    end = source.index("\n")
+    chunk = Chunk(
+        file_path=document.file_path,
+        start=0,
+        end=end,
+        text=source[:end],
+    )
+
+    result = build_bm25_documents(document, [chunk])[0]
+
+    assert "first_limit" in result.identifier_terms
+    assert "second_limit" not in result.identifier_terms
+    assert "first_limit" not in result.metadata_terms
+
+
 def test_builder_skips_chunks_without_content_terms() -> None:
     """Path metadata cannot make punctuation-only evidence searchable."""
     document = SourceDocument(

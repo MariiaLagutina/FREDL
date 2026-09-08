@@ -766,3 +766,90 @@ The complete metrics, fingerprints, timings, and stopping evidence are in the
 Tune document-length normalization across heterogeneous source types with
 both early-rank and deeper-recall evidence, then stop when a neighbouring
 candidate is dominated and finer search would overfit one-question changes.
+
+## 2026-09-05 - Keep structural identifier scoring independent and disabled
+
+**Status:** Accepted
+
+### Initial approach
+
+Add Python parameters, assignment targets, and keyword argument names to the
+existing BM25 metadata field so definitions and assignments receive more
+structural evidence than incidental identifier occurrences.
+
+### Why the approach was reconsidered
+
+Mixing identifiers with paths, headings, and symbols changed shared metadata
+document frequencies and substantially regressed Docs. Giving identifiers an
+independent field restored a byte-identical control at weight zero, but every
+tested nonzero weight still traded a few Code improvements for Docs and Code
+regressions. Restricting the field to assignment targets improved precision but
+did not move any of the eleven target `lost_identifier` misses into the top
+five.
+
+### Decision
+
+Persist structural identifiers in an independent schema-versioned BM25 field
+with its own corpus statistics and inspectable score. Keep
+`identifier_weight=0.0` as the default and do not enable the field in the
+`FINAL` ranking configuration. Retain assignment targets as the narrow field
+definition while the next diagnostic checks identifier, chunk, and labelled
+range alignment.
+
+The controlled variants, metrics, artifact hashes, and stopping evidence are
+preserved in the
+[B4 experiment record](bm25-tuning-log.md#b4---structural-identifier-metadata).
+
+### Consequences
+
+- A zero identifier weight reproduces both `FINAL` result files byte for byte.
+- Identifier experiments no longer change path, heading, or symbol statistics.
+- Nonzero weights remain explicit experimental inputs and require compatible
+  indexes.
+- Schema version 3 prevents older two-field snapshots from loading silently.
+- Future work must diagnose labelled-range alignment before adding another
+  identifier weight or ranking bonus.
+
+### Lesson
+
+An independently scored feature can make an experiment attributable and
+reproducible without making the feature beneficial. Preserve the safe control,
+reject unsupported weights, and investigate the remaining error mechanism.
+
+## 2026-09-08 - Prefer primary sources over auxiliary repository paths
+
+**Status:** Accepted
+
+### Initial approach
+
+Use the unified BM25 score alone even when close candidates come from example
+and test directories that repeat production APIs or documentation language.
+
+### Why the approach was reconsidered
+
+Error inspection showed relevant primary sources immediately below competing
+`examples` and `tests` chunks. A bounded path penalty improved both public
+datasets across early and deep ranks without any first-relevant-rank
+regression.
+
+### Decision
+
+Apply a `0.50` post-BM25 penalty to exact `examples` and `tests` directory
+segments within a 20-candidate pool. Keep the original BM25 order as the
+tie-breaker and allow explicit zero values to reproduce unmodified BM25.
+
+The full parameter sweep, metrics, hashes, and stopping evidence are in the
+[B5 experiment record](bm25-tuning-log.md#b5---auxiliary-path-reranking).
+
+### Consequences
+
+- Production retrieval improves Docs and Code without embeddings.
+- The rule does not boost Docs or penalize production-code paths directly.
+- Search evaluates up to 20 candidates while still returning only the
+  requested number of sources.
+- Exact path segments keep the corpus-specific signal narrow and explainable.
+
+### Lesson
+
+Repository structure can resolve lexical ambiguity safely when the signal is
+narrow, tested against both datasets, and applied after standard BM25 scoring.
