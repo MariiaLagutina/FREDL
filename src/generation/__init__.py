@@ -22,6 +22,11 @@ from src.generation.context import (
     build_context,
     load_ranked_source_texts,
 )
+from src.generation.prompt import (
+    GROUNDING_PROMPT_VERSION,
+    INSUFFICIENT_CONTEXT_RESPONSE,
+    build_grounded_messages,
+)
 
 __all__ = [
     "ChatMessage",
@@ -33,11 +38,14 @@ __all__ = [
     "GenerationConfig",
     "GenerationError",
     "GenerationRuntime",
+    "GROUNDING_PROMPT_VERSION",
     "LoadedGenerationBackend",
     "HuggingFaceTokenCounter",
+    "INSUFFICIENT_CONTEXT_RESPONSE",
     "TokenCounter",
     "TransformersRuntime",
     "build_context",
+    "build_grounded_messages",
     "generate_answer",
     "load_generation_backend",
     "load_ranked_source_texts",
