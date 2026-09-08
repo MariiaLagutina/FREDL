@@ -3,6 +3,7 @@
 from src.generation.context import (
     ContextBuildResult,
     ContextBuilder,
+    HuggingFaceTokenCounter,
     TokenCounter,
     build_context,
     load_ranked_source_texts,
@@ -11,6 +12,7 @@ from src.generation.context import (
 __all__ = [
     "ContextBuildResult",
     "ContextBuilder",
+    "HuggingFaceTokenCounter",
     "TokenCounter",
     "build_context",
     "load_ranked_source_texts",
