@@ -25,7 +25,7 @@ FINGERPRINT = "a" * 64
 PIPELINE_FINGERPRINT = "b" * 64
 
 
-def test_index_command_builds_schema_v2_snapshot(
+def test_index_command_builds_current_schema_snapshot(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -51,12 +51,12 @@ def test_index_command_builds_schema_v2_snapshot(
 
     index_path = tmp_path / "data" / "processed" / "test-index.json"
     payload = json.loads(index_path.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
     assert len(payload["corpus_fingerprint"]) == 64
     assert len(payload["pipeline_fingerprint"]) == 64
     captured = capsys.readouterr()
     assert "document_count:" in captured.out
-    assert "schema_version:       2" in captured.out
+    assert "schema_version:       3" in captured.out
 
 
 def test_index_command_persists_requested_bm25_parameters(
@@ -86,6 +86,7 @@ def test_index_command_persists_requested_bm25_parameters(
         "b": 0.65,
         "k1": 1.4,
         "metadata_weight": 1.5,
+        "identifier_weight": 0.0,
     }
 
 
@@ -110,6 +111,10 @@ def test_search_command_routes_one_raw_query() -> None:
         PIPELINE_FINGERPRINT,
         "Where is the cache?",
         3,
+        identifier_match_weight=0.0,
+        identifier_candidate_depth=0,
+        auxiliary_path_penalty=0.5,
+        path_candidate_depth=20,
     )
 
 
@@ -154,6 +159,14 @@ def test_search_dataset_uses_assignment_paths_and_output_name() -> None:
                 "data/output/search_results/Public",
                 "--k",
                 "3",
+                "--identifier_match_weight",
+                "0.1",
+                "--identifier_candidate_depth",
+                "50",
+                "--auxiliary_path_penalty",
+                "0",
+                "--path_candidate_depth",
+                "0",
             ]
         )
 
@@ -165,6 +178,10 @@ def test_search_dataset_uses_assignment_paths_and_output_name() -> None:
         Path("data/output/search_results/Public/questions.json"),
         3,
         progress=ANY,
+        identifier_match_weight=0.1,
+        identifier_candidate_depth=50,
+        auxiliary_path_penalty=0.0,
+        path_candidate_depth=0,
     )
 
 
@@ -374,11 +391,18 @@ def test_analyze_retrieval_errors_writes_docs_and_code_report(
             side_effect=[docs_cases, code_cases],
         ),
         patch("src.cli.write_error_analysis_markdown") as write_report,
+        patch("src.cli._current_corpus_fingerprint", return_value=FINGERPRINT),
+        patch(
+            "src.cli._current_pipeline_fingerprint",
+            return_value=PIPELINE_FINGERPRINT,
+        ),
+        patch("src.cli.IndexStore") as index_store,
         patch(
             "src.cli.collect_top_five_misses",
             side_effect=[("docs-miss",), ("code-1", "code-2")],
         ),
     ):
+        index_store.return_value.load.return_value.documents = ()
         main(
             [
                 "analyze_retrieval_errors",
@@ -405,6 +429,14 @@ def test_analyze_retrieval_errors_writes_docs_and_code_report(
         ),
         Path("/project"),
         {},
+        (),
+    )
+    index_store.assert_called_once_with(
+        Path("/project/data/processed/bm25-index.json")
+    )
+    index_store.return_value.load.assert_called_once_with(
+        FINGERPRINT,
+        PIPELINE_FINGERPRINT,
     )
     output = capsys.readouterr().out
     assert "docs_top_5_misses: 1" in output

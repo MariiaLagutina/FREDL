@@ -16,6 +16,7 @@ from src.evaluation.retrieval.error_models import (
     RetrievalMissAnnotation,
 )
 from src.models import MinimalSource
+from src.ingestion import Chunk
 
 
 def _source(path: str, end: int = 20) -> MinimalSource:
@@ -143,3 +144,27 @@ def test_report_applies_human_review_to_unclassified_miss(
 
     assert "**Category:** `wrong_file`" in report
     assert annotation.hypothesis in report
+
+
+def test_report_shows_unmatchable_reference_warning(tmp_path: Path) -> None:
+    """The report exposes labels no indexed chunk can satisfy."""
+    reference = _source("src/tiny.py", 4)
+    retrieved = _source("src/noise.py", 20)
+    _write_file(tmp_path, reference.file_path, "x" * 100)
+    _write_file(tmp_path, retrieved.file_path, "y" * 20)
+    case = RetrievalEvaluationCase(
+        question_id="tiny-label",
+        question="What is the default?",
+        references=(reference,),
+        retrieved=(retrieved,),
+    )
+    indexed = [Chunk("src/tiny.py", 0, 100, "x" * 100)]
+
+    report = render_error_analysis_markdown(
+        [(RetrievalDatasetKind.CODE, (case,))],
+        tmp_path,
+        indexed_chunks=indexed,
+    )
+
+    assert "**Best indexed chunk:** `src/tiny.py:0-100`" in report
+    assert "**Maximum IoU:** 0.040000 (unmatchable)" in report

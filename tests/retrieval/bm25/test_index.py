@@ -12,6 +12,7 @@ def _document(
     file_path: str,
     content_terms: tuple[str, ...],
     metadata_terms: tuple[str, ...] = (),
+    identifier_terms: tuple[str, ...] = (),
 ) -> BM25Document:
     """Create one exact synthetic document for scoring tests."""
     text = " ".join(content_terms)
@@ -24,6 +25,7 @@ def _document(
         ),
         content_terms=content_terms,
         metadata_terms=metadata_terms,
+        identifier_terms=identifier_terms,
     )
 
 
@@ -83,6 +85,27 @@ def test_fractional_metadata_weight_scales_score_exactly() -> None:
     assert baseline.content_score == 0
     assert isclose(weighted.score, baseline.score * 1.5)
     assert weighted.metadata_score == baseline.metadata_score
+
+
+def test_identifier_weight_uses_independent_field_statistics() -> None:
+    """Structural identifiers can be weighted without changing metadata."""
+    document = _document(
+        "cache.py",
+        ("unrelated",),
+        ("src",),
+        ("cache",),
+    )
+    disabled = BM25Index([document]).search(("cache",))
+    enabled = BM25Index(
+        [document],
+        BM25Parameters(identifier_weight=0.25),
+    ).search(("cache",))[0]
+
+    assert disabled == []
+    assert enabled.content_score == 0
+    assert enabled.metadata_score == 0
+    assert enabled.identifier_score > 0
+    assert isclose(enabled.score, 0.25 * enabled.identifier_score)
 
 
 def test_repeated_query_terms_do_not_change_ranking_score() -> None:

@@ -17,7 +17,12 @@ from src.evaluation.retrieval import (
 from src.evaluation.retrieval.error_annotations import load_error_annotations
 from src.ingestion import discover_files
 from src.models import UnansweredQuestion
-from src.retrieval import run_stored_retrieval, run_stored_search
+from src.retrieval import (
+    DEFAULT_AUXILIARY_PATH_PENALTY,
+    DEFAULT_PATH_CANDIDATE_DEPTH,
+    run_stored_retrieval,
+    run_stored_search,
+)
 from src.retrieval.bm25 import BM25Parameters
 from src.retrieval.index_store import (
     IndexStore,
@@ -56,11 +61,12 @@ def index(
     k1: float = DEFAULT_BM25_PARAMETERS.k1,
     b: float = DEFAULT_BM25_PARAMETERS.b,
     metadata_weight: float = DEFAULT_BM25_PARAMETERS.metadata_weight,
+    identifier_weight: float = DEFAULT_BM25_PARAMETERS.identifier_weight,
 ) -> dict[str, object]:
     """Build and save a production-compatible BM25 index."""
     try:
         root = Path(project_root)
-        config = _pipeline_config(k1, b, metadata_weight)
+        config = _pipeline_config(k1, b, metadata_weight, identifier_weight)
         build = build_index(
             root,
             _below_root(root, Path(corpus_root)),
@@ -93,6 +99,11 @@ def search(
     k1: float = DEFAULT_BM25_PARAMETERS.k1,
     b: float = DEFAULT_BM25_PARAMETERS.b,
     metadata_weight: float = DEFAULT_BM25_PARAMETERS.metadata_weight,
+    identifier_weight: float = DEFAULT_BM25_PARAMETERS.identifier_weight,
+    identifier_match_weight: float = 0.0,
+    identifier_candidate_depth: int = 0,
+    auxiliary_path_penalty: float = DEFAULT_AUXILIARY_PATH_PENALTY,
+    path_candidate_depth: int = DEFAULT_PATH_CANDIDATE_DEPTH,
 ) -> list[dict[str, object]]:
     """Return the top-k exact source locations for one raw query."""
     try:
@@ -103,10 +114,14 @@ def search(
             _below_root(root, Path(index_path)),
             fingerprint,
             _current_pipeline_fingerprint(
-                _pipeline_config(k1, b, metadata_weight)
+                _pipeline_config(k1, b, metadata_weight, identifier_weight)
             ),
             query,
             k,
+            identifier_match_weight=identifier_match_weight,
+            identifier_candidate_depth=identifier_candidate_depth,
+            auxiliary_path_penalty=auxiliary_path_penalty,
+            path_candidate_depth=path_candidate_depth,
         )
     except (OSError, UnicodeError, ValueError) as error:
         raise CliError(_error_message(error)) from None
@@ -123,6 +138,11 @@ def search_dataset(
     k1: float = DEFAULT_BM25_PARAMETERS.k1,
     b: float = DEFAULT_BM25_PARAMETERS.b,
     metadata_weight: float = DEFAULT_BM25_PARAMETERS.metadata_weight,
+    identifier_weight: float = DEFAULT_BM25_PARAMETERS.identifier_weight,
+    identifier_match_weight: float = 0.0,
+    identifier_candidate_depth: int = 0,
+    auxiliary_path_penalty: float = DEFAULT_AUXILIARY_PATH_PENALTY,
+    path_candidate_depth: int = DEFAULT_PATH_CANDIDATE_DEPTH,
 ) -> str:
     """Search one question dataset and save its validated result JSON."""
     try:
@@ -135,12 +155,16 @@ def search_dataset(
             _below_root(root, Path(index_path)),
             fingerprint,
             _current_pipeline_fingerprint(
-                _pipeline_config(k1, b, metadata_weight)
+                _pipeline_config(k1, b, metadata_weight, identifier_weight)
             ),
             dataset,
             output,
             k,
             progress=_progress_questions,
+            identifier_match_weight=identifier_match_weight,
+            identifier_candidate_depth=identifier_candidate_depth,
+            auxiliary_path_penalty=auxiliary_path_penalty,
+            path_candidate_depth=path_candidate_depth,
         )
     except (OSError, UnicodeError, ValueError) as error:
         raise CliError(_error_message(error)) from None
@@ -211,7 +235,13 @@ def analyze_retrieval_errors(
     code_results_path: str,
     output_path: str = str(DEFAULT_ERROR_ANALYSIS_PATH),
     annotations_path: str = str(DEFAULT_ERROR_ANNOTATIONS_PATH),
+    index_path: str = str(DEFAULT_INDEX_PATH),
+    corpus_root: str = str(DEFAULT_CORPUS_ROOT),
     project_root: str = ".",
+    k1: float = DEFAULT_BM25_PARAMETERS.k1,
+    b: float = DEFAULT_BM25_PARAMETERS.b,
+    metadata_weight: float = DEFAULT_BM25_PARAMETERS.metadata_weight,
+    identifier_weight: float = DEFAULT_BM25_PARAMETERS.identifier_weight,
 ) -> dict[str, object]:
     """Write reviewable top-five miss evidence for Docs and Code."""
     try:
@@ -231,6 +261,16 @@ def analyze_retrieval_errors(
             if resolved_annotations.exists()
             else {}
         )
+        config = _pipeline_config(
+            k1,
+            b,
+            metadata_weight,
+            identifier_weight,
+        )
+        index = IndexStore(_below_root(root, Path(index_path))).load(
+            _current_corpus_fingerprint(root, Path(corpus_root)),
+            _current_pipeline_fingerprint(config),
+        )
         write_error_analysis_markdown(
             resolved_output,
             (
@@ -239,6 +279,7 @@ def analyze_retrieval_errors(
             ),
             root,
             annotations,
+            tuple(document.chunk for document in index.documents),
         )
     except (OSError, UnicodeError, ValueError) as error:
         raise CliError(_error_message(error)) from None
@@ -263,6 +304,7 @@ def _pipeline_config(
     k1: float,
     b: float,
     metadata_weight: float,
+    identifier_weight: float,
 ) -> PipelineConfig:
     """Build the shared CLI configuration for index compatibility checks."""
     return PipelineConfig(
@@ -270,6 +312,7 @@ def _pipeline_config(
             k1=k1,
             b=b,
             metadata_weight=metadata_weight,
+            identifier_weight=identifier_weight,
         )
     )
 

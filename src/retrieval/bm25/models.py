@@ -7,11 +7,12 @@ from src.ingestion.documents import Chunk
 
 @dataclass(frozen=True, slots=True)
 class BM25Parameters:
-    """Control field scoring and the final metadata score multiplier."""
+    """Control BM25 field scoring and independent field multipliers."""
 
     k1: float = 1.4
     b: float = 0.65
     metadata_weight: float = 1.0
+    identifier_weight: float = 0.0
 
     def __post_init__(self) -> None:
         """Reject values outside the BM25 parameter domains."""
@@ -21,6 +22,8 @@ class BM25Parameters:
             raise ValueError("BM25 b must be between zero and one")
         if self.metadata_weight < 0:
             raise ValueError("BM25 metadata weight must not be negative")
+        if self.identifier_weight < 0:
+            raise ValueError("BM25 identifier weight must not be negative")
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,11 +33,13 @@ class BM25Document:
     chunk: Chunk
     content_terms: tuple[str, ...]
     metadata_terms: tuple[str, ...] = ()
+    identifier_terms: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         """Require immutable collections of non-empty normalized terms."""
         _validate_terms("content_terms", self.content_terms)
         _validate_terms("metadata_terms", self.metadata_terms)
+        _validate_terms("identifier_terms", self.identifier_terms)
 
     @property
     def key(self) -> tuple[str, int, int]:
@@ -51,6 +56,8 @@ class BM25CorpusStatistics:
     average_metadata_length: float
     content_document_frequencies: tuple[tuple[str, int], ...]
     metadata_document_frequencies: tuple[tuple[str, int], ...]
+    average_identifier_length: float
+    identifier_document_frequencies: tuple[tuple[str, int], ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +68,7 @@ class BM25Hit:
     score: float
     content_score: float
     metadata_score: float
+    identifier_score: float = 0.0
 
 
 def _validate_terms(name: str, terms: tuple[str, ...]) -> None:

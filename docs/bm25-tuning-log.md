@@ -805,3 +805,479 @@ preserves complete snake_case, CamelCase, private-attribute, and uppercase
 constant identifiers as high-value query terms. Measure Docs and Code
 separately against the unchanged `FINAL` control. Treat a Docs-versus-Code path
 preference as a separate later factor so that any effect remains attributable.
+
+## B1 - exact-identifier lexical reranking
+
+**Status:** Completed and rejected. Keep the `FINAL` ranking configuration.
+
+**Date:** 2026-09-04.
+
+**Hypothesis:** A bounded bonus for complete structured identifiers may promote
+the labelled Code chunks responsible for the Phase 19 `lost_identifier`
+misses without materially reducing documentation retrieval quality.
+
+**Changed factor:** Only the exact-identifier reranking weight. The comparison
+covers the disabled control `0.00` and candidates `0.05`, `0.10`, and `0.20`.
+The reranker recognizes complete snake_case, CamelCase, private, uppercase,
+and dotted query identifiers. It reorders the existing top-ten BM25 candidates
+and applies at most three bonuses per hit.
+
+**Constants:** The adopted `FINAL` index and public datasets; `k1=1.4`;
+`b=0.65`; `metadata_weight=1.0`; `max_chunk_size=2000`; documentation overlap
+`160`; code overlap `80`; 20,096 indexed documents; `k=10`; no embeddings or
+vector search. Run commit: `2c885793402323bc31476a9f78c5906d17c35a4e`.
+
+Run each Docs and Code dataset with the same command shape, substituting the
+four weights and their matching output directories:
+
+```bash
+uv run python -m src search_dataset \
+  --dataset_path data/datasets/AnsweredQuestions/dataset_code_public.json \
+  --save_directory data/output/experiments/B1/weight_0_10 \
+  --k 10 \
+  --index_path data/processed/experiments/FINAL/bm25-index.json \
+  --identifier_match_weight 0.10 \
+  --auxiliary_path_penalty 0 \
+  --path_candidate_depth 0
+```
+
+Evaluate any saved pair with the unchanged local evaluator:
+
+```bash
+uv run python -m src evaluate \
+  --docs_ground_truth_path data/datasets/AnsweredQuestions/dataset_docs_public.json \
+  --docs_results_path data/output/experiments/B1/weight_0_10/dataset_docs_public.json \
+  --code_ground_truth_path data/datasets/AnsweredQuestions/dataset_code_public.json \
+  --code_results_path data/output/experiments/B1/weight_0_10/dataset_code_public.json
+```
+
+**Results:**
+
+| Weight | Dataset | R@1 | R@3 | R@5 | R@10 | MRR |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 0.00 | Docs | 0.540000 | 0.730000 | 0.810000 | 0.880000 | 0.646496 |
+| 0.00 | Code | 0.525253 | 0.676768 | 0.767677 | 0.838384 | 0.627746 |
+| 0.05 | Docs | 0.540000 | 0.730000 | 0.810000 | 0.880000 | 0.648163 |
+| 0.05 | Code | 0.525253 | 0.666667 | 0.777778 | 0.838384 | 0.625978 |
+| 0.10 | Docs | 0.540000 | 0.730000 | 0.810000 | 0.880000 | 0.647925 |
+| 0.10 | Code | 0.525253 | 0.686869 | 0.767677 | 0.838384 | 0.628094 |
+| 0.20 | Docs | 0.540000 | 0.730000 | 0.820000 | 0.880000 | 0.648996 |
+| 0.20 | Code | 0.515152 | 0.696970 | 0.757576 | 0.838384 | 0.623549 |
+
+The `0.00` result hashes exactly match the adopted `FINAL` hashes, confirming
+that the disabled reranker preserves the control. Relative to that control,
+the per-question first-relevant ranks changed as follows:
+
+| Weight | Docs improved | Docs regressed | Code improved | Code regressed | `lost_identifier` improved |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 0.05 | 2 | 1 | 4 | 2 | 0/11 |
+| 0.10 | 3 | 2 | 6 | 3 | 0/11 |
+| 0.20 | 3 | 3 | 6 | 6 | 0/11 |
+
+**Result hashes:**
+
+| Weight | Docs SHA-256 | Code SHA-256 |
+| ---: | --- | --- |
+| 0.00 | `5a77414dde064181f14c70e3f695f15c8717ed6cc04ae629513fb1014dc0c652` | `b2ff9dacad41acb46cbf21a1b96b602ddb5d7d44693dcddccceb377efcce25d0` |
+| 0.05 | `d873d6bc3e3e5dcb597160e6f83b50e9a077c1829cfe141226dc072dd1605ba5` | `d4fb9ba211ce7620ab00a5c0b090c34933c40a204938676e43464b1d799e316d` |
+| 0.10 | `74b764c7767a69dcc9ec0c05db7e168832ae682027d635511353864a72931ca7` | `14c3d939aababab6c12ebcc0db44161301b7e5cc4d4f0e16329cf785df5daf5f` |
+| 0.20 | `45dd8a23981ff32bbb97b1fa3b9ec5d906f2fbde03126c281ca6ad82b4707321` | `e4adb92925c6fe9161fcc7284b978d8b70e57a8273b5a449560f302cceed29cf` |
+
+**Interpretation:** Aggregate rankings move, but none of the eleven Code
+`lost_identifier` misses improves at any tested weight. The `0.05` candidate
+gains one net Code R@5 hit while reducing Code R@3 and MRR. The `0.10`
+candidate slightly raises Code R@3 and MRR but changes non-target questions
+instead of the diagnosed error group. The `0.20` candidate reduces Code R@1,
+R@5, and MRR. A stronger bonus is therefore not justified.
+
+**Stopping rule and decision:** Reject exact-identifier reranking and retain
+the unchanged `FINAL` configuration. Before another ranking experiment,
+measure the labelled chunks' deeper BM25 ranks and inspect whether their full
+identifiers are present in indexed terms. This distinguishes insufficient
+candidate depth from missing identifier evidence and prevents an unguided
+parameter sweep.
+
+## B2 - identifier reranking candidate depth
+
+**Status:** Completed and rejected. Keep the `FINAL` ranking configuration.
+
+**Date:** 2026-09-04.
+
+**Hypothesis:** B1 may have failed because all eleven labelled Code chunks in
+the `lost_identifier` group ranked below the top-ten reranking pool. Expanding
+that pool while holding the exact-identifier bonus fixed may expose and promote
+the relevant chunks.
+
+**Pre-run diagnostic:** The labelled Code chunks had original BM25 ranks `15`,
+`16`, `17`, `19`, `19`, `19`, `26`, `34`, `84`, and `89`; one was below rank
+`200` or had no lexical match. Seven labelled chunks contained at least one
+complete structured query identifier in their indexed content or metadata
+terms. Therefore depths `20`, `50`, and `100` cover progressively wider parts
+of the observed range without changing the index.
+
+**Changed factor:** Only `identifier_candidate_depth`, from B1's top-ten pool
+to `20`, `50`, and `100`. The exact-identifier match weight remains `0.10` and
+at most three bonuses apply to each hit.
+
+**Constants:** The adopted `FINAL` index and public datasets; `k1=1.4`;
+`b=0.65`; `metadata_weight=1.0`; `max_chunk_size=2000`; documentation overlap
+`160`; code overlap `80`; 20,096 indexed documents; output `k=10`; no
+embeddings or vector search. Run commit:
+`a44668551be7cd0754ee20d2869db0edcd2009e1`.
+This lexical retrieval experiment ran on CPU; CUDA appears only in the text of
+one evaluation question.
+
+Run each Docs and Code dataset with the same command shape, substituting the
+three depths and their matching output directories:
+
+```bash
+uv run python -m src search_dataset \
+  --dataset_path data/datasets/AnsweredQuestions/dataset_code_public.json \
+  --save_directory data/output/experiments/B2/depth_20 \
+  --k 10 \
+  --index_path data/processed/experiments/FINAL/bm25-index.json \
+  --identifier_match_weight 0.10 \
+  --identifier_candidate_depth 20
+```
+
+**Results:**
+
+| Depth | Dataset | R@1 | R@3 | R@5 | R@10 | MRR |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 10 | Docs | 0.540000 | 0.730000 | 0.810000 | 0.880000 | 0.647925 |
+| 10 | Code | 0.525253 | 0.686869 | 0.767677 | 0.838384 | 0.628094 |
+| 20 | Docs | 0.540000 | 0.730000 | 0.820000 | 0.880000 | 0.648813 |
+| 20 | Code | 0.525253 | 0.686869 | 0.767677 | 0.838384 | 0.628094 |
+| 50 | Docs | 0.540000 | 0.730000 | 0.820000 | 0.880000 | 0.648813 |
+| 50 | Code | 0.525253 | 0.686869 | 0.767677 | 0.838384 | 0.628094 |
+| 100 | Docs | 0.540000 | 0.730000 | 0.820000 | 0.880000 | 0.648813 |
+| 100 | Code | 0.525253 | 0.686869 | 0.767677 | 0.838384 | 0.628094 |
+
+**Result hashes:**
+
+| Depth | Docs SHA-256 | Code SHA-256 |
+| ---: | --- | --- |
+| 20 | `7680ae86ad622136231034ba126a981a6c17b05d3cd4275757dccea2fd8b35c2` | `b1914f2924874627711f733b95497feb6eef2640c37594c7997e8210490da02d` |
+| 50 | `7680ae86ad622136231034ba126a981a6c17b05d3cd4275757dccea2fd8b35c2` | `6c869baa010be2f1355ea9e9043ee3d682994d224f6f74de453cfb2c5fb5b048` |
+| 100 | `7680ae86ad622136231034ba126a981a6c17b05d3cd4275757dccea2fd8b35c2` | `6c869baa010be2f1355ea9e9043ee3d682994d224f6f74de453cfb2c5fb5b048` |
+
+**Per-question evidence:** Relative to depth `10`, every tested depth promotes
+the Marlin MOE documentation label from outside the saved top ten to rank five,
+while the classify-endpoint input-format label falls from rank nine to outside
+the saved top ten. No Code first-relevant rank changes at any depth, and none
+of the eleven `lost_identifier` questions improves. Depths `50` and `100`
+produce identical top-ten outputs, and neither changes the aggregate metrics
+beyond depth `20`.
+
+**Interpretation:** Candidate availability is necessary but not sufficient.
+The fixed `0.10` exact-match bonus cannot move the deeper labelled Code chunks
+above stronger general lexical matches. Increasing depth alone only exchanges
+two Docs results and has no Code effect, so the additional candidates do not
+justify changing the production configuration.
+
+**Stopping rule and decision:** Reject candidate-depth expansion and retain the
+unchanged `FINAL` configuration. Do not test depths above `100`: depths `50`
+and `100` already yield identical saved rankings. If this experiment family is
+continued, fix the smallest informative depth at `20` and vary only the exact
+identifier weight to test whether a stronger signal can promote the five
+nearest labelled Code chunks.
+
+## B3 - stronger exact-identifier weight at depth 20
+
+**Status:** Completed and rejected. Close the post-BM25 exact-identifier
+reranking family and keep the `FINAL` ranking configuration.
+
+**Date:** 2026-09-04.
+
+**Hypothesis:** B2 exposed five nearby labelled Code chunks within the first
+twenty BM25 candidates, but the fixed `0.10` bonus may have been too small to
+promote them. A stronger exact-identifier weight may improve the Phase 19
+`lost_identifier` group at a fixed minimal candidate depth.
+
+**Changed factor:** Only `identifier_match_weight`, from the B2 control `0.10`
+to `0.20`, `0.50`, and the maximum supported value `1.00`.
+
+**Constants:** Candidate depth `20`; the adopted `FINAL` index and public
+datasets; `k1=1.4`; `b=0.65`; `metadata_weight=1.0`;
+`max_chunk_size=2000`; documentation overlap `160`; code overlap `80`; 20,096
+indexed documents; output `k=10`; no embeddings or vector search. This lexical
+retrieval experiment ran on CPU. Run commit:
+`33b5552a5ab7ccb3f85ada1630e61f2b42516b6a`.
+
+Run each Docs and Code dataset with the same command shape, substituting the
+three weights and their matching output directories:
+
+```bash
+uv run python -m src search_dataset \
+  --dataset_path data/datasets/AnsweredQuestions/dataset_code_public.json \
+  --save_directory data/output/experiments/B3/weight_0_20 \
+  --k 10 \
+  --index_path data/processed/experiments/FINAL/bm25-index.json \
+  --identifier_match_weight 0.20 \
+  --identifier_candidate_depth 20
+```
+
+**Results:**
+
+| Weight | Dataset | R@1 | R@3 | R@5 | R@10 | MRR |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 0.10 | Docs | 0.540000 | 0.730000 | 0.820000 | 0.880000 | 0.648813 |
+| 0.10 | Code | 0.525253 | 0.686869 | 0.767677 | 0.838384 | 0.628094 |
+| 0.20 | Docs | 0.540000 | 0.740000 | 0.820000 | 0.870000 | 0.649635 |
+| 0.20 | Code | 0.515152 | 0.696970 | 0.747475 | 0.838384 | 0.623212 |
+| 0.50 | Docs | 0.540000 | 0.750000 | 0.810000 | 0.870000 | 0.649397 |
+| 0.50 | Code | 0.525253 | 0.686869 | 0.747475 | 0.838384 | 0.625076 |
+| 1.00 | Docs | 0.540000 | 0.750000 | 0.810000 | 0.870000 | 0.649397 |
+| 1.00 | Code | 0.535354 | 0.686869 | 0.747475 | 0.838384 | 0.631810 |
+
+**Result hashes:**
+
+| Weight | Docs SHA-256 | Code SHA-256 |
+| ---: | --- | --- |
+| 0.20 | `7da7c8ee85d330ec201974a2c5ae01b1fdd84b6a104796cd7ad9f20bb6eb5d9b` | `013d3a5c935be528a77285be0265115094c84000def72579e60dc7d637c00dcc` |
+| 0.50 | `685810891377384bf27489391c4819e50d537ae4cb9cf593f1cf5424f611107e` | `ed89d1fb4b01d9997b8aebe1dd0363e7ed01b27ab8bafb759a8452cdfaefc00b` |
+| 1.00 | `232623330bba4fd91b02044dce93c688f792cd870fbdf8cf29486f54f092d461` | `24d842158e4256eebea4c01353c3c0d7f152a1bb3519e6c0c88163e1b230e881` |
+
+**Per-question evidence:** Relative to weight `0.10`, the three candidates
+produce `3/3`, `4/4`, and `4/4` improved/regressed Docs first-relevant ranks.
+For Code they produce `2/4`, `3/4`, and `4/4` improved/regressed ranks. Every
+candidate removes two previously successful Code questions from the top five.
+Most importantly, none improves any of the eleven reviewed
+`lost_identifier` questions.
+
+**Interpretation:** Stronger bonuses increasingly rearrange unrelated queries
+without correcting the diagnosed identifier misses. Weight `1.00` gives the
+highest Code R@1 and MRR in this series, but its Code R@5 is two questions below
+the control and the intended error group remains unchanged. Aggregate gains in
+one cutoff therefore do not justify adoption.
+
+**Stopping rule and decision:** Reject all B3 candidates and retain the
+unchanged `FINAL` configuration. Do not test weights above `1.00`: the exact
+identifier contribution would dominate rather than lightly rerank BM25, while
+regressions are already visible. Close the post-BM25 exact-identifier reranking
+family after B1-B3. The next experiment must inspect and change identifier
+placement in indexed structural metadata rather than applying another ranking
+bonus.
+
+## B4 - structural identifier metadata
+
+**Status:** Completed and rejected for ranking. Keep the separate identifier
+field disabled by default and retain the unchanged `FINAL` ranking.
+
+**Date:** 2026-09-04 to 2026-09-05.
+
+**Hypothesis:** The B1-B3 bonus could not distinguish a definition or assignment
+from an incidental identifier occurrence. Placing identifiers found at Python
+AST structural sites in index metadata may promote the labelled Code chunks
+without changing their exact source text.
+
+**Constants:** Public Docs and Code datasets; 20,096 documents; `k1=1.4`;
+`b=0.65`; `metadata_weight=1.0`; `max_chunk_size=2000`; documentation overlap
+`160`; code overlap `80`; output `k=10`; lexical retrieval on CPU; no embeddings
+or vector search.
+
+### B4a - identifiers mixed into the existing metadata field
+
+The first implementation added function parameters, assignment targets, and
+keyword argument names to the existing path, heading, and symbol field. Run
+commit: `5d34ccb91b8bacf3b21f1f17ff765b4e41d530e0`.
+
+| Dataset | R@1 | R@3 | R@5 | R@10 | MRR |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Docs | 0.490000 | 0.690000 | 0.760000 | 0.840000 | 0.605679 |
+| Code | 0.505051 | 0.717172 | 0.787879 | 0.848485 | 0.620551 |
+
+Two of the eleven `lost_identifier` references entered the top ten:
+`_is_remote_reader` at rank four and `use_bitsandbytes_4bit` at rank eight.
+Across all Code questions, fourteen improved, fourteen regressed, and
+seventy-one were unchanged. Mixing the terms changed the metadata document
+frequencies shared by Docs and Code and caused unacceptable Docs regressions.
+
+Result hashes: Docs
+`5110f2cba00b1b4be7662ead130836556760318748dd9b732e27edc3f0a5bbe7`;
+Code `d5bc9de969015837332985464983739faebad37129ef9f67eb456300e9f3863a`.
+
+### B4b - independent structural identifier field
+
+The second implementation introduced independently scored `identifier_terms`
+and schema version 3. A zero weight reproduced both `FINAL` result files byte
+for byte, proving that field separation alone preserves the baseline. Run
+commit: `f8b559eadd7672fd4b7a0666f8171010ddaf9a80`.
+
+| Weight | Dataset | R@1 | R@3 | R@5 | R@10 | MRR |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 0.10 | Docs | 0.540000 | 0.730000 | 0.800000 | 0.860000 | 0.643302 |
+| 0.10 | Code | 0.535354 | 0.676768 | 0.767677 | 0.838384 | 0.633566 |
+| 0.25 | Docs | 0.530000 | 0.710000 | 0.790000 | 0.860000 | 0.632813 |
+| 0.25 | Code | 0.525253 | 0.696970 | 0.757576 | 0.858586 | 0.634800 |
+| 0.50 | Docs | 0.520000 | 0.690000 | 0.770000 | 0.840000 | 0.617980 |
+| 0.50 | Code | 0.535354 | 0.696970 | 0.767677 | 0.848485 | 0.638195 |
+
+At weight `0.10`, none of the target group improved. At `0.25` and `0.50`,
+only `_is_remote_reader` entered the top ten, at ranks nine and eight. Separate
+field statistics prevented identifier terms from changing the original
+metadata IDF, but additional Code scores still displaced Docs results in the
+shared ranking.
+
+### B4c - assignment targets only
+
+The final variant removed parameters and keyword arguments from the identifier
+field and retained only assignment targets, including attributes, destructuring,
+augmented assignment, and named expressions. Run commit:
+`e9f7983c58a35e96a7bb2ad1049bca50ee3a4fc4`.
+
+Build each candidate with the same command shape, substituting its weight and
+matching directory:
+
+```bash
+uv run python -m src index \
+  --index_path data/processed/experiments/B4-assignments/weight_0_25/bm25-index.json \
+  --k1 1.4 \
+  --b 0.65 \
+  --metadata_weight 1.0 \
+  --identifier_weight 0.25
+```
+
+| Weight | Dataset | R@1 | R@3 | R@5 | R@10 | MRR |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 0.00 | Docs | 0.540000 | 0.730000 | 0.810000 | 0.880000 | 0.647925 |
+| 0.00 | Code | 0.525253 | 0.686869 | 0.767677 | 0.838384 | 0.628094 |
+| 0.25 | Docs | 0.530000 | 0.700000 | 0.790000 | 0.860000 | 0.632714 |
+| 0.25 | Code | 0.535354 | 0.707071 | 0.747475 | 0.858586 | 0.640384 |
+| 0.50 | Docs | 0.520000 | 0.680000 | 0.770000 | 0.840000 | 0.618968 |
+| 0.50 | Code | 0.515152 | 0.707071 | 0.747475 | 0.858586 | 0.631041 |
+| 1.00 | Docs | 0.480000 | 0.640000 | 0.720000 | 0.800000 | 0.579357 |
+| 1.00 | Code | 0.454545 | 0.686869 | 0.737374 | 0.797980 | 0.585943 |
+
+At weight `0.25`, ten Code questions improved and seven regressed; at `0.50`,
+nine improved and thirteen regressed; at `1.00`, thirteen improved and
+twenty-three regressed. `_is_remote_reader` and `intermediate_tensors` reached
+rank ten at `0.25` and rank eight at `0.50`. At `1.00`, the three target hits
+were `_is_remote_reader` at six, `use_bitsandbytes_4bit` at eight, and
+`intermediate_tensors` at ten. No target entered the top five.
+
+**Assignment-only result hashes:**
+
+| Weight | Docs SHA-256 | Code SHA-256 |
+| ---: | --- | --- |
+| 0.25 | `8e8cb5b705462ed96a50dd19ee7ac746f4473d921b70f8ec0f1aaf4c5c55ded9` | `415468df8401121fd481b845452d6eec347446e45f1ff1bd4e0bf19a43d4007a` |
+| 0.50 | `910c1ac13fd04a9786eb1be37f36753bed83ef24a0767f8e65416ac8d7264631` | `cc16c58b9184e9b651aab402a6b73eff4041d2ed23e57e6c8d0e7f5cd2a17bd0` |
+| 1.00 | `1a105b34851ddcf0e5903e3b044be8fddf506b8672871d29f071f5b17bf2edbb` | `02a00e311766e0898581c8d08befbb9a0c80841c1838ed686e8f38b35debf612` |
+
+**Stopping rule and decision:** Reject every nonzero B4 weight. The signal can
+promote a few intended chunks, but no candidate improves the target top-five
+errors and every candidate regresses Docs and some Code questions. Do not test
+higher or intermediate weights. Retain the independent field with default
+weight `0` so the experiment remains reproducible without changing `FINAL`.
+Next inspect each target identifier's location relative to the labelled range
+and its generated chunks before proposing another ranking change.
+
+## B5 - auxiliary path reranking
+
+**Status:** Completed and adopted as the new retrieval candidate.
+
+**Date:** 2026-09-08.
+
+**Hypothesis:** Chunks under exact `examples` and `tests` directory segments
+often repeat production APIs and documentation language but are less direct
+answers for the public questions. A small post-BM25 penalty for only those
+auxiliary paths may promote the already retrieved primary documentation and
+production code without changing lexical scoring or favoring either Docs or
+Code explicitly.
+
+**Constants:** Public Docs and Code datasets; the schema-v3 B4 zero-weight
+index, which reproduces `FINAL`; 20,096 documents; `k1=1.4`; `b=0.65`;
+`metadata_weight=1.0`; `identifier_weight=0`; `max_chunk_size=2000`;
+documentation overlap `160`; code overlap `80`; output `k=10`; lexical
+retrieval on CPU; no embeddings or vector search. Run commit:
+`feffd507a8e9e688efb545675e25eb89d017baa6`.
+
+The reranker subtracts a fixed score only when a candidate path contains an
+exact directory segment named `examples` or `tests`. Similar names are not
+penalized, production paths receive no bonus, and the unchanged BM25 order is
+the tie-breaker. The disabled penalty preserves the original ranking.
+
+Run each Docs and Code dataset with the same command shape, substituting the
+dataset name, output directory, penalty, and candidate depth:
+
+```bash
+uv run python -m src search_dataset \
+  --dataset_path data/datasets/AnsweredQuestions/dataset_docs_public.json \
+  --save_directory data/output/experiments/B5-path/depth_20/search_results \
+  --k 10 \
+  --index_path data/processed/experiments/B4-assignments/weight_0_00/bm25-index.json \
+  --k1 1.4 \
+  --b 0.65 \
+  --metadata_weight 1.0 \
+  --identifier_weight 0.0 \
+  --auxiliary_path_penalty 0.50 \
+  --path_candidate_depth 20
+```
+
+Evaluate each saved Docs and Code pair with the unchanged local evaluator:
+
+```bash
+uv run python -m src evaluate \
+  --docs_ground_truth_path data/datasets/AnsweredQuestions/dataset_docs_public.json \
+  --docs_results_path data/output/experiments/B5-path/depth_20/search_results/dataset_docs_public.json \
+  --code_ground_truth_path data/datasets/AnsweredQuestions/dataset_code_public.json \
+  --code_results_path data/output/experiments/B5-path/depth_20/search_results/dataset_code_public.json
+```
+
+### B5a - penalty sweep at candidate depth 10
+
+| Penalty | Dataset | R@1 | R@3 | R@5 | R@10 | MRR |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 0.00 (`FINAL`) | Docs | 0.540000 | 0.730000 | 0.810000 | 0.880000 | 0.647925 |
+| 0.00 (`FINAL`) | Code | 0.525253 | 0.686869 | 0.767677 | 0.838384 | 0.628094 |
+| 0.05 | Docs | 0.540000 | 0.740000 | 0.820000 | 0.880000 | 0.648302 |
+| 0.05 | Code | 0.525253 | 0.686869 | 0.767677 | 0.838384 | 0.630692 |
+| 0.10 | Docs | 0.540000 | 0.750000 | 0.830000 | 0.880000 | 0.649885 |
+| 0.10 | Code | 0.525253 | 0.686869 | 0.777778 | 0.838384 | 0.631534 |
+| 0.20 | Docs | 0.540000 | 0.770000 | 0.840000 | 0.880000 | 0.656095 |
+| 0.20 | Code | 0.535354 | 0.707071 | 0.787879 | 0.838384 | 0.640176 |
+| 0.30 | Docs | 0.550000 | 0.770000 | 0.850000 | 0.880000 | 0.663274 |
+| 0.30 | Code | 0.535354 | 0.707071 | 0.787879 | 0.838384 | 0.640176 |
+| 0.50 | Docs | 0.560000 | 0.770000 | 0.850000 | 0.880000 | 0.669940 |
+| 0.50 | Code | 0.535354 | 0.707071 | 0.787879 | 0.838384 | 0.640176 |
+| 0.75 | Docs | 0.560000 | 0.770000 | 0.850000 | 0.880000 | 0.669940 |
+| 0.75 | Code | 0.535354 | 0.707071 | 0.787879 | 0.838384 | 0.640176 |
+| 1.00 | Docs | 0.560000 | 0.770000 | 0.850000 | 0.880000 | 0.669940 |
+| 1.00 | Code | 0.535354 | 0.707071 | 0.787879 | 0.838384 | 0.640176 |
+
+At penalty `0.50`, ten Docs and ten Code questions improved relative to
+`FINAL`, none regressed, four Docs questions and two Code questions entered
+the top five, and none left it. Penalties `0.75` and `1.00` produced identical
+first-relevant ranks, so `0.50` is the smallest tested value on the best
+plateau and stronger penalties are unnecessary.
+
+### B5b - candidate depth at penalty 0.50
+
+| Candidate depth | Dataset | R@1 | R@3 | R@5 | R@10 | MRR |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 10 | Docs | 0.560000 | 0.770000 | 0.850000 | 0.880000 | 0.669940 |
+| 10 | Code | 0.535354 | 0.707071 | 0.787879 | 0.838384 | 0.640176 |
+| 15 | Docs | 0.560000 | 0.770000 | 0.850000 | 0.900000 | 0.672052 |
+| 15 | Code | 0.535354 | 0.707071 | 0.787879 | 0.838384 | 0.640176 |
+| 20 | Docs | 0.560000 | 0.770000 | 0.850000 | 0.900000 | 0.672052 |
+| 20 | Code | 0.535354 | 0.707071 | 0.787879 | 0.848485 | 0.641186 |
+
+Depth `15` recovered two previously missing Docs references at ranks nine and
+ten. Depth `20` retained both and additionally recovered one previously
+missing Code reference at rank ten. Relative to `FINAL`, the selected depth-20
+configuration improved twelve Docs and eleven Code questions, regressed none,
+and increased Docs R@5 from `0.81` to `0.85`. This provides a five-question
+margin above the required Docs R@5 threshold of `0.80`.
+
+**Selected result hashes:** Docs
+`7e40738fdf083c372abbefa82843a2fb18a2e4d24cac2d16e6f2d912fbb54d28`;
+Code `8affaec8ce8153e4a1c0e8d385582a7ee6e4266db9100b5ec53a39494fa8bbd4`.
+
+**Stopping rule and decision:** Adopt `auxiliary_path_penalty=0.50` and
+`path_candidate_depth=20` as the B5 candidate. Stop increasing the penalty
+because `0.50` through `1.00` has the same relevant ranks. Stop increasing
+candidate depth in this experiment because depth `20` already extends beyond
+the returned top ten, improves both datasets without any per-question
+regression, and further expansion would increase search work for an unproven
+tail benefit. The improvement comes from a narrow, explainable corpus
+structure signal and does not replace or alter standard BM25 scoring.
