@@ -505,6 +505,32 @@ the persisted index, retrieval, and JSON output. Peak resident memory was
 byte identical to the established baseline, and source validation accepted all
 500 returned locations.
 
+## Grounded Context Construction
+
+`ContextBuilder` converts ranked retrieval results into deterministic,
+source-labelled context without changing their exact source spans. It removes
+only exact duplicate `(file_path, start, end)` locations and otherwise keeps
+retrieval order. Included blocks use `[Source N]` labels, project-relative
+paths, half-open character ranges, and complete source slices separated by an
+explicit delimiter.
+
+The builder counts the complete candidate context after each addition. A block
+that would exceed the positive token budget is skipped rather than truncated,
+and a later shorter block may still be included. The result reports the exact
+sources used, consumed tokens, and skipped-source count.
+
+Token counting is injected through a small protocol instead of importing a
+model runtime. A Hugging Face-compatible adapter calls the selected model
+tokenizer with `add_special_tokens=False`, so the same builder can use the
+mandatory `Qwen/Qwen3-0.6B` tokenizer when the generation backend is loaded.
+Prompt-control tokens and answer space remain the responsibility of the later
+prompt and generator stages.
+
+The filesystem workflow loads only unique files referenced by retrieval. It
+preserves UTF-8 text and original newline characters, requires canonical
+project-relative POSIX paths, and rejects any source that resolves outside the
+configured corpus root.
+
 ## BM25 Evaluation
 
 Evaluate complete persisted documentation and code results against their
