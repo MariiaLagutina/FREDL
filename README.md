@@ -54,6 +54,9 @@ Implemented:
 - a fixed documentation/code mini-suite and BM25 experiment CLI;
 - optional JSON reports with corpus, Git, environment, latency, and memory
   evidence;
+- deterministic source-labelled context construction with strict token budgets;
+- a local `Qwen/Qwen3-0.6B` backend with automatic CUDA-to-CPU fallback;
+- deterministic chat-template generation and a real-model smoke command;
 - automated tests organized by pipeline component.
 
 ## Requirements
@@ -531,6 +534,49 @@ preserves UTF-8 text and original newline characters, requires canonical
 project-relative POSIX paths, and rejects any source that resolves outside the
 configured corpus root.
 
+## Local Qwen Backend
+
+The generation backend uses `Qwen/Qwen3-0.6B` by default. It disables Qwen's
+thinking mode and sampling so the same prompt follows a deterministic decoding
+path. Automatic device selection uses CUDA when PyTorch can access it and
+otherwise falls back to portable CPU execution. An explicit CUDA request fails
+clearly when CUDA is unavailable.
+
+Run the first smoke check with network access to download the model into the
+Git-ignored local cache:
+
+```bash
+HF_HOME=.local/huggingface uv run python -m src.generation.backend
+```
+
+Repeat the check without network access and require the cached checkpoint:
+
+```bash
+HF_HOME=.local/huggingface uv run python -m src.generation.backend --offline
+```
+
+Select either compute path explicitly:
+
+```bash
+HF_HOME=.local/huggingface uv run python -m src.generation.backend \
+  --device cuda --offline
+
+HF_HOME=.local/huggingface uv run python -m src.generation.backend \
+  --device cpu --offline
+```
+
+The command reports the model, actual device, cache mode, model-load time,
+generation time, and answer. Use `--prompt` and `--max-new-tokens` to change
+the smoke input without changing production defaults. Downloaded model files
+remain under `.local/` and are never committed.
+
+A controlled development-machine comparison used the same cached checkpoint,
+prompt, and decoding settings on a Quadro RTX 3000 with 6 GiB VRAM. Warm CUDA
+generation produced approximately 30.9 tokens per second, while CPU generation
+produced approximately 9.1 tokens per second. These measurements demonstrate
+that both paths work; they are machine-specific observations, not performance
+requirements.
+
 ## BM25 Evaluation
 
 Evaluate complete persisted documentation and code results against their
@@ -630,7 +676,7 @@ Controlled parameter history and provisional measurements are recorded in
 The current checks pass:
 
 ```text
-pytest: 294 passed
+pytest: 390 passed
 flake8: passed
 mypy: passed
 ```
