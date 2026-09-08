@@ -853,3 +853,52 @@ The full parameter sweep, metrics, hashes, and stopping evidence are in the
 
 Repository structure can resolve lexical ambiguity safely when the signal is
 narrow, tested against both datasets, and applied after standard BM25 scoring.
+
+## 2026-09-08 - Keep context construction independent of model loading
+
+**Status:** Accepted
+
+### Initial approach
+
+Load a specific Qwen tokenizer directly from the context-building package and
+add the model runtime dependency while implementing token-budget enforcement.
+
+### Why the approach was reconsidered
+
+The project plan separates bounded context construction from the mandatory
+Qwen backend. The assignment requires `Qwen/Qwen3-0.6B` by default, but model
+loading, chat templates, CPU/GPU fallback, and offline-cache behavior belong
+to the following backend phase. Coupling those concerns here would make the
+context rules harder to test and would introduce runtime dependencies before
+they are needed.
+
+### Decision
+
+Keep `ContextBuilder` model-independent and inject token counting through a
+small protocol. Provide a Hugging Face-compatible counter around an already
+loaded tokenizer, but defer the `Qwen/Qwen3-0.6B` checkpoint, runtime
+dependency, and tokenizer loading to the generation backend.
+
+Load only unique files referenced by ranked retrieval results. Require exact
+canonical project-relative paths that resolve inside the corpus root, preserve
+source text and half-open spans, and skip complete source blocks rather than
+truncating them when the token budget is exhausted.
+
+### Consequences
+
+- Unit tests can enforce ordering, deduplication, labels, and budgets without
+  downloading a model.
+- The Qwen backend can supply its real tokenizer without changing context
+  construction.
+- Alternative local-model experiments can reuse the same boundary while the
+  mandatory default remains `Qwen/Qwen3-0.6B`.
+- Prompt overhead and generation-token reserves must be calculated by the
+  later prompt and generator stages.
+- Invalid paths, stale character ranges, and broken token counters fail before
+  generation starts.
+
+### Lesson
+
+Separate deterministic evidence preparation from expensive model lifecycle
+management, and verify mandatory checkpoint requirements before fixing a
+model-specific dependency in production code.
