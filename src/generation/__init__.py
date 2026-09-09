@@ -24,8 +24,10 @@ from src.generation.context import (
 )
 from src.generation.prompt import (
     GROUNDING_PROMPT_VERSION,
+    GroundedAnswerResult,
     INSUFFICIENT_CONTEXT_RESPONSE,
     build_grounded_messages,
+    generate_grounded_answer,
 )
 
 __all__ = [
@@ -39,6 +41,7 @@ __all__ = [
     "GenerationError",
     "GenerationRuntime",
     "GROUNDING_PROMPT_VERSION",
+    "GroundedAnswerResult",
     "LoadedGenerationBackend",
     "HuggingFaceTokenCounter",
     "INSUFFICIENT_CONTEXT_RESPONSE",
@@ -47,6 +50,7 @@ __all__ = [
     "build_context",
     "build_grounded_messages",
     "generate_answer",
+    "generate_grounded_answer",
     "load_generation_backend",
     "load_ranked_source_texts",
     "select_device",
