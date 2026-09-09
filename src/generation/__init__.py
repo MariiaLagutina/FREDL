@@ -29,6 +29,7 @@ from src.generation.prompt import (
     build_grounded_messages,
     generate_grounded_answer,
 )
+from src.generation.query import QueryAnswerResult, answer_query
 
 __all__ = [
     "ChatMessage",
@@ -43,12 +44,14 @@ __all__ = [
     "GROUNDING_PROMPT_VERSION",
     "GroundedAnswerResult",
     "LoadedGenerationBackend",
+    "QueryAnswerResult",
     "HuggingFaceTokenCounter",
     "INSUFFICIENT_CONTEXT_RESPONSE",
     "TokenCounter",
     "TransformersRuntime",
     "build_context",
     "build_grounded_messages",
+    "answer_query",
     "generate_answer",
     "generate_grounded_answer",
     "load_generation_backend",
