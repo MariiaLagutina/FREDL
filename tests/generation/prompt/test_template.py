@@ -33,8 +33,9 @@ def test_prompt_version_and_grounding_rules_are_explicit() -> None:
         in system.content
     )
     assert "Do not invent APIs" in system.content
-    assert "[Source N]" in system.content
-    assert "If sources conflict" in system.content
+    assert "End every supported factual sentence" in system.content
+    assert "When sources disagree" in system.content
+    assert "Conflicting evidence is not insufficient" in system.content
     assert INSUFFICIENT_CONTEXT_RESPONSE in system.content
 
 
@@ -53,7 +54,11 @@ def test_prompt_preserves_labelled_context_under_separate_delimiters() -> None:
         "</question>\n\n"
         "<retrieved_sources>\n"
         f"{context}\n"
-        "</retrieved_sources>"
+        "</retrieved_sources>\n\n"
+        "<answer_task>\n"
+        "Compare all relevant sources. If they disagree, begin with "
+        '"The sources conflict:". Answer with source labels.\n'
+        "</answer_task>"
     )
 
 
