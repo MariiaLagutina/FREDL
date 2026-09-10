@@ -14,8 +14,9 @@ file discovery, exact source reading, immutable chunks with character offsets,
 structural chunking for Python, Markdown, and plain text, and a full-corpus
 chunk invariant audit. It also provides separate lexical tokenization for code
 and documentation, explainable two-field BM25 retrieval, and reproducible
-source-aware retrieval evaluation. It does not yet provide a complete RAG
-pipeline.
+source-aware retrieval evaluation. The complete single-query path connects the
+compatible stored BM25 index, token-bounded source context, a versioned
+grounding prompt, and local Qwen generation behind one validated command.
 
 ## Current Status
 
@@ -57,6 +58,11 @@ Implemented:
 - deterministic source-labelled context construction with strict token budgets;
 - a local `Qwen/Qwen3-0.6B` backend with automatic CUDA-to-CPU fallback;
 - deterministic chat-template generation and a real-model smoke command;
+- a versioned source-grounding prompt with exact insufficient-context output;
+- a single-query `answer` command connecting BM25 retrieval to local Qwen;
+- structural answer validation with one bounded corrective generation attempt;
+- separate retrieved-source and prompt-source traces;
+- delayed terminal feedback for generation lasting more than five seconds;
 - automated tests organized by pipeline component.
 
 ## Requirements
@@ -526,8 +532,9 @@ Token counting is injected through a small protocol instead of importing a
 model runtime. A Hugging Face-compatible adapter calls the selected model
 tokenizer with `add_special_tokens=False`, so the same builder can use the
 mandatory `Qwen/Qwen3-0.6B` tokenizer when the generation backend is loaded.
-Prompt-control tokens and answer space remain the responsibility of the later
-prompt and generator stages.
+The single-query command uses a configurable 4,096-token context budget, while
+the prompt and generator retain responsibility for control tokens and the
+separate answer-token limit.
 
 The filesystem workflow loads only unique files referenced by retrieval. It
 preserves UTF-8 text and original newline characters, requires canonical
@@ -576,6 +583,61 @@ generation produced approximately 30.9 tokens per second, while CPU generation
 produced approximately 9.1 tokens per second. These measurements demonstrate
 that both paths work; they are machine-specific observations, not performance
 requirements.
+
+## Single-Query Grounded Answers
+
+Build a compatible index whenever the corpus or declared retrieval pipeline
+changes:
+
+```bash
+uv run python -m src index
+```
+
+Then ask a question through the complete local RAG pipeline:
+
+```bash
+HF_HOME=.local/huggingface uv run python -m src answer \
+  "How does vLLM manage the KV cache?" \
+  --k 5
+```
+
+To require the already downloaded checkpoint without network access, enable
+both the application option and the Hugging Face hub offline mode:
+
+```bash
+HF_HOME=.local/huggingface HF_HUB_OFFLINE=1 \
+  uv run python -m src answer \
+  "How does vLLM manage the KV cache?" \
+  --k 5 \
+  --offline
+```
+
+The command validates the current corpus and retrieval-pipeline fingerprints
+before loading the stored index. It retrieves ranked BM25 sources, builds
+source-labelled context with a default 4,096-token budget, generates through
+the configured local model, and reports the answer together with the model,
+device, prompt version, generation-attempt count, consumed context tokens, and
+skipped-source count.
+
+`retrieved_sources` contains every location returned by BM25. `sources`
+contains only the locations that fit into the bounded prompt context and can
+therefore support `[Source N]` citations. This distinction keeps token-budget
+decisions visible.
+
+The versioned grounding prompt treats the question and retrieved text as
+untrusted data. It requires source-only factual claims, valid citations, an
+explicit conflict form, and an exact insufficient-context response. Because a
+model instruction is not an enforceable guarantee, deterministic validation
+rejects uncited answers, citations outside the prompt context, and conflict
+answers supported by fewer than two distinct citations. One invalid first
+answer receives one corrective generation attempt using the same retrieval
+result and loaded model. A second invalid answer becomes a concise command
+error instead of being presented as grounded output.
+
+If the complete operation lasts more than five seconds, the command writes
+`Please wait, the local RAG answer is still running...` to the terminal. The
+delayed status is especially useful for portable CPU execution while avoiding
+noise for faster runs.
 
 ## BM25 Evaluation
 
@@ -676,7 +738,7 @@ Controlled parameter history and provisional measurements are recorded in
 The current checks pass:
 
 ```text
-pytest: 390 passed
+pytest: 421 passed
 flake8: passed
 mypy: passed
 ```
@@ -698,6 +760,11 @@ These results cover the current implementation only.
 - Represent chunk coordinates as half-open Python ranges.
 - Keep Python chunk text exact and reserve synthetic retrieval context for
   metadata.
+- Treat retrieved questions and source text as untrusted prompt data.
+- Keep every returned answer linked to the exact sources admitted into its
+  token-bounded prompt context.
+- Validate structural grounding guarantees in deterministic code and allow at
+  most one corrective generation attempt.
 - Store Markdown heading paths as metadata instead of synthetic chunk text.
 - Preserve Markdown markup until retrieval evaluation justifies normalization.
 - Apply overlap only to forced splits inside oversized text blocks.

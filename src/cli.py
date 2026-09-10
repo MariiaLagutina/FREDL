@@ -16,6 +16,14 @@ from src.evaluation.retrieval import (
 )
 from src.evaluation.retrieval.error_annotations import load_error_annotations
 from src.ingestion import discover_files
+from src.cli_progress import delayed_status
+from src.generation import (
+    DEFAULT_MODEL_NAME,
+    DevicePreference,
+    GenerationConfig,
+    answer_query,
+    load_generation_backend,
+)
 from src.models import UnansweredQuestion
 from src.retrieval import (
     DEFAULT_AUXILIARY_PATH_PENALTY,
@@ -42,6 +50,8 @@ from src.retrieval.validation import (
 DEFAULT_INDEX_PATH = Path("data/processed/bm25-index.json")
 DEFAULT_CORPUS_ROOT = Path("data/raw")
 DEFAULT_BM25_PARAMETERS = BM25Parameters()
+DEFAULT_CONTEXT_TOKEN_BUDGET = 4096
+ANSWER_WAIT_MESSAGE = "Please wait, the local RAG answer is still running..."
 DEFAULT_ERROR_ANALYSIS_PATH = Path(
     "data/output/evaluation/retrieval-error-analysis.md"
 )
@@ -52,6 +62,67 @@ DEFAULT_ERROR_ANNOTATIONS_PATH = Path(
 
 class CliError(Exception):
     """Represent an expected user-facing command failure."""
+
+
+def answer(
+    question: str,
+    k: int = 5,
+    context_token_budget: int = DEFAULT_CONTEXT_TOKEN_BUDGET,
+    index_path: str = str(DEFAULT_INDEX_PATH),
+    corpus_root: str = str(DEFAULT_CORPUS_ROOT),
+    project_root: str = ".",
+    model: str = DEFAULT_MODEL_NAME,
+    device: str = DevicePreference.AUTO.value,
+    max_new_tokens: int = 256,
+    offline: bool = False,
+    k1: float = DEFAULT_BM25_PARAMETERS.k1,
+    b: float = DEFAULT_BM25_PARAMETERS.b,
+    metadata_weight: float = DEFAULT_BM25_PARAMETERS.metadata_weight,
+    identifier_weight: float = DEFAULT_BM25_PARAMETERS.identifier_weight,
+    auxiliary_path_penalty: float = DEFAULT_AUXILIARY_PATH_PENALTY,
+    path_candidate_depth: int = DEFAULT_PATH_CANDIDATE_DEPTH,
+) -> dict[str, object]:
+    """Answer one user question with traceable local RAG evidence."""
+    try:
+        generation_config = GenerationConfig(
+            model_name=model,
+            device=DevicePreference(device),
+            max_new_tokens=max_new_tokens,
+            local_files_only=offline,
+        )
+        with delayed_status(ANSWER_WAIT_MESSAGE):
+            backend = load_generation_backend(generation_config)
+            result = answer_query(
+                question,
+                Path(project_root),
+                Path(corpus_root),
+                Path(index_path),
+                backend,
+                generation_config,
+                _pipeline_config(k1, b, metadata_weight, identifier_weight),
+                k=k,
+                context_token_budget=context_token_budget,
+                auxiliary_path_penalty=auxiliary_path_penalty,
+                path_candidate_depth=path_candidate_depth,
+            )
+    except (OSError, UnicodeError, ValueError, RuntimeError) as error:
+        raise CliError(_error_message(error)) from None
+
+    return {
+        "answer": result.answer,
+        "sources": [
+            source.model_dump() for source in result.context_sources
+        ],
+        "retrieved_sources": [
+            source.model_dump() for source in result.retrieved_sources
+        ],
+        "used_context_tokens": result.used_context_tokens,
+        "skipped_source_count": result.skipped_source_count,
+        "prompt_version": result.prompt_version,
+        "generation_attempts": result.generation_attempts,
+        "model": generation_config.model_name,
+        "device": backend.device,
+    }
 
 
 def index(
