@@ -8,6 +8,7 @@ import fire
 from src.cli import (
     CliError,
     analyze_retrieval_errors,
+    answer,
     evaluate,
     index,
     search,
@@ -22,6 +23,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         fire.Fire(
             {
                 "analyze_retrieval_errors": analyze_retrieval_errors,
+                "answer": answer,
                 "evaluate": evaluate,
                 "index": index,
                 "search": search,

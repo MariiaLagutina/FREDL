@@ -11,6 +11,7 @@ from src.generation.prompt.template import (
     GROUNDING_PROMPT_VERSION,
     build_grounded_messages,
 )
+from src.generation.prompt.validation import validate_grounded_answer
 
 
 def generate_grounded_answer(
@@ -22,6 +23,7 @@ def generate_grounded_answer(
     """Generate one answer and preserve its exact grounding trace."""
     messages = build_grounded_messages(question, context)
     answer = generate_answer(messages, backend, config)
+    validate_grounded_answer(answer, context.sources)
     return GroundedAnswerResult(
         answer=answer,
         sources=context.sources,
