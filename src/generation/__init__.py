@@ -15,6 +15,8 @@ from src.generation.backend import (
     select_device,
 )
 from src.generation.batch import (
+    BatchAnswerProgress,
+    generate_dataset_answers,
     load_student_search_results,
     save_student_answers,
 )
@@ -39,6 +41,7 @@ from src.generation.prompt import (
 from src.generation.query import QueryAnswerResult, answer_query
 
 __all__ = [
+    "BatchAnswerProgress",
     "ChatMessage",
     "CONFLICT_PREFIX",
     "ContextBuildResult",
@@ -63,6 +66,7 @@ __all__ = [
     "answer_query",
     "generate_answer",
     "generate_grounded_answer",
+    "generate_dataset_answers",
     "validate_grounded_answer",
     "load_generation_backend",
     "load_student_search_results",
