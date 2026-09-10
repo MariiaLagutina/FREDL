@@ -902,3 +902,73 @@ truncating them when the token budget is exhausted.
 Separate deterministic evidence preparation from expensive model lifecycle
 management, and verify mandatory checkpoint requirements before fixing a
 model-specific dependency in production code.
+
+## 2026-09-10 - Validate model output at the deterministic boundary
+
+**Status:** Accepted
+
+### Initial approach
+
+Rely on the grounded prompt alone to make the local model cite retrieved
+sources, use the exact insufficient-context response, and report conflicts
+only when retrieved evidence disagrees.
+
+### Why the approach was reconsidered
+
+An end-to-end single-query run retrieved five relevant KV-cache source files,
+included all five in the prompt, and stayed within the context budget. Despite
+those valid inputs, `Qwen/Qwen3-0.6B` described the sources as conflicting and
+returned factual prose without any required `[Source N]` citation. Prompt
+instructions therefore cannot serve as an enforceable output contract,
+especially for a small local model.
+
+### Decision
+
+Separate semantic and deterministic responsibilities at the generation
+boundary. The model remains responsible for interpreting evidence and writing
+an answer. Deterministic code validates only properties it can prove from the
+output and supplied context:
+
+- the exact insufficient-context response may omit citations;
+- every other answer must cite at least one source present in the prompt;
+- citation numbers must not exceed the number of prompt sources; and
+- an answer beginning with `The sources conflict:` must cite at least two
+  distinct prompt sources.
+
+Reject output that violates this contract instead of presenting it as a
+grounded answer. Do not infer semantic agreement or disagreement with string
+heuristics.
+
+Allow exactly one corrective generation attempt when the first answer violates
+the contract. Reuse the original question, prompt sources, loaded model, and
+retrieval result; append the invalid answer and a short instruction to rewrite
+it with valid citations. Validate the rewritten answer with the same contract
+and return a controlled error if it still fails. Record whether generation
+required one or two attempts in the answer trace.
+
+### Consequences
+
+- Invalid model output becomes a concise user-facing error rather than an
+  apparently trustworthy answer.
+- The validator catches missing, unknown, and structurally unsupported
+  citations without claiming to verify factual correctness.
+- A conflict answer with two citations can still be semantically wrong; that
+  limitation remains visible instead of being hidden behind an unreliable
+  `if/else` heuristic.
+- A corrective attempt can repair formatting without repeating BM25 retrieval
+  or model loading, but a failed first answer can take up to two generation
+  passes.
+- The retry is not treated as a guarantee. In the initial KV-cache end-to-end
+  check, the second answer still omitted citations and the validator correctly
+  returned an error.
+- The fixed one-retry limit prevents an unbounded generation loop and keeps the
+  additional latency predictable.
+- The same validator can protect future compatible local models without
+  coupling the rule to Qwen internals.
+
+### Lesson
+
+Treat model instructions as requested behavior, not guaranteed behavior. Put
+a deterministic validator at the boundary for every property the program can
+prove, allow only bounded recovery, and leave semantic judgement explicit and
+testable rather than simulating it with brittle string logic.
