@@ -972,3 +972,49 @@ Treat model instructions as requested behavior, not guaranteed behavior. Put
 a deterministic validator at the boundary for every property the program can
 prove, allow only bounded recovery, and leave semantic judgement explicit and
 testable rather than simulating it with brittle string logic.
+
+## 2026-09-10 - Defer validated-answer caching to the performance phase
+
+**Status:** Planned
+
+### Initial approach
+
+Complete the answer pipeline without an explicit policy for repeated user
+questions. The performance phase mentioned cache only as a general possible
+optimization for indexing and batch retrieval.
+
+### Why the approach was reconsidered
+
+An interactive agent may receive the same question more than once. Repeating
+local generation wastes latency, CPU or GPU work, and electricity; a future
+remote backend could also repeat a paid request. However, caching by question
+text alone is unsafe because the corpus, retrieval behavior, prompt, model, or
+generation configuration may have changed. Adding this policy to the current
+answer phase would also mix a runtime optimization with the correctness-first
+pipeline boundary.
+
+### Decision
+
+Keep Phase 24 uncached and add an exact validated-answer cache explicitly to
+Phase 27 in the project plan. Treat it as agent/runtime performance behavior
+rather than a core retrieval rule.
+
+The compatibility key must include the normalized question, corpus and
+retrieval-pipeline fingerprints, `k`, context budget, prompt version, model,
+and generation configuration. A change to any component produces a cache
+miss. Store only answers that passed grounding validation; never cache invalid
+model output or controlled errors.
+
+### Consequences
+
+- Phase 24 remains a simple, observable reference implementation.
+- Repeated compatible questions can later avoid another generation call.
+- Corpus, retrieval, prompt, and model changes cannot silently reuse stale
+  answers.
+- Phase 27 must measure cache hits and misses and test invalidation as well as
+  latency.
+
+### Lesson
+
+Cache is safe only when its identity covers every input that can change the
+answer and when only validated results cross the storage boundary.
