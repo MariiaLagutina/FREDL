@@ -15,3 +15,4 @@ class QueryAnswerResult:
     used_context_tokens: int
     skipped_source_count: int
     prompt_version: str
+    generation_attempts: int

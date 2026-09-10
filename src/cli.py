@@ -116,6 +116,7 @@ def answer(
         "used_context_tokens": result.used_context_tokens,
         "skipped_source_count": result.skipped_source_count,
         "prompt_version": result.prompt_version,
+        "generation_attempts": result.generation_attempts,
         "model": generation_config.model_name,
         "device": backend.device,
     }
