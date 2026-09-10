@@ -10,11 +10,13 @@ from src.__main__ import main
 from src.cli import BATCH_MODEL_WAIT_MESSAGE
 from src.generation import (
     GenerationConfig,
+    GroundedAnswerResult,
     LoadedGenerationBackend,
     QueryAnswerResult,
 )
 from src.models import (
     MinimalAnswer,
+    MinimalSearchResults,
     MinimalSource,
     StudentSearchResults,
     StudentSearchResultsAndAnswer,
@@ -207,6 +209,93 @@ def test_answer_dataset_uses_assignment_paths_and_one_backend() -> None:
         progress=ANY,
     )
     save_answers.assert_called_once_with(answers, output_path)
+
+
+def test_answer_dataset_writes_valid_json_without_retrieval(
+    tmp_path: Path,
+) -> None:
+    """The CLI composes real batch I/O and context without searching again."""
+    source_text = "The cache stores validated answers."
+    source_path = tmp_path / "data" / "raw" / "guide.md"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text(source_text, encoding="utf-8")
+    search_results = StudentSearchResults(
+        search_results=[
+            MinimalSearchResults(
+                question_id="q-1",
+                question="What does the cache store?",
+                retrieved_sources=[
+                    MinimalSource(
+                        file_path="data/raw/guide.md",
+                        first_character_index=0,
+                        last_character_index=len(source_text),
+                    )
+                ],
+            )
+        ],
+        k=1,
+    )
+    input_path = tmp_path / "retrieval" / "questions.json"
+    input_path.parent.mkdir()
+    input_path.write_text(
+        search_results.model_dump_json(indent=2),
+        encoding="utf-8",
+    )
+
+    class FakeTokenizer:
+        def encode(
+            self,
+            text: str,
+            *,
+            add_special_tokens: bool,
+        ) -> list[int]:
+            del add_special_tokens
+            return list(range(len(text.split())))
+
+    grounded = GroundedAnswerResult(
+        answer="It stores validated answers. [Source 1]",
+        sources=(search_results.search_results[0].retrieved_sources[0],),
+        prompt_version="v1",
+    )
+    backend = LoadedGenerationBackend(FakeTokenizer(), object(), "cpu")
+    output_directory = tmp_path / "answers"
+
+    with (
+        patch("src.cli.delayed_status"),
+        patch("src.cli.load_generation_backend", return_value=backend),
+        patch(
+            "src.generation.batch.workflow.generate_grounded_answer",
+            return_value=grounded,
+        ) as generate_answer,
+        patch("src.cli.run_stored_search") as search_one,
+        patch("src.cli.run_stored_retrieval") as search_batch,
+    ):
+        main(
+            [
+                "answer_dataset",
+                "--student_search_results_path",
+                str(input_path),
+                "--save_directory",
+                str(output_directory),
+                "--project_root",
+                str(tmp_path),
+                "--offline",
+            ]
+        )
+
+    output_path = output_directory / input_path.name
+    parsed = StudentSearchResultsAndAnswer.model_validate_json(
+        output_path.read_text(encoding="utf-8")
+    )
+    assert parsed.k == 1
+    assert parsed.search_results[0].question_id == "q-1"
+    assert parsed.search_results[0].retrieved_sources == (
+        search_results.search_results[0].retrieved_sources
+    )
+    assert parsed.search_results[0].answer == grounded.answer
+    generate_answer.assert_called_once()
+    search_one.assert_not_called()
+    search_batch.assert_not_called()
 
 
 @pytest.mark.parametrize(

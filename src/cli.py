@@ -167,7 +167,7 @@ def answer_dataset(
             )
             answers = generate_dataset_answers(
                 root,
-                Path(corpus_root),
+                _below_root(root, Path(corpus_root)),
                 search_results,
                 backend,
                 generation_config,
