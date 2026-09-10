@@ -6,7 +6,10 @@ from src.generation.prompt.template import (
     INSUFFICIENT_CONTEXT_RESPONSE,
     build_grounded_messages,
 )
-from src.generation.prompt.workflow import generate_grounded_answer
+from src.generation.prompt.workflow import (
+    GenerationAttemptObserver,
+    generate_grounded_answer,
+)
 from src.generation.prompt.validation import (
     CONFLICT_PREFIX,
     GroundedAnswerValidationError,
@@ -18,6 +21,7 @@ __all__ = [
     "GROUNDING_PROMPT_VERSION",
     "GroundedAnswerResult",
     "GroundedAnswerValidationError",
+    "GenerationAttemptObserver",
     "INSUFFICIENT_CONTEXT_RESPONSE",
     "build_grounded_messages",
     "generate_grounded_answer",
