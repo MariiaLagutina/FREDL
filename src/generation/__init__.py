@@ -14,6 +14,10 @@ from src.generation.backend import (
     load_generation_backend,
     select_device,
 )
+from src.generation.batch import (
+    load_student_search_results,
+    save_student_answers,
+)
 from src.generation.context import (
     ContextBuildResult,
     ContextBuilder,
@@ -61,6 +65,8 @@ __all__ = [
     "generate_grounded_answer",
     "validate_grounded_answer",
     "load_generation_backend",
+    "load_student_search_results",
     "load_ranked_source_texts",
     "select_device",
+    "save_student_answers",
 ]
