@@ -60,6 +60,8 @@ Implemented:
 - deterministic chat-template generation and a real-model smoke command;
 - a versioned source-grounding prompt with exact insufficient-context output;
 - a single-query `answer` command connecting BM25 retrieval to local Qwen;
+- an assignment-compatible `answer_dataset` command that reuses persisted
+  retrieval results and loads the model once per dataset;
 - structural answer validation with one bounded corrective generation attempt;
 - separate retrieved-source and prompt-source traces;
 - delayed terminal feedback for generation lasting more than five seconds;
@@ -639,6 +641,35 @@ If the complete operation lasts more than five seconds, the command writes
 delayed status is especially useful for portable CPU execution while avoiding
 noise for faster runs.
 
+## Batch Grounded Answers
+
+Generate answers from an existing `StudentSearchResults` file without running
+retrieval again:
+
+```bash
+HF_HOME=.local/huggingface uv run python -m src answer_dataset \
+  --student_search_results_path \
+  data/output/search_results/UnansweredQuestions/dataset_docs_public.json \
+  --save_directory \
+  data/output/search_results_and_answer/UnansweredQuestions \
+  --offline
+```
+
+The command validates the input JSON, loads the configured model once, and
+answers questions in their stored order. Each answer keeps the original
+`question_id`, question text, and complete `retrieved_sources` list. Only the
+source spans admitted by the context-token budget are exposed to generation,
+and every generated answer passes the same grounding validation and bounded
+single-retry policy as the single-query command.
+
+The output is a Pydantic-valid `StudentSearchResultsAndAnswer` file written
+atomically under `save_directory` with the input filename. A progress bar
+reports completed questions. Relative input, output, and corpus paths are
+resolved from `project_root`; automatic device selection uses CUDA when
+available and otherwise falls back to CPU. Missing files, malformed JSON,
+invalid source spans, model-loading failures, and invalid generated answers
+produce concise command errors without an unhandled traceback.
+
 ## BM25 Evaluation
 
 Evaluate complete persisted documentation and code results against their
@@ -738,7 +769,7 @@ Controlled parameter history and provisional measurements are recorded in
 The current checks pass:
 
 ```text
-pytest: 421 passed
+pytest: 434 passed
 flake8: passed
 mypy: passed
 ```
