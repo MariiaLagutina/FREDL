@@ -58,6 +58,7 @@ def test_workflow_generates_answer_and_preserves_grounding_trace() -> None:
     assert result.answer == "The cache uses LRU eviction. [Source 1]"
     assert result.sources == context.sources
     assert result.prompt_version == GROUNDING_PROMPT_VERSION
+    assert result.generation_attempts == 1
 
 
 def test_workflow_rejects_empty_question_before_generation() -> None:
@@ -78,14 +79,48 @@ def test_workflow_rejects_empty_question_before_generation() -> None:
     generate.assert_not_called()
 
 
-def test_workflow_rejects_generated_answer_without_citation() -> None:
-    """Invalid model output cannot become a grounded result."""
+def test_workflow_corrects_one_invalid_generated_answer() -> None:
+    """One invalid answer receives a bounded corrective generation pass."""
     backend = LoadedGenerationBackend(object(), object(), "cpu")
 
     with patch(
         "src.generation.prompt.workflow.generate_answer",
-        return_value="The cache uses LRU eviction.",
-    ):
+        side_effect=[
+            "The cache uses LRU eviction.",
+            "The cache uses LRU eviction. [Source 1]",
+        ],
+    ) as generate:
+        result = generate_grounded_answer(
+            "Which eviction policy is used?",
+            _context(),
+            backend,
+            GenerationConfig(),
+        )
+
+    correction_messages = generate.call_args_list[1].args[0]
+    assert [message.role for message in correction_messages] == [
+        "system",
+        "user",
+        "assistant",
+        "user",
+    ]
+    assert correction_messages[-2].content == "The cache uses LRU eviction."
+    assert "Rewrite your complete answer" in correction_messages[-1].content
+    assert result.answer.endswith("[Source 1]")
+    assert result.generation_attempts == 2
+
+
+def test_workflow_rejects_second_invalid_generated_answer() -> None:
+    """The corrective policy stops after one retry."""
+    backend = LoadedGenerationBackend(object(), object(), "cpu")
+
+    with patch(
+        "src.generation.prompt.workflow.generate_answer",
+        side_effect=[
+            "The cache uses LRU eviction.",
+            "The cache uses LRU eviction.",
+        ],
+    ) as generate:
         with pytest.raises(
             GroundedAnswerValidationError,
             match="does not cite any retrieved source",
@@ -96,3 +131,5 @@ def test_workflow_rejects_generated_answer_without_citation() -> None:
                 backend,
                 GenerationConfig(),
             )
+
+    assert generate.call_count == 2

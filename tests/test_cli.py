@@ -52,6 +52,7 @@ def test_answer_command_loads_backend_and_prints_trace(
         used_context_tokens=42,
         skipped_source_count=1,
         prompt_version="v1",
+        generation_attempts=2,
     )
     backend = LoadedGenerationBackend(object(), object(), "cpu")
 
@@ -97,6 +98,7 @@ def test_answer_command_loads_backend_and_prints_trace(
     assert "used_context_tokens:  42" in output
     assert "skipped_source_count: 1" in output
     assert "prompt_version:       v1" in output
+    assert "generation_attempts:  2" in output
     assert "device:               cpu" in output
 
 
