@@ -9,6 +9,7 @@ from src.cli import (
     CliError,
     analyze_retrieval_errors,
     answer,
+    answer_dataset,
     evaluate,
     index,
     search,
@@ -24,6 +25,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             {
                 "analyze_retrieval_errors": analyze_retrieval_errors,
                 "answer": answer,
+                "answer_dataset": answer_dataset,
                 "evaluate": evaluate,
                 "index": index,
                 "search": search,

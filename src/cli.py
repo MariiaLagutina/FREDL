@@ -18,11 +18,15 @@ from src.evaluation.retrieval.error_annotations import load_error_annotations
 from src.ingestion import discover_files
 from src.cli_progress import delayed_status
 from src.generation import (
+    BatchAnswerProgress,
     DEFAULT_MODEL_NAME,
     DevicePreference,
     GenerationConfig,
     answer_query,
+    generate_dataset_answers,
     load_generation_backend,
+    load_student_search_results,
+    save_student_answers,
 )
 from src.models import UnansweredQuestion
 from src.retrieval import (
@@ -52,6 +56,9 @@ DEFAULT_CORPUS_ROOT = Path("data/raw")
 DEFAULT_BM25_PARAMETERS = BM25Parameters()
 DEFAULT_CONTEXT_TOKEN_BUDGET = 4096
 ANSWER_WAIT_MESSAGE = "Please wait, the local RAG answer is still running..."
+BATCH_MODEL_WAIT_MESSAGE = (
+    "Please wait, the local answer model is still loading..."
+)
 DEFAULT_ERROR_ANALYSIS_PATH = Path(
     "data/output/evaluation/retrieval-error-analysis.md"
 )
@@ -123,6 +130,54 @@ def answer(
         "model": generation_config.model_name,
         "device": backend.device,
     }
+
+
+def answer_dataset(
+    student_search_results_path: str,
+    save_directory: str,
+    context_token_budget: int = DEFAULT_CONTEXT_TOKEN_BUDGET,
+    corpus_root: str = str(DEFAULT_CORPUS_ROOT),
+    project_root: str = ".",
+    model: str = DEFAULT_MODEL_NAME,
+    device: str = DevicePreference.AUTO.value,
+    max_new_tokens: int = 256,
+    offline: bool = False,
+) -> str:
+    """Generate and save answers for one persisted retrieval dataset."""
+    try:
+        root = Path(project_root)
+        input_path = _below_root(root, Path(student_search_results_path))
+        output_path = _below_root(root, Path(save_directory)) / input_path.name
+        search_results = load_student_search_results(input_path)
+        generation_config = GenerationConfig(
+            model_name=model,
+            device=DevicePreference(device),
+            max_new_tokens=max_new_tokens,
+            local_files_only=offline,
+        )
+        with delayed_status(BATCH_MODEL_WAIT_MESSAGE):
+            backend = load_generation_backend(generation_config)
+        with tqdm(
+            total=len(search_results.search_results),
+            desc="Answering",
+            unit="question",
+        ) as progress_bar:
+            progress: BatchAnswerProgress = (
+                lambda _position, _total: progress_bar.update()
+            )
+            answers = generate_dataset_answers(
+                root,
+                _below_root(root, Path(corpus_root)),
+                search_results,
+                backend,
+                generation_config,
+                context_token_budget=context_token_budget,
+                progress=progress,
+            )
+        save_student_answers(answers, output_path)
+    except (OSError, UnicodeError, ValueError, RuntimeError) as error:
+        raise CliError(_error_message(error)) from None
+    return str(output_path)
 
 
 def index(
