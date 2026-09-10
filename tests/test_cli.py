@@ -57,6 +57,7 @@ def test_answer_command_loads_backend_and_prints_trace(
     backend = LoadedGenerationBackend(object(), object(), "cpu")
 
     with (
+        patch("src.cli.delayed_status") as status,
         patch(
             "src.cli.load_generation_backend",
             return_value=backend,
@@ -76,6 +77,9 @@ def test_answer_command_loads_backend_and_prints_trace(
         )
 
     config = load_backend.call_args.args[0]
+    status.assert_called_once_with(
+        "Please wait, the local RAG answer is still running..."
+    )
     assert config == GenerationConfig(local_files_only=True)
     assert run_answer.call_args.args[:6] == (
         "Which cache policy is used?",
