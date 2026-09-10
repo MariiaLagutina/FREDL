@@ -8,6 +8,7 @@ from src.generation import (
     GROUNDING_PROMPT_VERSION,
     ContextBuildResult,
     GenerationConfig,
+    GroundedAnswerValidationError,
     LoadedGenerationBackend,
     generate_grounded_answer,
 )
@@ -75,3 +76,23 @@ def test_workflow_rejects_empty_question_before_generation() -> None:
             )
 
     generate.assert_not_called()
+
+
+def test_workflow_rejects_generated_answer_without_citation() -> None:
+    """Invalid model output cannot become a grounded result."""
+    backend = LoadedGenerationBackend(object(), object(), "cpu")
+
+    with patch(
+        "src.generation.prompt.workflow.generate_answer",
+        return_value="The cache uses LRU eviction.",
+    ):
+        with pytest.raises(
+            GroundedAnswerValidationError,
+            match="does not cite any retrieved source",
+        ):
+            generate_grounded_answer(
+                "Which eviction policy is used?",
+                _context(),
+                backend,
+                GenerationConfig(),
+            )

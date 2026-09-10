@@ -23,16 +23,20 @@ from src.generation.context import (
     load_ranked_source_texts,
 )
 from src.generation.prompt import (
+    CONFLICT_PREFIX,
     GROUNDING_PROMPT_VERSION,
     GroundedAnswerResult,
+    GroundedAnswerValidationError,
     INSUFFICIENT_CONTEXT_RESPONSE,
     build_grounded_messages,
     generate_grounded_answer,
+    validate_grounded_answer,
 )
 from src.generation.query import QueryAnswerResult, answer_query
 
 __all__ = [
     "ChatMessage",
+    "CONFLICT_PREFIX",
     "ContextBuildResult",
     "ContextBuilder",
     "DEFAULT_MODEL_NAME",
@@ -43,6 +47,7 @@ __all__ = [
     "GenerationRuntime",
     "GROUNDING_PROMPT_VERSION",
     "GroundedAnswerResult",
+    "GroundedAnswerValidationError",
     "LoadedGenerationBackend",
     "QueryAnswerResult",
     "HuggingFaceTokenCounter",
@@ -54,6 +59,7 @@ __all__ = [
     "answer_query",
     "generate_answer",
     "generate_grounded_answer",
+    "validate_grounded_answer",
     "load_generation_backend",
     "load_ranked_source_texts",
     "select_device",

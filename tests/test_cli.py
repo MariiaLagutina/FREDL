@@ -7,6 +7,12 @@ from unittest.mock import ANY, call, patch
 import pytest
 
 from src.__main__ import main
+from src.generation import (
+    GenerationConfig,
+    LoadedGenerationBackend,
+    QueryAnswerResult,
+)
+from src.models import MinimalSource
 from src.evaluation.retrieval import (
     RetrievalDatasetKind,
     RetrievalEvaluationReport,
@@ -23,6 +29,99 @@ from src.retrieval.validation import SourceValidationReport
 
 FINGERPRINT = "a" * 64
 PIPELINE_FINGERPRINT = "b" * 64
+
+
+def test_answer_command_loads_backend_and_prints_trace(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """One command composes local RAG and exposes evidence used by Qwen."""
+    retrieved = MinimalSource(
+        file_path="data/raw/guide.md",
+        first_character_index=0,
+        last_character_index=20,
+    )
+    used = MinimalSource(
+        file_path="data/raw/cache.py",
+        first_character_index=10,
+        last_character_index=40,
+    )
+    result = QueryAnswerResult(
+        answer="The cache uses LRU. [Source 1]",
+        retrieved_sources=(retrieved, used),
+        context_sources=(used,),
+        used_context_tokens=42,
+        skipped_source_count=1,
+        prompt_version="v1",
+    )
+    backend = LoadedGenerationBackend(object(), object(), "cpu")
+
+    with (
+        patch(
+            "src.cli.load_generation_backend",
+            return_value=backend,
+        ) as load_backend,
+        patch("src.cli.answer_query", return_value=result) as run_answer,
+    ):
+        main(
+            [
+                "answer",
+                "Which cache policy is used?",
+                "--k",
+                "2",
+                "--context_token_budget",
+                "1000",
+                "--offline",
+            ]
+        )
+
+    config = load_backend.call_args.args[0]
+    assert config == GenerationConfig(local_files_only=True)
+    assert run_answer.call_args.args[:6] == (
+        "Which cache policy is used?",
+        Path("."),
+        Path("data/raw"),
+        Path("data/processed/bm25-index.json"),
+        backend,
+        config,
+    )
+    assert run_answer.call_args.kwargs == {
+        "k": 2,
+        "context_token_budget": 1000,
+        "auxiliary_path_penalty": 0.5,
+        "path_candidate_depth": 20,
+    }
+    output = capsys.readouterr().out
+    assert "answer:               The cache uses LRU. [Source 1]" in output
+    assert "data/raw/cache.py" in output
+    assert "data/raw/guide.md" in output
+    assert "used_context_tokens:  42" in output
+    assert "skipped_source_count: 1" in output
+    assert "prompt_version:       v1" in output
+    assert "device:               cpu" in output
+
+
+@pytest.mark.parametrize(
+    ("failure", "message"),
+    [
+        (ValueError("Question must not be empty"), "must not be empty"),
+        (RuntimeError("CUDA was requested"), "CUDA was requested"),
+        (OSError("Model cache unavailable"), "Model cache unavailable"),
+    ],
+)
+def test_answer_command_reports_expected_failures_without_traceback(
+    failure: Exception,
+    message: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Expected RAG boundary failures remain concise for terminal users."""
+    with patch("src.cli.load_generation_backend", side_effect=failure):
+        with pytest.raises(SystemExit) as exit_info:
+            main(["answer", "Where is the cache?"])
+
+    assert exit_info.value.code == 2
+    captured = capsys.readouterr()
+    assert message in captured.err
+    assert "Traceback" not in captured.err
 
 
 def test_index_command_builds_current_schema_snapshot(
