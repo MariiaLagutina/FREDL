@@ -8,7 +8,9 @@ import pytest
 
 from src.__main__ import main
 from src.cli import BATCH_MODEL_WAIT_MESSAGE
+from src.evaluation.answer_quality import AnswerQualityDiagnosticReport
 from src.generation import (
+    DevicePreference,
     GenerationConfig,
     GroundedAnswerResult,
     LoadedGenerationBackend,
@@ -331,6 +333,78 @@ def test_answer_dataset_reports_expected_failures_without_traceback(
     captured = capsys.readouterr()
     assert message in captured.err
     assert "Traceback" not in captured.err
+
+
+def test_diagnose_answer_quality_saves_failures_and_summary() -> None:
+    """The diagnostic command exposes report counts without failing a batch."""
+    search_results = StudentSearchResults(search_results=[], k=5)
+    backend = LoadedGenerationBackend(object(), object(), "cuda")
+    report = AnswerQualityDiagnosticReport(
+        model_name="Qwen/test",
+        device="cuda",
+        prompt_version="grounded-v1",
+        max_new_tokens=128,
+        context_token_budget=1000,
+        search_k=5,
+        cases=(),
+    )
+
+    with (
+        patch(
+            "src.cli.load_student_search_results",
+            return_value=search_results,
+        ),
+        patch("src.cli.delayed_status") as status,
+        patch(
+            "src.cli.load_generation_backend",
+            return_value=backend,
+        ) as load_backend,
+        patch(
+            "src.cli.diagnose_dataset_answers",
+            return_value=report,
+        ) as diagnose,
+        patch("src.cli.write_diagnostic_report") as write_report,
+    ):
+        main(
+            [
+                "diagnose_answer_quality",
+                "--student_search_results_path",
+                "results/questions.json",
+                "--output_path",
+                "reports/quality.json",
+                "--context_token_budget",
+                "1000",
+                "--model",
+                "Qwen/test",
+                "--device",
+                "cuda",
+                "--max_new_tokens",
+                "128",
+                "--offline",
+            ]
+        )
+
+    config = load_backend.call_args.args[0]
+    assert config == GenerationConfig(
+        model_name="Qwen/test",
+        device=DevicePreference.CUDA,
+        max_new_tokens=128,
+        local_files_only=True,
+    )
+    status.assert_called_once_with(BATCH_MODEL_WAIT_MESSAGE)
+    diagnose.assert_called_once_with(
+        Path("."),
+        Path("data/raw"),
+        search_results,
+        backend,
+        config,
+        context_token_budget=1000,
+        progress=ANY,
+    )
+    write_report.assert_called_once_with(
+        report,
+        Path("reports/quality.json"),
+    )
 
 
 def test_index_command_builds_current_schema_snapshot(

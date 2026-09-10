@@ -5,6 +5,10 @@ from pathlib import Path
 
 from tqdm import tqdm
 
+from src.evaluation.answer_quality import (
+    diagnose_dataset_answers,
+    write_diagnostic_report,
+)
 from src.evaluation.retrieval import (
     RetrievalDatasetKind,
     RetrievalEvaluationReport,
@@ -178,6 +182,62 @@ def answer_dataset(
     except (OSError, UnicodeError, ValueError, RuntimeError) as error:
         raise CliError(_error_message(error)) from None
     return str(output_path)
+
+
+def diagnose_answer_quality(
+    student_search_results_path: str,
+    output_path: str,
+    context_token_budget: int = DEFAULT_CONTEXT_TOKEN_BUDGET,
+    corpus_root: str = str(DEFAULT_CORPUS_ROOT),
+    project_root: str = ".",
+    model: str = DEFAULT_MODEL_NAME,
+    device: str = DevicePreference.AUTO.value,
+    max_new_tokens: int = 256,
+    offline: bool = False,
+) -> dict[str, object]:
+    """Generate and save review evidence without hiding failed cases."""
+    try:
+        root = Path(project_root)
+        input_path = _below_root(root, Path(student_search_results_path))
+        resolved_output = _below_root(root, Path(output_path))
+        search_results = load_student_search_results(input_path)
+        generation_config = GenerationConfig(
+            model_name=model,
+            device=DevicePreference(device),
+            max_new_tokens=max_new_tokens,
+            local_files_only=offline,
+        )
+        with delayed_status(BATCH_MODEL_WAIT_MESSAGE):
+            backend = load_generation_backend(generation_config)
+        with tqdm(
+            total=len(search_results.search_results),
+            desc="Diagnosing",
+            unit="question",
+        ) as progress_bar:
+            progress: BatchAnswerProgress = (
+                lambda _position, _total: progress_bar.update()
+            )
+            report = diagnose_dataset_answers(
+                root,
+                _below_root(root, Path(corpus_root)),
+                search_results,
+                backend,
+                generation_config,
+                context_token_budget=context_token_budget,
+                progress=progress,
+            )
+        write_diagnostic_report(report, resolved_output)
+    except (OSError, UnicodeError, ValueError, RuntimeError) as error:
+        raise CliError(_error_message(error)) from None
+
+    return {
+        "output_path": str(resolved_output),
+        "question_count": len(report.cases),
+        "passed_count": report.passed_count,
+        "failed_count": report.failed_count,
+        "model": report.model_name,
+        "device": report.device,
+    }
 
 
 def index(
