@@ -670,6 +670,15 @@ available and otherwise falls back to CPU. Missing files, malformed JSON,
 invalid source spans, model-loading failures, and invalid generated answers
 produce concise command errors without an unhandled traceback.
 
+## Answer Quality Findings
+
+Small fine-tuning experiments on the reviewed evidence dataset did not improve
+validation accuracy enough to justify additional model training in this
+project. A controlled Chroma/MiniLM experiment also performed worse than the
+existing BM25 retriever. The production pipeline therefore keeps BM25 as its
+primary retriever; embeddings remain a candidate for a later optional hybrid
+retrieval experiment.
+
 ## BM25 Evaluation
 
 Evaluate complete persisted documentation and code results against their
@@ -769,7 +778,7 @@ Controlled parameter history and provisional measurements are recorded in
 The current checks pass:
 
 ```text
-pytest: 434 passed
+pytest: 439 passed
 flake8: passed
 mypy: passed
 ```
