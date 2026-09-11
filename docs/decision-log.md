@@ -1018,3 +1018,77 @@ model output or controlled errors.
 
 Cache is safe only when its identity covers every input that can change the
 answer and when only validated results cross the storage boundary.
+
+## 2026-09-11 - Stop small-model training and preserve lexical retrieval
+
+**Status:** Accepted
+
+### Initial approach
+
+Improve grounded answer-mode selection by adding increasingly explicit prompt
+rules, finite-choice continuation scoring, and small supervised experiments on
+manually reviewed question/source pairs. Also test whether semantic vector
+search should replace the established lexical retriever.
+
+### Why the approach was reconsidered
+
+The reviewed evidence dataset contains 100 examples: 80 for training and 20
+for validation, balanced equally between `ANSWERS` and `DOES_NOT_ANSWER` and
+split without question overlap. The unchanged `Qwen/Qwen3-0.6B` scorer reached
+`0.50` validation balanced accuracy by choosing `ANSWERS` for all 20 examples.
+Both a small last-block fine-tuning run and a pairwise variant produced the
+same predictions and the same `0.50` result. The available evidence therefore
+does not justify more training iterations on this dataset. A meaningful
+fine-tuning programme would require substantially more representative reviewed
+data and ML-specific evaluation work beyond this project's scope.
+
+Embeddings did expose a limited semantic signal. A cosine-similarity classifier
+using `sentence-transformers/all-MiniLM-L6-v2` reached `0.55` validation
+accuracy, and the answering fragment outranked its paired near miss in seven
+of ten validation pairs. However, its threshold did not transfer reliably from
+training to validation.
+
+A final controlled retrieval comparison indexed all 100 reviewed fragments.
+Chroma with normalized MiniLM embeddings produced Recall@1/3/5/10 of
+`0.50/0.60/0.80/0.80` and MRR `0.60` over the ten validation questions. The
+project BM25 implementation on the same corpus produced
+`0.60/0.90/0.90/0.90` and MRR `0.75`. This is a deliberately small diagnostic
+corpus, not a replacement for the public full-corpus evaluation.
+
+### Decision
+
+Stop the Phase 25 prompt-scoring and small fine-tuning experiments. Remove the
+unused mode-selection, evidence-training, and dataset-construction code from
+the production tree. Preserve the reviewed methodology and results in project
+documentation and Git history, but do not ship experimental checkpoints or
+generated reports.
+
+Retain the tuned lexical BM25 pipeline as the mandatory production retriever.
+Do not add Chroma or MiniLM to production dependencies because the controlled
+experiment did not improve retrieval and Chroma stores and searches vectors;
+it does not improve the embedding model itself.
+
+Preserve semantic retrieval as an optional future hybrid feature rather than a
+replacement. A later experiment may combine BM25's exact technical-term signal
+with embedding ranks through an explicit fusion rule and must compare Docs and
+Code independently against the mandatory baseline.
+
+### Consequences
+
+- Phase 25 ends with a measured stopping decision instead of tuning against
+  the validation examples until they appear to improve.
+- The mandatory pipeline remains portable, explainable, and free from new
+  vector-database and embedding-model dependencies.
+- The 100 reviewed examples remain local experiment evidence rather than
+  production code, a committed generated dataset, or sufficient training data.
+- Fine-tuning remains technically possible with a larger representative
+  corpus, but it is not required to complete this RAG project.
+- Hybrid retrieval remains isolated from the mandatory baseline and can be
+  evaluated later without weakening the known-good BM25 path.
+
+### Lesson
+
+Use small experiments to decide where complexity is justified. Ready-made
+models and vector stores are useful components, but measured retrieval,
+context, and validation boundaries provide more value here than turning the
+project into a separate data-collection and model-training programme.
