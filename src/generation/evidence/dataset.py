@@ -76,13 +76,16 @@ def load_evidence_training_dataset(
     except (OSError, ValidationError) as error:
         message = "Evidence training dataset JSON is invalid"
         raise ValueError(message) from error
-    _validate_dataset(dataset, protected_test_question_ids)
+    validate_evidence_training_dataset(
+        dataset,
+        protected_test_question_ids,
+    )
     return dataset
 
 
-def _validate_dataset(
+def validate_evidence_training_dataset(
     dataset: EvidenceTrainingDataset,
-    protected_test_question_ids: AbstractSet[str],
+    protected_test_question_ids: AbstractSet[str] = frozenset(),
 ) -> None:
     """Reject duplicate identities and cross-split question leakage."""
     example_ids: set[str] = set()
@@ -126,3 +129,20 @@ def _validate_dataset(
             raise ValueError(
                 f"Evidence {split.value} split must contain both decisions"
             )
+
+
+def save_evidence_training_dataset(
+    dataset: EvidenceTrainingDataset,
+    output_path: Path,
+    protected_test_question_ids: AbstractSet[str] = frozenset(),
+) -> None:
+    """Validate and write one final reviewed training dataset."""
+    validate_evidence_training_dataset(
+        dataset,
+        protected_test_question_ids,
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        dataset.model_dump_json(indent=2) + "\n",
+        encoding="utf-8",
+    )
