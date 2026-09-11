@@ -454,13 +454,15 @@ index while accepting normal string queries.
 Build or rebuild the default pipeline-compatible index:
 
 ```bash
-uv run python -m src index
+uv run python -m src index --max_chunk_size 2000
 ```
 
 The command runs production ingestion over `data/raw/`, saves schema version 3
 to `data/processed/bm25-index.json`, and reports the document count together
-with the corpus and pipeline fingerprints. Generated indexes remain local and
-are not committed to Git.
+with the corpus and pipeline fingerprints. The required `max_chunk_size`
+option controls the largest permitted source chunk and is part of the stored
+pipeline identity. Generated indexes remain local and are not committed to
+Git.
 
 Search one raw query with the default compatible persisted index:
 
@@ -681,11 +683,20 @@ retrieval experiment.
 
 ## BM25 Evaluation
 
-Evaluate complete persisted documentation and code results against their
-labelled datasets:
+Evaluate one persisted search-results file against its labelled dataset with
+the assignment-compatible command:
 
 ```bash
 uv run python -m src evaluate \
+  --student_search_results_path data/output/search_results/UnansweredQuestions/dataset_docs_public.json \
+  --dataset_path data/datasets/AnsweredQuestions/dataset_docs_public.json
+```
+
+The additional `evaluate_all` command keeps the project convenience workflow
+for reporting documentation and code results independently in one run:
+
+```bash
+uv run python -m src evaluate_all \
   --docs_ground_truth_path data/datasets/AnsweredQuestions/dataset_docs_public.json \
   --docs_results_path data/output/search_results/UnansweredQuestions/dataset_docs_public.json \
   --code_ground_truth_path data/datasets/AnsweredQuestions/dataset_code_public.json \
@@ -695,8 +706,11 @@ uv run python -m src evaluate \
 The evaluator joins each result to its label by `question_id`, preserves
 ground-truth order, and rejects missing, unrelated, or duplicate IDs and
 mismatched question text. Expected file, JSON, and alignment failures produce
-a concise error without an unhandled traceback. The terminal report keeps Docs
-and Code separate and includes query count, Recall@1/3/5/10, and MRR.
+a concise error without an unhandled traceback. `evaluate` labels its single
+report as `Dataset`; `evaluate_all` keeps Docs and Code separate. Both include
+query count, Recall@1/3/5/10, and MRR. Generate at least ten retrieved sources
+per question with `search_dataset --k 10` for a complete Recall@10 measurement;
+with only five stored results, Recall@10 necessarily equals Recall@5.
 
 The first full public-dataset lexical BM25 baseline produced:
 
@@ -778,7 +792,7 @@ Controlled parameter history and provisional measurements are recorded in
 The current checks pass:
 
 ```text
-pytest: 439 passed
+pytest: 446 passed
 flake8: passed
 mypy: passed
 ```
