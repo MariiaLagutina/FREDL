@@ -9,6 +9,7 @@ from src.models import MinimalSource
 class RetrievalDatasetKind(str, Enum):
     """Identify one independently reported retrieval dataset."""
 
+    DATASET = "Dataset"
     DOCS = "Docs"
     CODE = "Code"
 

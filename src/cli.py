@@ -418,13 +418,33 @@ def validate_sources(
 
 
 def evaluate(
+    student_search_results_path: str,
+    dataset_path: str,
+    project_root: str = ".",
+) -> None:
+    """Evaluate one assignment dataset against persisted search results."""
+    try:
+        root = Path(project_root)
+        report = evaluate_cases(
+            RetrievalDatasetKind.DATASET,
+            load_evaluation_cases(
+                _below_root(root, Path(dataset_path)),
+                _below_root(root, Path(student_search_results_path)),
+            ),
+        )
+    except (OSError, UnicodeError, ValueError) as error:
+        raise CliError(_error_message(error)) from None
+    _print_evaluation_report(report)
+
+
+def evaluate_all(
     docs_ground_truth_path: str,
     docs_results_path: str,
     code_ground_truth_path: str,
     code_results_path: str,
     project_root: str = ".",
 ) -> None:
-    """Evaluate persisted Docs and Code retrieval results separately."""
+    """Evaluate persisted Docs and Code retrieval results in one run."""
     try:
         root = Path(project_root)
         docs_report = evaluate_cases(
