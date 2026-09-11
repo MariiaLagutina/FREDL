@@ -82,6 +82,7 @@ def test_workflow_rejects_empty_question_before_generation() -> None:
 def test_workflow_corrects_one_invalid_generated_answer() -> None:
     """One invalid answer receives a bounded corrective generation pass."""
     backend = LoadedGenerationBackend(object(), object(), "cpu")
+    observed: list[tuple[int, str]] = []
 
     with patch(
         "src.generation.prompt.workflow.generate_answer",
@@ -95,6 +96,9 @@ def test_workflow_corrects_one_invalid_generated_answer() -> None:
             _context(),
             backend,
             GenerationConfig(),
+            attempt_observer=lambda attempt, answer: observed.append(
+                (attempt, answer)
+            ),
         )
 
     correction_messages = generate.call_args_list[1].args[0]
@@ -108,11 +112,16 @@ def test_workflow_corrects_one_invalid_generated_answer() -> None:
     assert "Rewrite your complete answer" in correction_messages[-1].content
     assert result.answer.endswith("[Source 1]")
     assert result.generation_attempts == 2
+    assert observed == [
+        (1, "The cache uses LRU eviction."),
+        (2, "The cache uses LRU eviction. [Source 1]"),
+    ]
 
 
 def test_workflow_rejects_second_invalid_generated_answer() -> None:
     """The corrective policy stops after one retry."""
     backend = LoadedGenerationBackend(object(), object(), "cpu")
+    observed: list[tuple[int, str]] = []
 
     with patch(
         "src.generation.prompt.workflow.generate_answer",
@@ -130,6 +139,13 @@ def test_workflow_rejects_second_invalid_generated_answer() -> None:
                 _context(),
                 backend,
                 GenerationConfig(),
+                attempt_observer=lambda attempt, answer: observed.append(
+                    (attempt, answer)
+                ),
             )
 
     assert generate.call_count == 2
+    assert observed == [
+        (1, "The cache uses LRU eviction."),
+        (2, "The cache uses LRU eviction."),
+    ]
