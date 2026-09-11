@@ -140,6 +140,34 @@ def test_answer_command_reports_expected_failures_without_traceback(
     assert "Traceback" not in captured.err
 
 
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        (["answer", "   "], "Question must not be empty"),
+        (["answer", "cache", "--k", "0"], "Search k must be greater"),
+        (
+            ["answer", "cache", "--context_token_budget", "0"],
+            "Context token budget must be greater",
+        ),
+    ],
+)
+def test_answer_rejects_degenerate_input_before_model_loading(
+    arguments: list[str],
+    message: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Cheap CLI validation runs before loading the local answer model."""
+    with patch("src.cli.load_generation_backend") as load_backend:
+        with pytest.raises(SystemExit) as exit_info:
+            main(arguments)
+
+    load_backend.assert_not_called()
+    assert exit_info.value.code == 2
+    captured = capsys.readouterr()
+    assert message in captured.err
+    assert "Traceback" not in captured.err
+
+
 def test_answer_dataset_uses_assignment_paths_and_one_backend() -> None:
     """The required batch command loads once and preserves the input name."""
     source = MinimalSource(
@@ -472,6 +500,42 @@ def test_index_command_persists_requested_bm25_parameters(
     }
 
 
+def test_index_command_accepts_assignment_max_chunk_size(
+    tmp_path: Path,
+) -> None:
+    """The mandatory flag controls chunks and the stored pipeline identity."""
+    corpus_root = tmp_path / "data" / "raw"
+    corpus_root.mkdir(parents=True)
+    (corpus_root / "guide.md").write_text(
+        "# Cache\n\n" + "cache data " * 80,
+        encoding="utf-8",
+    )
+
+    main(
+        [
+            "index",
+            "--project_root",
+            str(tmp_path),
+            "--max_chunk_size",
+            "200",
+        ]
+    )
+
+    payload = json.loads(
+        (tmp_path / "data" / "processed" / "bm25-index.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert payload["pipeline_fingerprint"] == fingerprint_pipeline(
+        PipelineConfig(max_chunk_size=200),
+        index_schema_version=SCHEMA_VERSION,
+    )
+    assert all(
+        document["chunk"]["end"] - document["chunk"]["start"] <= 200
+        for document in payload["documents"]
+    )
+
+
 def test_search_command_routes_one_raw_query() -> None:
     """The Fire search command reaches the stored single-query workflow."""
     with (
@@ -517,6 +581,39 @@ def test_search_uses_requested_bm25_pipeline_fingerprint() -> None:
         main(["search", "cache", "--metadata_weight", "1.5"])
 
     assert run_search.call_args.args[2] == expected
+
+
+def test_search_uses_requested_chunk_size_pipeline_fingerprint() -> None:
+    """Search can load an index built with the mandatory chunk-size flag."""
+    expected = fingerprint_pipeline(
+        PipelineConfig(max_chunk_size=1200),
+        index_schema_version=SCHEMA_VERSION,
+    )
+    with (
+        patch(
+            "src.cli._current_corpus_fingerprint",
+            return_value=FINGERPRINT,
+        ),
+        patch("src.cli.run_stored_search", return_value=[]) as run_search,
+    ):
+        main(["search", "cache", "--max_chunk_size", "1200"])
+
+    assert run_search.call_args.args[2] == expected
+
+
+def test_search_rejects_empty_query_before_corpus_scan(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An empty query fails before fingerprint or index work begins."""
+    with patch("src.cli._current_corpus_fingerprint") as fingerprint:
+        with pytest.raises(SystemExit) as exit_info:
+            main(["search", "   "])
+
+    fingerprint.assert_not_called()
+    assert exit_info.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.err == "Error: Question must not be empty\n"
+    assert "Traceback" not in captured.err
 
 
 def test_search_dataset_uses_assignment_paths_and_output_name() -> None:
@@ -655,10 +752,56 @@ def test_validate_sources_command_returns_audit_summary(
     assert "passed:               true" in captured.out
 
 
-def test_evaluate_command_reports_docs_and_code_separately(
+def test_evaluate_command_uses_assignment_paths(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """The public evaluator loads and labels both required datasets."""
+    """The mandatory evaluator accepts one dataset and one results file."""
+    metrics = RetrievalMetrics(2, 0.25, 1.0, 1.0, 1.0, 0.75)
+    report = RetrievalEvaluationReport(
+        RetrievalDatasetKind.DATASET,
+        metrics,
+    )
+    with (
+        patch(
+            "src.cli.load_evaluation_cases",
+            return_value=(),
+        ) as load_cases,
+        patch(
+            "src.cli.evaluate_cases",
+            return_value=report,
+        ) as evaluate_loaded_cases,
+    ):
+        main(
+            [
+                "evaluate",
+                "--student_search_results_path",
+                "results/questions.json",
+                "--dataset_path",
+                "datasets/questions.json",
+                "--project_root",
+                "/project",
+            ]
+        )
+
+    load_cases.assert_called_once_with(
+        Path("/project/datasets/questions.json"),
+        Path("/project/results/questions.json"),
+    )
+    evaluate_loaded_cases.assert_called_once_with(
+        RetrievalDatasetKind.DATASET,
+        (),
+    )
+    output = capsys.readouterr().out
+    assert "Dataset:" in output
+    assert "query_count:  2" in output
+    assert "recall_at_1:  0.250000" in output
+    assert "mrr:          0.750000" in output
+
+
+def test_evaluate_all_command_reports_docs_and_code_separately(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The convenience evaluator loads and labels both project datasets."""
     metrics = RetrievalMetrics(2, 0.25, 1.0, 1.0, 1.0, 0.75)
     with (
         patch(
@@ -681,7 +824,7 @@ def test_evaluate_command_reports_docs_and_code_separately(
     ):
         main(
             [
-                "evaluate",
+                "evaluate_all",
                 "--docs_ground_truth_path",
                 "datasets/docs.json",
                 "--docs_results_path",
@@ -744,14 +887,10 @@ def test_evaluate_command_reports_expected_failures_without_traceback(
             main(
                 [
                     "evaluate",
-                    "--docs_ground_truth_path",
+                    "--student_search_results_path",
+                    "results.json",
+                    "--dataset_path",
                     "docs-ground-truth.json",
-                    "--docs_results_path",
-                    "docs-results.json",
-                    "--code_ground_truth_path",
-                    "code-ground-truth.json",
-                    "--code_results_path",
-                    "code-results.json",
                 ]
             )
 
