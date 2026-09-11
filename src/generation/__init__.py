@@ -28,6 +28,17 @@ from src.generation.context import (
     build_context,
     load_ranked_source_texts,
 )
+from src.generation.evidence import (
+    BinaryEvidenceScorer,
+    BinaryEvidenceSelector,
+    EvidenceAssessment,
+    EvidenceCandidate,
+    EvidenceDecision,
+    EvidenceDecisionScore,
+    EvidenceSelection,
+    EvidenceSelectionError,
+    HuggingFaceBinaryEvidenceScorer,
+)
 from src.generation.mode import (
     AnswerMode,
     AnswerModeScore,
@@ -54,6 +65,8 @@ from src.generation.prompt import (
 from src.generation.query import QueryAnswerResult, answer_query
 
 __all__ = [
+    "BinaryEvidenceScorer",
+    "BinaryEvidenceSelector",
     "BatchAnswerProgress",
     "AnswerMode",
     "AnswerModeScore",
@@ -67,6 +80,13 @@ __all__ = [
     "ContextBuilder",
     "DEFAULT_MODEL_NAME",
     "DevicePreference",
+    "EvidenceAssessment",
+    "EvidenceCandidate",
+    "EvidenceDecision",
+    "EvidenceDecisionScore",
+    "EvidenceSelection",
+    "EvidenceSelectionError",
+    "HuggingFaceBinaryEvidenceScorer",
     "GenerationBackendLoadError",
     "GenerationConfig",
     "GenerationError",
