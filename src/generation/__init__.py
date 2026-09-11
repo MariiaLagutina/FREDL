@@ -28,6 +28,15 @@ from src.generation.context import (
     build_context,
     load_ranked_source_texts,
 )
+from src.generation.mode import (
+    AnswerMode,
+    AnswerModeScore,
+    AnswerModeScorer,
+    AnswerModeSelection,
+    AnswerModeSelectionError,
+    AnswerModeSelector,
+    available_answer_modes,
+)
 from src.generation.prompt import (
     CONFLICT_PREFIX,
     GROUNDING_PROMPT_VERSION,
@@ -43,6 +52,12 @@ from src.generation.query import QueryAnswerResult, answer_query
 
 __all__ = [
     "BatchAnswerProgress",
+    "AnswerMode",
+    "AnswerModeScore",
+    "AnswerModeScorer",
+    "AnswerModeSelection",
+    "AnswerModeSelectionError",
+    "AnswerModeSelector",
     "ChatMessage",
     "CONFLICT_PREFIX",
     "ContextBuildResult",
@@ -64,6 +79,7 @@ __all__ = [
     "TokenCounter",
     "TransformersRuntime",
     "build_context",
+    "available_answer_modes",
     "build_grounded_messages",
     "answer_query",
     "generate_answer",
