@@ -752,10 +752,56 @@ def test_validate_sources_command_returns_audit_summary(
     assert "passed:               true" in captured.out
 
 
-def test_evaluate_command_reports_docs_and_code_separately(
+def test_evaluate_command_uses_assignment_paths(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """The public evaluator loads and labels both required datasets."""
+    """The mandatory evaluator accepts one dataset and one results file."""
+    metrics = RetrievalMetrics(2, 0.25, 1.0, 1.0, 1.0, 0.75)
+    report = RetrievalEvaluationReport(
+        RetrievalDatasetKind.DATASET,
+        metrics,
+    )
+    with (
+        patch(
+            "src.cli.load_evaluation_cases",
+            return_value=(),
+        ) as load_cases,
+        patch(
+            "src.cli.evaluate_cases",
+            return_value=report,
+        ) as evaluate_loaded_cases,
+    ):
+        main(
+            [
+                "evaluate",
+                "--student_search_results_path",
+                "results/questions.json",
+                "--dataset_path",
+                "datasets/questions.json",
+                "--project_root",
+                "/project",
+            ]
+        )
+
+    load_cases.assert_called_once_with(
+        Path("/project/datasets/questions.json"),
+        Path("/project/results/questions.json"),
+    )
+    evaluate_loaded_cases.assert_called_once_with(
+        RetrievalDatasetKind.DATASET,
+        (),
+    )
+    output = capsys.readouterr().out
+    assert "Dataset:" in output
+    assert "query_count:  2" in output
+    assert "recall_at_1:  0.250000" in output
+    assert "mrr:          0.750000" in output
+
+
+def test_evaluate_all_command_reports_docs_and_code_separately(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The convenience evaluator loads and labels both project datasets."""
     metrics = RetrievalMetrics(2, 0.25, 1.0, 1.0, 1.0, 0.75)
     with (
         patch(
@@ -778,7 +824,7 @@ def test_evaluate_command_reports_docs_and_code_separately(
     ):
         main(
             [
-                "evaluate",
+                "evaluate_all",
                 "--docs_ground_truth_path",
                 "datasets/docs.json",
                 "--docs_results_path",
@@ -841,14 +887,10 @@ def test_evaluate_command_reports_expected_failures_without_traceback(
             main(
                 [
                     "evaluate",
-                    "--docs_ground_truth_path",
+                    "--student_search_results_path",
+                    "results.json",
+                    "--dataset_path",
                     "docs-ground-truth.json",
-                    "--docs_results_path",
-                    "docs-results.json",
-                    "--code_ground_truth_path",
-                    "code-ground-truth.json",
-                    "--code_results_path",
-                    "code-results.json",
                 ]
             )
 
