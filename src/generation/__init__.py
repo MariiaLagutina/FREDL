@@ -35,6 +35,9 @@ from src.generation.mode import (
     AnswerModeSelection,
     AnswerModeSelectionError,
     AnswerModeSelector,
+    HuggingFaceAnswerModeScorer,
+    SequenceScoringRuntime,
+    TransformersSequenceScoringRuntime,
     available_answer_modes,
 )
 from src.generation.prompt import (
@@ -75,9 +78,12 @@ __all__ = [
     "LoadedGenerationBackend",
     "QueryAnswerResult",
     "HuggingFaceTokenCounter",
+    "HuggingFaceAnswerModeScorer",
     "INSUFFICIENT_CONTEXT_RESPONSE",
     "TokenCounter",
     "TransformersRuntime",
+    "SequenceScoringRuntime",
+    "TransformersSequenceScoringRuntime",
     "build_context",
     "available_answer_modes",
     "build_grounded_messages",

@@ -11,6 +11,11 @@ from src.generation.mode.selector import (
     AnswerModeSelector,
     available_answer_modes,
 )
+from src.generation.mode.scorer import (
+    HuggingFaceAnswerModeScorer,
+    SequenceScoringRuntime,
+    TransformersSequenceScoringRuntime,
+)
 
 __all__ = [
     "AnswerMode",
@@ -19,5 +24,8 @@ __all__ = [
     "AnswerModeSelection",
     "AnswerModeSelectionError",
     "AnswerModeSelector",
+    "HuggingFaceAnswerModeScorer",
+    "SequenceScoringRuntime",
+    "TransformersSequenceScoringRuntime",
     "available_answer_modes",
 ]
