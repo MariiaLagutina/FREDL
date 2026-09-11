@@ -58,6 +58,7 @@ from src.retrieval.validation import (
 DEFAULT_INDEX_PATH = Path("data/processed/bm25-index.json")
 DEFAULT_CORPUS_ROOT = Path("data/raw")
 DEFAULT_BM25_PARAMETERS = BM25Parameters()
+DEFAULT_MAX_CHUNK_SIZE = PipelineConfig().max_chunk_size
 DEFAULT_CONTEXT_TOKEN_BUDGET = 4096
 ANSWER_WAIT_MESSAGE = "Please wait, the local RAG answer is still running..."
 BATCH_MODEL_WAIT_MESSAGE = (
@@ -79,6 +80,7 @@ def answer(
     question: str,
     k: int = 5,
     context_token_budget: int = DEFAULT_CONTEXT_TOKEN_BUDGET,
+    max_chunk_size: int = DEFAULT_MAX_CHUNK_SIZE,
     index_path: str = str(DEFAULT_INDEX_PATH),
     corpus_root: str = str(DEFAULT_CORPUS_ROOT),
     project_root: str = ".",
@@ -95,6 +97,9 @@ def answer(
 ) -> dict[str, object]:
     """Answer one user question with traceable local RAG evidence."""
     try:
+        _require_non_empty_query(question)
+        _require_positive_k(k)
+        _require_positive_context_budget(context_token_budget)
         generation_config = GenerationConfig(
             model_name=model,
             device=DevicePreference(device),
@@ -110,7 +115,13 @@ def answer(
                 Path(index_path),
                 backend,
                 generation_config,
-                _pipeline_config(k1, b, metadata_weight, identifier_weight),
+                _pipeline_config(
+                    max_chunk_size,
+                    k1,
+                    b,
+                    metadata_weight,
+                    identifier_weight,
+                ),
                 k=k,
                 context_token_budget=context_token_budget,
                 auxiliary_path_penalty=auxiliary_path_penalty,
@@ -241,6 +252,7 @@ def diagnose_answer_quality(
 
 
 def index(
+    max_chunk_size: int = DEFAULT_MAX_CHUNK_SIZE,
     index_path: str = str(DEFAULT_INDEX_PATH),
     corpus_root: str = str(DEFAULT_CORPUS_ROOT),
     project_root: str = ".",
@@ -252,7 +264,13 @@ def index(
     """Build and save a production-compatible BM25 index."""
     try:
         root = Path(project_root)
-        config = _pipeline_config(k1, b, metadata_weight, identifier_weight)
+        config = _pipeline_config(
+            max_chunk_size,
+            k1,
+            b,
+            metadata_weight,
+            identifier_weight,
+        )
         build = build_index(
             root,
             _below_root(root, Path(corpus_root)),
@@ -279,6 +297,7 @@ def index(
 def search(
     query: str,
     k: int = 5,
+    max_chunk_size: int = DEFAULT_MAX_CHUNK_SIZE,
     index_path: str = str(DEFAULT_INDEX_PATH),
     corpus_root: str = str(DEFAULT_CORPUS_ROOT),
     project_root: str = ".",
@@ -293,6 +312,7 @@ def search(
 ) -> list[dict[str, object]]:
     """Return the top-k exact source locations for one raw query."""
     try:
+        _require_non_empty_query(query)
         _require_positive_k(k)
         root = Path(project_root)
         fingerprint = _current_corpus_fingerprint(root, Path(corpus_root))
@@ -300,7 +320,13 @@ def search(
             _below_root(root, Path(index_path)),
             fingerprint,
             _current_pipeline_fingerprint(
-                _pipeline_config(k1, b, metadata_weight, identifier_weight)
+                _pipeline_config(
+                    max_chunk_size,
+                    k1,
+                    b,
+                    metadata_weight,
+                    identifier_weight,
+                )
             ),
             query,
             k,
@@ -318,6 +344,7 @@ def search_dataset(
     dataset_path: str,
     save_directory: str,
     k: int = 5,
+    max_chunk_size: int = DEFAULT_MAX_CHUNK_SIZE,
     index_path: str = str(DEFAULT_INDEX_PATH),
     corpus_root: str = str(DEFAULT_CORPUS_ROOT),
     project_root: str = ".",
@@ -341,7 +368,13 @@ def search_dataset(
             _below_root(root, Path(index_path)),
             fingerprint,
             _current_pipeline_fingerprint(
-                _pipeline_config(k1, b, metadata_weight, identifier_weight)
+                _pipeline_config(
+                    max_chunk_size,
+                    k1,
+                    b,
+                    metadata_weight,
+                    identifier_weight,
+                )
             ),
             dataset,
             output,
@@ -385,13 +418,33 @@ def validate_sources(
 
 
 def evaluate(
+    student_search_results_path: str,
+    dataset_path: str,
+    project_root: str = ".",
+) -> None:
+    """Evaluate one assignment dataset against persisted search results."""
+    try:
+        root = Path(project_root)
+        report = evaluate_cases(
+            RetrievalDatasetKind.DATASET,
+            load_evaluation_cases(
+                _below_root(root, Path(dataset_path)),
+                _below_root(root, Path(student_search_results_path)),
+            ),
+        )
+    except (OSError, UnicodeError, ValueError) as error:
+        raise CliError(_error_message(error)) from None
+    _print_evaluation_report(report)
+
+
+def evaluate_all(
     docs_ground_truth_path: str,
     docs_results_path: str,
     code_ground_truth_path: str,
     code_results_path: str,
     project_root: str = ".",
 ) -> None:
-    """Evaluate persisted Docs and Code retrieval results separately."""
+    """Evaluate persisted Docs and Code retrieval results in one run."""
     try:
         root = Path(project_root)
         docs_report = evaluate_cases(
@@ -424,6 +477,7 @@ def analyze_retrieval_errors(
     index_path: str = str(DEFAULT_INDEX_PATH),
     corpus_root: str = str(DEFAULT_CORPUS_ROOT),
     project_root: str = ".",
+    max_chunk_size: int = DEFAULT_MAX_CHUNK_SIZE,
     k1: float = DEFAULT_BM25_PARAMETERS.k1,
     b: float = DEFAULT_BM25_PARAMETERS.b,
     metadata_weight: float = DEFAULT_BM25_PARAMETERS.metadata_weight,
@@ -448,6 +502,7 @@ def analyze_retrieval_errors(
             else {}
         )
         config = _pipeline_config(
+            max_chunk_size,
             k1,
             b,
             metadata_weight,
@@ -487,6 +542,7 @@ def _current_corpus_fingerprint(
 
 
 def _pipeline_config(
+    max_chunk_size: int,
     k1: float,
     b: float,
     metadata_weight: float,
@@ -494,6 +550,7 @@ def _pipeline_config(
 ) -> PipelineConfig:
     """Build the shared CLI configuration for index compatibility checks."""
     return PipelineConfig(
+        max_chunk_size=max_chunk_size,
         parameters=BM25Parameters(
             k1=k1,
             b=b,
@@ -501,6 +558,18 @@ def _pipeline_config(
             identifier_weight=identifier_weight,
         )
     )
+
+
+def _require_non_empty_query(query: str) -> None:
+    """Reject an empty query before corpus, index, or model work begins."""
+    if not query.strip():
+        raise ValueError("Question must not be empty")
+
+
+def _require_positive_context_budget(context_token_budget: int) -> None:
+    """Reject an unusable context budget before loading the model."""
+    if context_token_budget <= 0:
+        raise ValueError("Context token budget must be greater than zero")
 
 
 def _current_pipeline_fingerprint(config: PipelineConfig) -> str:
