@@ -1186,3 +1186,49 @@ observable.
 Place an optimization before the expensive boundary it is meant to avoid. A
 cache checked after resource acquisition may be functionally correct while
 providing little of the intended performance benefit.
+
+## 2026-09-12 - Reject non-searchable questions before resource access
+
+**Status:** Accepted
+
+### Initial approach
+
+Reject only empty and whitespace-only questions. A nonblank string containing
+only punctuation passed that check, normalized to zero lexical terms, and
+produced an empty retrieval result.
+
+### Why the approach was reconsidered
+
+The Phase 28 negative-input audit exercised `!!!` through the public CLI.
+Retrieval safely returned an empty list, but Python Fire printed no output for
+that value. The command therefore exited successfully without telling the user
+whether the search ran, found nothing, or failed. Continuing into corpus,
+index, cache, or model work would also spend resources on a question that
+cannot provide any lexical search signal.
+
+### Decision
+
+Define a searchable question as nonblank text that produces at least one term
+through the production query tokenizer. Reject other input with `Question must
+contain searchable text`. Apply the check before corpus discovery, index
+loading, answer-cache access, and model loading for single-query commands, and
+retain the same invariant at the BM25 domain boundary for direct Python calls.
+
+The CLI reports the failure through its existing controlled-error path and
+exit code 2. It does not use an HTTP status because this is a local command,
+not a web response.
+
+### Consequences
+
+- Whitespace-only input keeps its more specific empty-question error.
+- Punctuation-only input fails immediately with an actionable message.
+- A normal searchable question with no matching documents may still return a
+  valid empty result; absence of matches is different from absence of terms.
+- Callers can ask the user for a new question without loading project data or
+  the generation model.
+
+### Lesson
+
+Validate whether input can drive the next operation before acquiring that
+operation's resources. A safe empty result is still poor UX when the input
+could never have produced a meaningful search.
