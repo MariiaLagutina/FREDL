@@ -139,6 +139,7 @@ def test_answer_command_reports_expected_failures_without_traceback(
     ("arguments", "message"),
     [
         (["answer", "   "], "Question must not be empty"),
+        (["answer", "!!!"], "Question must contain searchable text"),
         (["answer", "cache", "--k", "0"], "Search k must be greater"),
         (
             ["answer", "cache", "--context_token_budget", "0"],
@@ -160,6 +161,47 @@ def test_answer_rejects_degenerate_input_before_model_loading(
     assert exit_info.value.code == 2
     captured = capsys.readouterr()
     assert message in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_answer_reports_corrupted_cache_before_model_loading(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Invalid cached JSON fails safely without acquiring the backend."""
+    cache_path = tmp_path / "answers.json"
+    cache_path.write_text("not JSON", encoding="utf-8")
+
+    with (
+        patch("src.generation.query.workflow.discover_files"),
+        patch(
+            "src.generation.query.workflow.fingerprint_corpus",
+            return_value=FINGERPRINT,
+        ),
+        patch(
+            "src.generation.query.workflow.fingerprint_pipeline",
+            return_value=PIPELINE_FINGERPRINT,
+        ),
+        patch(
+            "src.generation.query.workflow.load_generation_backend"
+        ) as load_backend,
+    ):
+        with pytest.raises(SystemExit) as exit_info:
+            main(
+                [
+                    "answer",
+                    "Where is the cache?",
+                    "--project_root",
+                    str(tmp_path),
+                    "--answer_cache_path",
+                    str(cache_path),
+                ]
+            )
+
+    load_backend.assert_not_called()
+    assert exit_info.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.err == "Error: Stored answer cache is invalid\n"
     assert "Traceback" not in captured.err
 
 
@@ -608,6 +650,40 @@ def test_search_rejects_empty_query_before_corpus_scan(
     assert exit_info.value.code == 2
     captured = capsys.readouterr()
     assert captured.err == "Error: Question must not be empty\n"
+    assert "Traceback" not in captured.err
+
+
+def test_search_allows_nonblank_query_without_lexical_terms(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A punctuation-only query fails before corpus or index work."""
+    with patch("src.cli._current_corpus_fingerprint") as fingerprint:
+        with pytest.raises(SystemExit) as exit_info:
+            main(["search", "!!!"])
+
+    fingerprint.assert_not_called()
+    assert exit_info.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.err == "Error: Question must contain searchable text\n"
+    assert "Traceback" not in captured.err
+
+
+def test_search_reports_missing_index_without_traceback(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A missing persisted index is a concise user-facing failure."""
+    missing_index = tmp_path / "missing-index.json"
+    with patch(
+        "src.cli._current_corpus_fingerprint",
+        return_value=FINGERPRINT,
+    ):
+        with pytest.raises(SystemExit) as exit_info:
+            main(["search", "cache", "--index_path", str(missing_index)])
+
+    assert exit_info.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.err == f"Error: File not found: {missing_index}\n"
     assert "Traceback" not in captured.err
 
 

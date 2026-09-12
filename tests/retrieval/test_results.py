@@ -63,6 +63,17 @@ def test_select_sources_rejects_non_positive_k() -> None:
         select_sources([], k=0)
 
 
+def test_select_sources_allows_k_larger_than_available_results() -> None:
+    """A positive k is an upper bound rather than a required result count."""
+    hit = _hit("data/raw/cache.py", 10, "cache", 3.0)
+
+    sources = select_sources([hit], k=1000)
+
+    assert [source.file_path for source in sources] == [
+        "data/raw/cache.py"
+    ]
+
+
 def test_search_sources_returns_public_sources_in_ranking_order() -> None:
     """Raw-query search hides internal BM25 scores and documents."""
     index = BM25Index(
@@ -86,15 +97,16 @@ def test_search_sources_rejects_blank_query() -> None:
     """The public boundary rejects a whitespace-only user query."""
     index = BM25Index([_hit("src/cache.py", 0, "term", 1.0).document])
 
-    with pytest.raises(ValueError, match="non-whitespace"):
+    with pytest.raises(ValueError, match="must not be empty"):
         search_sources(index, "   ", k=1)
 
 
-def test_search_sources_allows_nonblank_query_without_terms() -> None:
-    """Punctuation-only input is valid but has no lexical matches."""
+def test_search_sources_rejects_nonblank_query_without_terms() -> None:
+    """Punctuation-only input reports that no search signal exists."""
     index = BM25Index([_hit("src/cache.py", 0, "term", 1.0).document])
 
-    assert search_sources(index, "!!!", k=1) == []
+    with pytest.raises(ValueError, match="contain searchable text"):
+        search_sources(index, "!!!", k=1)
 
 
 def test_search_sources_rejects_non_positive_k() -> None:

@@ -24,11 +24,22 @@ class BM25Retriever:
 
     def search(self, query: str, top_k: int = 5) -> list[BM25Hit]:
         """Tokenize one raw query and return its ranked matching chunks."""
-        if not isinstance(query, str):
-            raise TypeError("BM25 query must be a string")
-        if not query.strip():
-            raise ValueError("BM25 query must contain non-whitespace text")
         return self._index.search(
-            tuple(self._query_tokenizer.tokenize(query)),
+            _require_tokenizer_terms(query, self._query_tokenizer),
             top_k=top_k,
         )
+
+
+def _require_tokenizer_terms(
+    query: str,
+    tokenizer: QueryTokenizer,
+) -> tuple[str, ...]:
+    """Apply the searchable-query contract to an injected tokenizer."""
+    if not isinstance(query, str):
+        raise TypeError("Question must be a string")
+    if not query.strip():
+        raise ValueError("Question must not be empty")
+    terms = tuple(tokenizer.tokenize(query))
+    if not terms:
+        raise ValueError("Question must contain searchable text")
+    return terms
