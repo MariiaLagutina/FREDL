@@ -1,5 +1,6 @@
 """Tests for the traceable single-query orchestration workflow."""
 
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -12,6 +13,7 @@ from src.generation import (
     LoadedGenerationBackend,
     answer_query,
 )
+from src.generation.cache import ValidatedAnswerCache
 from src.models import MinimalSource
 from src.retrieval.index_store import PipelineConfig
 
@@ -40,7 +42,6 @@ def test_answer_query_composes_retrieval_context_and_generation() -> None:
         answer="The cache uses LRU. [Source 1]",
         sources=context.sources,
         prompt_version="v1",
-        generation_attempts=2,
     )
     backend = LoadedGenerationBackend(object(), object(), "cpu")
     generation_config = GenerationConfig()
@@ -117,7 +118,84 @@ def test_answer_query_composes_retrieval_context_and_generation() -> None:
     assert result.used_context_tokens == 14
     assert result.skipped_source_count == 1
     assert result.prompt_version == "v1"
-    assert result.generation_attempts == 2
+
+
+def test_answer_query_reuses_hit_before_loading_model(
+    tmp_path: Path,
+) -> None:
+    """A compatible second query avoids retrieval and model generation."""
+    source = _source("data/raw/guide.md", 0, 20)
+    context = ContextBuildResult(
+        context="[Source 1] data/raw/guide.md:0-20\nCache uses LRU.",
+        sources=(source,),
+        used_tokens=14,
+        skipped_source_count=0,
+    )
+    grounded = GroundedAnswerResult(
+        answer="The cache uses LRU. [Source 1]",
+        sources=context.sources,
+        prompt_version="v1",
+    )
+    backend = LoadedGenerationBackend(object(), object(), "cpu")
+    config = GenerationConfig()
+    cache = ValidatedAnswerCache(tmp_path / "answers.json")
+    arguments = (
+        "Which cache policy is used?",
+        Path("/project"),
+        Path("data/raw"),
+        Path("index.json"),
+    )
+
+    with (
+        patch("src.generation.query.workflow.discover_files"),
+        patch(
+            "src.generation.query.workflow.fingerprint_corpus",
+            return_value="a" * 64,
+        ),
+        patch(
+            "src.generation.query.workflow.fingerprint_pipeline",
+            return_value="b" * 64,
+        ),
+        patch(
+            "src.generation.query.workflow.run_stored_search",
+            return_value=[source],
+        ) as search,
+        patch(
+            "src.generation.query.workflow.build_context",
+            return_value=context,
+        ) as build,
+        patch(
+            "src.generation.query.workflow.generate_grounded_answer",
+            return_value=grounded,
+        ) as generate,
+        patch(
+            "src.generation.query.workflow.load_generation_backend",
+            return_value=backend,
+        ) as load_backend,
+    ):
+        miss = answer_query(
+            *arguments,
+            None,
+            config,
+            PipelineConfig(),
+            context_token_budget=100,
+            answer_cache=cache,
+        )
+        hit = answer_query(
+            *arguments,
+            None,
+            config,
+            PipelineConfig(),
+            context_token_budget=100,
+            answer_cache=cache,
+        )
+
+    assert miss.cache_hit is False
+    assert hit == replace(miss, cache_hit=True)
+    assert search.call_count == 1
+    assert build.call_count == 1
+    assert generate.call_count == 1
+    load_backend.assert_called_once_with(config)
 
 
 @pytest.mark.parametrize(

@@ -1092,3 +1092,97 @@ Use small experiments to decide where complexity is justified. Ready-made
 models and vector stores are useful components, but measured retrieval,
 context, and validation boundaries provide more value here than turning the
 project into a separate data-collection and model-training programme.
+
+## 2026-09-12 - Remove the ineffective corrective generation retry
+
+**Status:** Accepted
+
+### Initial approach
+
+When the first generated answer violated the deterministic grounding contract,
+append that raw answer and a correction instruction to the prompt and allow one
+additional generation call. The retry reused the loaded model and retrieved
+context, remained bounded, and could theoretically repair citation formatting
+without weakening validation.
+
+### Why the approach was reconsidered
+
+The fixed prompt-v1 answer-quality baseline provided direct evidence about the
+real model rather than only a synthetic unit-test capability. One of ten cases
+passed validation on its first generation. The other nine reached the
+corrective path, but none produced a valid answer on the second generation.
+The separately observed KV-cache query failed in the same way after its retry.
+
+The retry therefore recovered `0/9` measured failures while adding a second
+expensive Qwen call to every rejected case. The unit test that supplied a valid
+second string proved only that the control flow could accept a correction; it
+did not demonstrate that `Qwen/Qwen3-0.6B` benefited from this strategy.
+
+### Decision
+
+Generate exactly once and validate exactly once. Return a controlled error as
+soon as the generated answer violates the grounding contract. Keep the
+diagnostic observer so answer-quality runs can preserve the single raw model
+response, but remove retry-specific production fields and correction-prompt
+logic.
+
+### Consequences
+
+- Invalid answers still never cross the validated output boundary.
+- A failing request uses one generation call instead of two.
+- Single-query and batch latency become more predictable.
+- Diagnostic reports keep the rejected raw response for manual analysis.
+- A future retry strategy requires new measured evidence before reintroduction.
+
+### Lesson
+
+A bounded fallback is not justified merely because it is safe and technically
+testable. Retain an expensive recovery path only when representative evidence
+shows that it recovers enough real failures to offset its cost and complexity.
+
+## 2026-09-12 - Check the answer cache before loading the model
+
+**Status:** Accepted
+
+### Initial approach
+
+The single-query CLI loaded the local Qwen backend before calling
+`answer_query`. The planned validated-answer cache naturally belonged in the
+query workflow because that layer owns retrieval, context, generation, and the
+traceable result.
+
+### Why the approach was reconsidered
+
+Adding a cache lookup inside `answer_query` without moving model loading would
+produce correct cache hits but preserve the most expensive startup operation.
+Every repeated question would still load Qwen before discovering that no
+generation was necessary. The cache would avoid token generation but fail to
+deliver its main latency and resource benefit.
+
+### Decision
+
+Move lazy backend loading behind the exact cache lookup. The query workflow
+first validates cheap inputs, fingerprints the current corpus and retrieval
+pipeline, and builds the complete compatibility key. A compatible hit returns
+the previously validated trace without loading Qwen or repeating retrieval.
+Only a miss loads the backend, retrieves sources, builds context, generates and
+validates an answer, and then atomically stores that validated result.
+
+Expose whether the result was a cache hit and preserve the actual generation
+device in the stored trace so cached and newly generated results remain
+observable.
+
+### Consequences
+
+- Repeated compatible questions avoid both model loading and generation.
+- Cache hits still verify current corpus and pipeline identity before reuse.
+- Cache misses preserve the existing correctness-first answer path.
+- Invalid model output and controlled errors are never written to the cache.
+- The CLI no longer owns eager model loading for a single question; batch
+  generation keeps its existing load-once behavior.
+
+### Lesson
+
+Place an optimization before the expensive boundary it is meant to avoid. A
+cache checked after resource acquisition may be functionally correct while
+providing little of the intended performance benefit.

@@ -12,4 +12,3 @@ class GroundedAnswerResult:
     answer: str
     sources: tuple[MinimalSource, ...]
     prompt_version: str
-    generation_attempts: int = 1

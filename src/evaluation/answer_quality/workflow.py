@@ -44,8 +44,8 @@ def diagnose_dataset_answers(
         used_context_tokens = 0
         skipped_source_count = 0
 
-        def observe_attempt(attempt: int, answer: str) -> None:
-            attempts.append(GenerationAttemptEvidence(attempt, answer))
+        def observe_answer(answer: str) -> None:
+            attempts.append(GenerationAttemptEvidence(1, answer))
 
         try:
             context = build_context(
@@ -63,7 +63,7 @@ def diagnose_dataset_answers(
                 context,
                 backend,
                 generation_config,
-                attempt_observer=observe_attempt,
+                answer_observer=observe_answer,
             )
         except (OSError, UnicodeError, ValueError, RuntimeError) as error:
             case = AnswerQualityCaseEvidence(

@@ -7,7 +7,7 @@ import pytest
 
 from src.evaluation.answer_quality import diagnose_dataset_answers
 from src.generation import (
-    GenerationAttemptObserver,
+    GeneratedAnswerObserver,
     GenerationConfig,
     GroundedAnswerResult,
     GroundedAnswerValidationError,
@@ -76,18 +76,17 @@ def test_diagnostic_keeps_attempts_and_continues_after_failure(
         _backend: object,
         _config: object,
         *,
-        attempt_observer: GenerationAttemptObserver | None = None,
+        answer_observer: GeneratedAnswerObserver | None = None,
     ) -> GroundedAnswerResult:
         if question.startswith("Which policy fails"):
-            if attempt_observer is not None:
-                attempt_observer(1, "The cache uses LRU.")
-                attempt_observer(2, "It still uses LRU.")
+            if answer_observer is not None:
+                answer_observer("The cache uses LRU.")
             raise GroundedAnswerValidationError(
                 "Generated answer does not cite any retrieved source"
             )
         answer = "The cache uses LRU. [Source 1]"
-        if attempt_observer is not None:
-            attempt_observer(1, answer)
+        if answer_observer is not None:
+            answer_observer(answer)
         return GroundedAnswerResult(
             answer=answer,
             sources=(
@@ -119,7 +118,6 @@ def test_diagnostic_keeps_attempts_and_continues_after_failure(
     assert [case.question_id for case in report.cases] == ["bad", "good"]
     assert [attempt.answer for attempt in report.cases[0].attempts] == [
         "The cache uses LRU.",
-        "It still uses LRU.",
     ]
     assert report.cases[0].accepted_answer is None
     assert report.cases[0].error_type == "GroundedAnswerValidationError"
