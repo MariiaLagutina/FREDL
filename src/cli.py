@@ -54,6 +54,7 @@ from src.retrieval.validation import (
     SourceValidationReport,
     validate_retrieval_file,
 )
+from src.retrieval.tokenization import require_searchable_query
 
 
 DEFAULT_INDEX_PATH = Path("data/processed/bm25-index.json")
@@ -100,7 +101,7 @@ def answer(
 ) -> dict[str, object]:
     """Answer one user question with traceable local RAG evidence."""
     try:
-        _require_non_empty_query(question)
+        require_searchable_query(question)
         _require_positive_k(k)
         _require_positive_context_budget(context_token_budget)
         generation_config = GenerationConfig(
@@ -317,7 +318,7 @@ def search(
 ) -> list[dict[str, object]]:
     """Return the top-k exact source locations for one raw query."""
     try:
-        _require_non_empty_query(query)
+        require_searchable_query(query)
         _require_positive_k(k)
         root = Path(project_root)
         fingerprint = _current_corpus_fingerprint(root, Path(corpus_root))
@@ -563,12 +564,6 @@ def _pipeline_config(
             identifier_weight=identifier_weight,
         )
     )
-
-
-def _require_non_empty_query(query: str) -> None:
-    """Reject an empty query before corpus, index, or model work begins."""
-    if not query.strip():
-        raise ValueError("Question must not be empty")
 
 
 def _require_positive_context_budget(context_token_budget: int) -> None:

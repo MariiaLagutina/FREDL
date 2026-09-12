@@ -21,6 +21,7 @@ from src.retrieval import (
     DEFAULT_PATH_CANDIDATE_DEPTH,
     run_stored_search,
 )
+from src.retrieval.tokenization import require_searchable_query
 from src.retrieval.index_store import (
     PipelineConfig,
     SCHEMA_VERSION,
@@ -45,8 +46,7 @@ def answer_query(
     answer_cache: ValidatedAnswerCache | None = None,
 ) -> QueryAnswerResult:
     """Retrieve, bound context, and generate one grounded answer."""
-    if not question.strip():
-        raise ValueError("Question must not be empty")
+    require_searchable_query(question)
     if k <= 0:
         raise ValueError("Search k must be greater than zero")
     if context_token_budget <= 0:

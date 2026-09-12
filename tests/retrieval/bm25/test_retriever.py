@@ -57,14 +57,15 @@ def test_blank_raw_query_is_rejected() -> None:
         BM25Index([_document("cache.py", ("cache",), ())])
     )
 
-    with pytest.raises(ValueError, match="non-whitespace"):
+    with pytest.raises(ValueError, match="must not be empty"):
         retriever.search("   ")
 
 
-def test_nonblank_query_without_lexical_terms_returns_no_hits() -> None:
-    """Nonblank punctuation may validly normalize to no lexical terms."""
+def test_nonblank_query_without_lexical_terms_is_rejected() -> None:
+    """Punctuation-only input is not a silent successful search."""
     retriever = BM25Retriever(
         BM25Index([_document("cache.py", ("cache",), ())])
     )
 
-    assert retriever.search("!!!") == []
+    with pytest.raises(ValueError, match="contain searchable text"):
+        retriever.search("!!!")

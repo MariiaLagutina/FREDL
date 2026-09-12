@@ -202,6 +202,7 @@ def test_answer_query_reuses_hit_before_loading_model(
     ("question", "k", "token_budget", "message"),
     [
         ("  ", 5, 100, "Question must not be empty"),
+        ("!!!", 5, 100, "Question must contain searchable text"),
         ("question", 0, 100, "Search k must be greater than zero"),
         (
             "question",

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from src.models import MinimalSource, RetrievalResults
+from src.models import MinimalSource, RagDataset, RetrievalResults
 from src.retrieval.bm25 import BM25Index
 from src.retrieval.input import load_rag_dataset
 from src.retrieval.index_store import IndexStore
@@ -14,6 +14,7 @@ from src.retrieval.results import (
     search_dataset,
     search_sources,
 )
+from src.retrieval.tokenization import require_searchable_query
 
 
 def run_stored_search(
@@ -57,14 +58,17 @@ def run_stored_retrieval(
     auxiliary_path_penalty: float = DEFAULT_AUXILIARY_PATH_PENALTY,
     path_candidate_depth: int = DEFAULT_PATH_CANDIDATE_DEPTH,
 ) -> RetrievalResults:
-    """Load one compatible index and run retrieval for a question file."""
+    """Validate a question file before loading one compatible index."""
+    dataset = _load_validated_dataset(input_path, k)
+    if not dataset.rag_questions:
+        return _save_empty_results(output_path, k)
     index = IndexStore(index_path).load(
         corpus_fingerprint,
         pipeline_fingerprint,
     )
-    return run_retrieval(
+    return _run_retrieval(
         index,
-        input_path,
+        dataset,
         output_path,
         k,
         progress,
@@ -87,7 +91,42 @@ def run_retrieval(
     path_candidate_depth: int = DEFAULT_PATH_CANDIDATE_DEPTH,
 ) -> RetrievalResults:
     """Load questions, search one index, and save validated results."""
+    dataset = _load_validated_dataset(input_path, k)
+    return _run_retrieval(
+        index,
+        dataset,
+        output_path,
+        k,
+        progress,
+        identifier_match_weight,
+        identifier_candidate_depth,
+        auxiliary_path_penalty,
+        path_candidate_depth,
+    )
+
+
+def _load_validated_dataset(input_path: Path, k: int) -> RagDataset:
+    """Reject unusable batch input before loading retrieval resources."""
+    if k <= 0:
+        raise ValueError("Search k must be greater than zero")
     dataset = load_rag_dataset(input_path)
+    for question in dataset.rag_questions:
+        require_searchable_query(question.question)
+    return dataset
+
+
+def _run_retrieval(
+    index: BM25Index,
+    dataset: RagDataset,
+    output_path: Path,
+    k: int,
+    progress: QuestionProgress | None,
+    identifier_match_weight: float,
+    identifier_candidate_depth: int,
+    auxiliary_path_penalty: float,
+    path_candidate_depth: int,
+) -> RetrievalResults:
+    """Search one already validated dataset and persist its result."""
     results = search_dataset(
         index,
         dataset,
@@ -98,5 +137,12 @@ def run_retrieval(
         auxiliary_path_penalty,
         path_candidate_depth,
     )
+    save_search_results(results, output_path)
+    return results
+
+
+def _save_empty_results(output_path: Path, k: int) -> RetrievalResults:
+    """Persist a valid empty result without acquiring an index."""
+    results = RetrievalResults(search_results=[], k=k)
     save_search_results(results, output_path)
     return results
