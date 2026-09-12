@@ -1139,3 +1139,50 @@ logic.
 A bounded fallback is not justified merely because it is safe and technically
 testable. Retain an expensive recovery path only when representative evidence
 shows that it recovers enough real failures to offset its cost and complexity.
+
+## 2026-09-12 - Check the answer cache before loading the model
+
+**Status:** Accepted
+
+### Initial approach
+
+The single-query CLI loaded the local Qwen backend before calling
+`answer_query`. The planned validated-answer cache naturally belonged in the
+query workflow because that layer owns retrieval, context, generation, and the
+traceable result.
+
+### Why the approach was reconsidered
+
+Adding a cache lookup inside `answer_query` without moving model loading would
+produce correct cache hits but preserve the most expensive startup operation.
+Every repeated question would still load Qwen before discovering that no
+generation was necessary. The cache would avoid token generation but fail to
+deliver its main latency and resource benefit.
+
+### Decision
+
+Move lazy backend loading behind the exact cache lookup. The query workflow
+first validates cheap inputs, fingerprints the current corpus and retrieval
+pipeline, and builds the complete compatibility key. A compatible hit returns
+the previously validated trace without loading Qwen or repeating retrieval.
+Only a miss loads the backend, retrieves sources, builds context, generates and
+validates an answer, and then atomically stores that validated result.
+
+Expose whether the result was a cache hit and preserve the actual generation
+device in the stored trace so cached and newly generated results remain
+observable.
+
+### Consequences
+
+- Repeated compatible questions avoid both model loading and generation.
+- Cache hits still verify current corpus and pipeline identity before reuse.
+- Cache misses preserve the existing correctness-first answer path.
+- Invalid model output and controlled errors are never written to the cache.
+- The CLI no longer owns eager model loading for a single question; batch
+  generation keeps its existing load-once behavior.
+
+### Lesson
+
+Place an optimization before the expensive boundary it is meant to avoid. A
+cache checked after resource acquisition may be functionally correct while
+providing little of the intended performance benefit.
