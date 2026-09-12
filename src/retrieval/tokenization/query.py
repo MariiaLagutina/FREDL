@@ -22,3 +22,15 @@ class QueryTokenizer:
                     seen.add(term)
                     terms.append(term)
         return terms
+
+
+def require_searchable_query(query: str) -> tuple[str, ...]:
+    """Reject input that cannot produce any lexical retrieval signal."""
+    if not isinstance(query, str):
+        raise TypeError("Question must be a string")
+    if not query.strip():
+        raise ValueError("Question must not be empty")
+    terms = tuple(QueryTokenizer().tokenize(query))
+    if not terms:
+        raise ValueError("Question must contain searchable text")
+    return terms
