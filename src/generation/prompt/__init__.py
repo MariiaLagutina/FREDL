@@ -7,7 +7,7 @@ from src.generation.prompt.template import (
     build_grounded_messages,
 )
 from src.generation.prompt.workflow import (
-    GenerationAttemptObserver,
+    GeneratedAnswerObserver,
     generate_grounded_answer,
 )
 from src.generation.prompt.validation import (
@@ -21,7 +21,7 @@ __all__ = [
     "GROUNDING_PROMPT_VERSION",
     "GroundedAnswerResult",
     "GroundedAnswerValidationError",
-    "GenerationAttemptObserver",
+    "GeneratedAnswerObserver",
     "INSUFFICIENT_CONTEXT_RESPONSE",
     "build_grounded_messages",
     "generate_grounded_answer",

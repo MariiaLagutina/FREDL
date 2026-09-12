@@ -76,7 +76,6 @@ def answer_query(
         used_context_tokens=context.used_tokens,
         skipped_source_count=context.skipped_source_count,
         prompt_version=grounded_answer.prompt_version,
-        generation_attempts=grounded_answer.generation_attempts,
     )
 
 

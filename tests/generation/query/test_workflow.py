@@ -40,7 +40,6 @@ def test_answer_query_composes_retrieval_context_and_generation() -> None:
         answer="The cache uses LRU. [Source 1]",
         sources=context.sources,
         prompt_version="v1",
-        generation_attempts=2,
     )
     backend = LoadedGenerationBackend(object(), object(), "cpu")
     generation_config = GenerationConfig()
@@ -117,7 +116,6 @@ def test_answer_query_composes_retrieval_context_and_generation() -> None:
     assert result.used_context_tokens == 14
     assert result.skipped_source_count == 1
     assert result.prompt_version == "v1"
-    assert result.generation_attempts == 2
 
 
 @pytest.mark.parametrize(
