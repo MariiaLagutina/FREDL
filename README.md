@@ -798,8 +798,8 @@ The command validates the input JSON, loads the configured model once, and
 answers questions in their stored order. Each answer keeps the original
 `question_id`, question text, and complete `retrieved_sources` list. Only the
 source spans admitted by the context-token budget are exposed to generation,
-and every generated answer passes the same grounding validation and bounded
-single-retry policy as the single-query command.
+and every generated answer passes the same single-attempt grounding validation
+as the single-query command.
 
 The output is a Pydantic-valid `StudentSearchResultsAndAnswer` file written
 atomically under `save_directory` with the input filename. A progress bar
@@ -814,6 +814,39 @@ assignment-facing Pydantic names used at this file boundary. The reusable
 retrieval layer uses the domain names `RetrievalResults` and
 `RetrievalResultsWithAnswers`; both pairs preserve the same required JSON
 fields.
+
+## Controlled Errors and Edge Cases
+
+Public commands convert expected filesystem, JSON, validation, index, cache,
+and model failures into concise messages with exit code 2 and no unhandled
+traceback. The message identifies the failed boundary without exposing an
+internal stack trace.
+
+Single-query commands reject unusable input before reading the corpus or
+index, checking the answer cache, or loading the generation model. Empty or
+whitespace-only input reports `Question must not be empty`. Nonblank input that
+produces no lexical terms, such as punctuation-only text, reports `Question
+must contain searchable text`. A normal searchable query remains valid when
+it simply has no matching documents.
+
+`k` must be positive. A positive value larger than the number of available
+results is valid because it is an upper bound, not a required result count.
+The command returns every available unique source up to that bound.
+
+Batch retrieval validates `k`, reads and validates the complete dataset, and
+checks every question before loading the persisted index. Missing or malformed
+input therefore fails before index acquisition, and an unusable question
+cannot create a partial output. An empty valid dataset atomically produces an
+empty result file without loading an index.
+
+A missing index reports its exact path. Incompatible or malformed persisted
+state is rejected instead of being reused. A corrupted answer cache fails
+before Qwen is loaded, while an absent cache is a normal miss. Invalid model
+answers and controlled generation errors are never written to the cache.
+
+The negative acceptance suite covers these behaviors at both public CLI and
+domain boundaries. Model availability errors, including an explicit CUDA
+request on a machine without CUDA, use the same controlled-error path.
 
 ## Answer Quality Review
 
