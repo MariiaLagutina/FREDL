@@ -18,6 +18,19 @@ source-aware retrieval evaluation. The complete single-query path connects the
 compatible stored BM25 index, token-bounded source context, a versioned
 grounding prompt, and local Qwen generation behind one validated command.
 
+## Contents
+
+- [Current Status](#current-status)
+- [Installation and Development](#installation)
+- [Ingestion and Chunking](#ingestion-architecture)
+- [Lexical Retrieval](#bm25-lexical-retrieval)
+- [Retrieval Commands](#retrieval-search)
+- [Grounded Answer Generation](#grounded-context-construction)
+- [Answer Quality Review](#answer-quality-review)
+- [Retrieval Evaluation](#bm25-evaluation)
+- [Verification](#verification)
+- [Design Decisions and Resources](#design-decisions)
+
 ## Current Status
 
 Implemented:
@@ -49,6 +62,7 @@ Implemented:
   incompatible indexes;
 - full-dataset validation of source paths, half-open character ranges, and the
   2,000-character source limit;
+- a controlled auxiliary-path reranker selected against both Docs and Code;
 - Moulinette-compatible source IoU, Recall@K, and MRR metrics;
 - file-based Docs and Code evaluation aligned safely by `question_id`;
 - a public local evaluator with separate Recall@1/3/5/10 and MRR reports;
@@ -65,7 +79,13 @@ Implemented:
 - structural answer validation with one bounded corrective generation attempt;
 - separate retrieved-source and prompt-source traces;
 - delayed terminal feedback for generation lasting more than five seconds;
+- a measured stopping decision that rejects weak small-model training and a
+  semantic-only replacement for the stronger lexical retrieval baseline;
 - automated tests organized by pipeline component.
+
+Current work profiles indexing, retrieval, and repeated generation on the
+Linux development machine. It also adds a compatibility-bound cache for only
+those generated answers that pass grounding validation.
 
 ## Requirements
 
@@ -672,14 +692,41 @@ available and otherwise falls back to CPU. Missing files, malformed JSON,
 invalid source spans, model-loading failures, and invalid generated answers
 produce concise command errors without an unhandled traceback.
 
-## Answer Quality Findings
+`StudentSearchResults` and `StudentSearchResultsAndAnswer` are the explicit
+assignment-facing Pydantic names used at this file boundary. The reusable
+retrieval layer uses the domain names `RetrievalResults` and
+`RetrievalResultsWithAnswers`; both pairs preserve the same required JSON
+fields.
+
+## Answer Quality Review
+
+The fixed [answer quality checklist](docs/answer-quality-checklist.md) records
+six public cases and four controlled boundary cases. It separates retrieval,
+context, generation, citation, and validation failures instead of treating a
+structurally valid answer as automatically correct.
 
 Small fine-tuning experiments on the reviewed evidence dataset did not improve
-validation accuracy enough to justify additional model training in this
-project. A controlled Chroma/MiniLM experiment also performed worse than the
-existing BM25 retriever. The production pipeline therefore keeps BM25 as its
-primary retriever; embeddings remain a candidate for a later optional hybrid
-retrieval experiment.
+validation quality enough to justify additional model training:
+
+| Evidence experiment | Validation result | Observation |
+| --- | ---: | --- |
+| Unchanged Qwen scorer | 0.50 balanced accuracy | Predicted `ANSWERS` for all 20 cases |
+| Last-block fine-tuning | 0.50 balanced accuracy | Reproduced the same predictions |
+| Pairwise fine-tuning | 0.50 balanced accuracy | Reproduced the same predictions |
+
+A separate diagnostic compared retrieval methods on 100 reviewed fragments
+and ten held-out questions:
+
+| Retriever | R@1 | R@3 | R@5 | R@10 | MRR |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| BM25 | 0.60 | 0.90 | 0.90 | 0.90 | 0.75 |
+| Chroma + MiniLM | 0.50 | 0.60 | 0.80 | 0.80 | 0.60 |
+
+These small diagnostics are stopping evidence, not substitutes for the public
+full-corpus evaluation below. They do not justify adding training or semantic
+dependencies to the mandatory pipeline. Production therefore keeps BM25 as
+its primary retriever; embeddings remain a candidate for a later optional
+hybrid experiment.
 
 ## BM25 Evaluation
 
