@@ -4,6 +4,8 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from src.ingestion import Chunk
 from src.models import RagDataset, RetrievalResults, UnansweredQuestion
 from src.retrieval import (
@@ -122,6 +124,84 @@ def test_run_stored_retrieval_loads_index_once_for_question_file(
         "docs/cache.md"
     )
     assert output_path.exists()
+
+
+def test_stored_retrieval_rejects_malformed_dataset_before_index_load(
+    tmp_path: Path,
+) -> None:
+    """Invalid JSON cannot trigger acquisition of the persisted index."""
+    input_path = tmp_path / "questions.json"
+    input_path.write_text("not JSON", encoding="utf-8")
+
+    with patch("src.retrieval.workflow.IndexStore.load") as load_index:
+        with pytest.raises(ValueError, match="dataset JSON is invalid"):
+            run_stored_retrieval(
+                tmp_path / "index.json",
+                FINGERPRINT,
+                PIPELINE_FINGERPRINT,
+                input_path,
+                tmp_path / "results.json",
+            )
+
+    load_index.assert_not_called()
+
+
+def test_stored_retrieval_rejects_unsearchable_batch_before_index_load(
+    tmp_path: Path,
+) -> None:
+    """One unusable question prevents index work and partial output."""
+    input_path = tmp_path / "questions.json"
+    input_path.write_text(
+        RagDataset(
+            rag_questions=[
+                UnansweredQuestion(question_id="q-1", question="cache"),
+                UnansweredQuestion(question_id="q-2", question="!!!"),
+            ]
+        ).model_dump_json(),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "results.json"
+
+    with patch("src.retrieval.workflow.IndexStore.load") as load_index:
+        with pytest.raises(ValueError, match="contain searchable text"):
+            run_stored_retrieval(
+                tmp_path / "index.json",
+                FINGERPRINT,
+                PIPELINE_FINGERPRINT,
+                input_path,
+                output_path,
+            )
+
+    load_index.assert_not_called()
+    assert not output_path.exists()
+
+
+def test_empty_stored_dataset_saves_without_loading_index(
+    tmp_path: Path,
+) -> None:
+    """An empty valid batch has no need to acquire retrieval state."""
+    input_path = tmp_path / "questions.json"
+    input_path.write_text(
+        RagDataset(rag_questions=[]).model_dump_json(),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "results.json"
+
+    with patch("src.retrieval.workflow.IndexStore.load") as load_index:
+        results = run_stored_retrieval(
+            tmp_path / "missing-index.json",
+            FINGERPRINT,
+            PIPELINE_FINGERPRINT,
+            input_path,
+            output_path,
+            k=1000,
+        )
+
+    load_index.assert_not_called()
+    assert results == RetrievalResults(search_results=[], k=1000)
+    assert RetrievalResults.model_validate_json(
+        output_path.read_text(encoding="utf-8")
+    ) == results
 
 
 def test_run_stored_retrieval_processes_large_batch_with_one_index_load(
