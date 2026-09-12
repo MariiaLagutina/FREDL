@@ -77,9 +77,10 @@ Implemented:
 - a single-query `answer` command connecting BM25 retrieval to local Qwen;
 - an assignment-compatible `answer_dataset` command that reuses persisted
   retrieval results and loads the model once per dataset;
-- structural answer validation with one bounded corrective generation attempt;
+- structural answer validation after one bounded generation attempt;
 - separate retrieved-source and prompt-source traces;
 - delayed terminal feedback for generation lasting more than five seconds;
+- an exact compatibility-bound cache for validated single-query answers;
 - a measured stopping decision that rejects weak small-model training and a
   semantic-only replacement for the stronger lexical retrieval baseline;
 - automated tests organized by pipeline component.
@@ -581,6 +582,47 @@ the persisted index, retrieval, and JSON output. Peak resident memory was
 byte identical to the established baseline, and source validation accepted all
 500 returned locations.
 
+## Performance Baseline
+
+The Phase 27 acceptance baseline used Linux, an Intel Core i7-10850H CPU with
+6 cores and 12 threads, and 30 GiB of RAM. The production configuration built
+a 20,096-document index in 22.27 seconds with peak resident memory of
+1,252,268 KiB. This is below the assignment's 300-second indexing limit.
+
+Two complete sequential retrieval runs used `k=10` for the 100-question Docs
+dataset and the 99-question Code dataset:
+
+| Run | Docs | Code | Combined | Normalized to 200 questions |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 10.19 s | 9.22 s | 19.41 s | 19.51 s |
+| 2 | 10.42 s | 9.36 s | 19.78 s | 19.88 s |
+
+Both normalized results are below the assignment's 90-second retrieval limit.
+The two Docs outputs shared SHA-256
+`7e40738fdf083c372abbefa82843a2fb18a2e4d24cac2d16e6f2d912fbb54d28`;
+the two Code outputs shared
+`8affaec8ce8153e4a1c0e8d385582a7ee6e4266db9100b5ec53a39494fa8bbd4`.
+This confirms byte-for-byte deterministic retrieval across the measured runs.
+Peak retrieval memory was 873,308 KiB.
+
+Use `/usr/bin/time` around the normal commands to reproduce elapsed time and
+peak resident memory on another machine:
+
+```bash
+/usr/bin/time -f 'elapsed_seconds: %e\npeak_rss_kib: %M' \
+  uv run python -m src index --max_chunk_size 2000
+
+/usr/bin/time -f 'elapsed_seconds: %e\npeak_rss_kib: %M' \
+  uv run python -m src search_dataset \
+  --dataset_path data/datasets/UnansweredQuestions/dataset_docs_public.json \
+  --k 10 \
+  --save_directory /tmp/rag-performance/docs
+```
+
+These are machine-specific observations rather than universal speed
+guarantees. The commands and assignment limits are the portable acceptance
+contract.
+
 ## Grounded Context Construction
 
 `ContextBuilder` converts ranked retrieval results into deterministic,
@@ -683,7 +725,7 @@ The command validates the current corpus and retrieval-pipeline fingerprints
 before loading the stored index. It retrieves ranked BM25 sources, builds
 source-labelled context with a default 4,096-token budget, generates through
 the configured local model, and reports the answer together with the model,
-device, prompt version, generation-attempt count, consumed context tokens, and
+device, prompt version, cache-hit status, consumed context tokens, and
 skipped-source count.
 
 `retrieved_sources` contains every location returned by BM25. `sources`
@@ -696,10 +738,42 @@ untrusted data. It requires source-only factual claims, valid citations, an
 explicit conflict form, and an exact insufficient-context response. Because a
 model instruction is not an enforceable guarantee, deterministic validation
 rejects uncited answers, citations outside the prompt context, and conflict
-answers supported by fewer than two distinct citations. One invalid first
-answer receives one corrective generation attempt using the same retrieval
-result and loaded model. A second invalid answer becomes a concise command
-error instead of being presented as grounded output.
+answers supported by fewer than two distinct citations. One invalid answer
+becomes a concise command error instead of being presented as grounded output.
+
+Validated single-query answers are cached by default in
+`.local/cache/validated-answers.json`. The exact cache identity covers the
+normalized question, corpus and retrieval-pipeline fingerprints, retrieval and
+context controls, prompt version, model, device preference, and deterministic
+generation settings. Any difference is a miss. Invalid model output and
+controlled errors are never cached.
+
+The cache lookup happens before Qwen is loaded. A compatible hit therefore
+avoids model loading, retrieval, context construction, and generation while
+returning the original answer and source trace. On the development machine, a
+controlled CUDA miss took 10.03 seconds with peak resident memory of 3,741,572
+KiB; the identical cache hit took 0.64 seconds and 42,868 KiB. The same question
+with different case and repeated whitespace hit the normalized key in 0.70
+seconds. These measurements are machine-specific and the cache reports
+`cache_hit` explicitly so callers do not need to infer its behavior from time.
+Changing only `k` from 5 to 6 produced a miss in the same controlled run. The
+new model output failed citation validation, and repeating that request caused
+another full generation while the cache stayed at one entry. This confirms
+both parameter invalidation and the rule that rejected answers are not stored.
+
+Use an isolated cache path to reproduce the miss/hit comparison without
+changing the normal local cache:
+
+```bash
+uv run python -m src answer \
+  "What color is the project maintainer's bicycle?" \
+  --device cuda --offline \
+  --answer_cache_path /tmp/rag-answer-cache/answers.json
+```
+
+Run the same command again for a cache hit. The cache remains a local runtime
+artifact and is excluded from Git by the existing `.local/` rule when the
+default path is used.
 
 If the complete operation lasts more than five seconds, the command writes
 `Please wait, the local RAG answer is still running...` to the terminal. The
