@@ -18,6 +18,20 @@ source-aware retrieval evaluation. The complete single-query path connects the
 compatible stored BM25 index, token-bounded source context, a versioned
 grounding prompt, and local Qwen generation behind one validated command.
 
+## Contents
+
+- [Current Status](#current-status)
+- [Installation and Development](#installation)
+- [System Architecture](#system-architecture)
+- [Ingestion and Chunking](#ingestion-architecture)
+- [Lexical Retrieval](#bm25-lexical-retrieval)
+- [Retrieval Commands](#retrieval-search)
+- [Grounded Answer Generation](#grounded-context-construction)
+- [Answer Quality Review](#answer-quality-review)
+- [Retrieval Evaluation](#bm25-evaluation)
+- [Verification](#verification)
+- [Design Decisions and Resources](#design-decisions)
+
 ## Current Status
 
 Implemented:
@@ -49,6 +63,7 @@ Implemented:
   incompatible indexes;
 - full-dataset validation of source paths, half-open character ranges, and the
   2,000-character source limit;
+- a controlled auxiliary-path reranker selected against both Docs and Code;
 - Moulinette-compatible source IoU, Recall@K, and MRR metrics;
 - file-based Docs and Code evaluation aligned safely by `question_id`;
 - a public local evaluator with separate Recall@1/3/5/10 and MRR reports;
@@ -62,10 +77,17 @@ Implemented:
 - a single-query `answer` command connecting BM25 retrieval to local Qwen;
 - an assignment-compatible `answer_dataset` command that reuses persisted
   retrieval results and loads the model once per dataset;
-- structural answer validation with one bounded corrective generation attempt;
+- structural answer validation after one bounded generation attempt;
 - separate retrieved-source and prompt-source traces;
 - delayed terminal feedback for generation lasting more than five seconds;
+- an exact compatibility-bound cache for validated single-query answers;
+- a measured stopping decision that rejects weak small-model training and a
+  semantic-only replacement for the stronger lexical retrieval baseline;
 - automated tests organized by pipeline component.
+
+Current work profiles indexing, retrieval, and repeated generation on the
+Linux development machine. It also adds a compatibility-bound cache for only
+those generated answers that pass grounding validation.
 
 ## Requirements
 
@@ -122,6 +144,48 @@ Evaluation-facing source paths are relative to the project root:
 ```text
 data/raw/vllm-0.10.1/docs/features/lora.md
 ```
+
+## System Architecture
+
+The Python Fire CLI is the public boundary for four connected flows. Reusable
+Python workflows own the domain logic, while the CLI resolves paths, reports
+progress, and converts expected failures into concise terminal errors.
+
+```mermaid
+flowchart TD
+    Corpus["Corpus: data/raw"] --> Discovery["File discovery and exact UTF-8 reading"]
+    Discovery --> Chunkers{"Source kind"}
+    Chunkers -->|Python| PythonChunker["Python AST chunker with safe fallbacks"]
+    Chunkers -->|Markdown or text| TextChunker["Heading and block-aware text chunker"]
+    PythonChunker --> LexicalDocs["Exact chunks plus content and metadata terms"]
+    TextChunker --> LexicalDocs
+    LexicalDocs --> BM25Index["Versioned BM25 index"]
+    BM25Index --> IndexFile["data/processed/bm25-index.json"]
+
+    Question["Single question or question dataset"] --> Retrieval["BM25 retrieval"]
+    IndexFile --> Compatibility["Schema, corpus, and pipeline compatibility checks"]
+    Compatibility --> Retrieval
+    Retrieval --> Reranker["Bounded auxiliary-path reranker"]
+    Reranker --> SearchResults["Exact ranked source locations"]
+
+    SearchResults --> ContextBuilder["Deduplicated, token-bounded source context"]
+    Corpus --> ContextBuilder
+    ContextBuilder --> Qwen["Local Qwen/Qwen3-0.6B generation"]
+    Qwen --> Validator["Deterministic grounding validation"]
+    Validator --> Answer["Grounded answer or controlled CLI error"]
+
+    SearchResults --> RetrievalEvaluator["Source IoU and retrieval evaluator"]
+    GroundTruth["Answered ground-truth dataset"] --> RetrievalEvaluator
+    RetrievalEvaluator --> Metrics["Recall@1/3/5/10 and MRR"]
+```
+
+`index` executes the ingestion branch and persists the compatible lexical
+index. `search` and `search_dataset` load that index and return exact source
+spans. `answer` continues from retrieval, while `answer_dataset` starts from
+persisted search results and reuses one loaded generation backend for the
+whole batch. `evaluate` joins persisted results to one labelled dataset by
+`question_id`; `evaluate_all` runs the same evaluator independently for Docs
+and Code. Generated datasets, indexes, and reports stay outside Git.
 
 ## Development Commands
 
@@ -518,6 +582,47 @@ the persisted index, retrieval, and JSON output. Peak resident memory was
 byte identical to the established baseline, and source validation accepted all
 500 returned locations.
 
+## Performance Baseline
+
+The Phase 27 acceptance baseline used Linux, an Intel Core i7-10850H CPU with
+6 cores and 12 threads, and 30 GiB of RAM. The production configuration built
+a 20,096-document index in 22.27 seconds with peak resident memory of
+1,252,268 KiB. This is below the assignment's 300-second indexing limit.
+
+Two complete sequential retrieval runs used `k=10` for the 100-question Docs
+dataset and the 99-question Code dataset:
+
+| Run | Docs | Code | Combined | Normalized to 200 questions |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 10.19 s | 9.22 s | 19.41 s | 19.51 s |
+| 2 | 10.42 s | 9.36 s | 19.78 s | 19.88 s |
+
+Both normalized results are below the assignment's 90-second retrieval limit.
+The two Docs outputs shared SHA-256
+`7e40738fdf083c372abbefa82843a2fb18a2e4d24cac2d16e6f2d912fbb54d28`;
+the two Code outputs shared
+`8affaec8ce8153e4a1c0e8d385582a7ee6e4266db9100b5ec53a39494fa8bbd4`.
+This confirms byte-for-byte deterministic retrieval across the measured runs.
+Peak retrieval memory was 873,308 KiB.
+
+Use `/usr/bin/time` around the normal commands to reproduce elapsed time and
+peak resident memory on another machine:
+
+```bash
+/usr/bin/time -f 'elapsed_seconds: %e\npeak_rss_kib: %M' \
+  uv run python -m src index --max_chunk_size 2000
+
+/usr/bin/time -f 'elapsed_seconds: %e\npeak_rss_kib: %M' \
+  uv run python -m src search_dataset \
+  --dataset_path data/datasets/UnansweredQuestions/dataset_docs_public.json \
+  --k 10 \
+  --save_directory /tmp/rag-performance/docs
+```
+
+These are machine-specific observations rather than universal speed
+guarantees. The commands and assignment limits are the portable acceptance
+contract.
+
 ## Grounded Context Construction
 
 `ContextBuilder` converts ranked retrieval results into deterministic,
@@ -620,7 +725,7 @@ The command validates the current corpus and retrieval-pipeline fingerprints
 before loading the stored index. It retrieves ranked BM25 sources, builds
 source-labelled context with a default 4,096-token budget, generates through
 the configured local model, and reports the answer together with the model,
-device, prompt version, generation-attempt count, consumed context tokens, and
+device, prompt version, cache-hit status, consumed context tokens, and
 skipped-source count.
 
 `retrieved_sources` contains every location returned by BM25. `sources`
@@ -633,10 +738,42 @@ untrusted data. It requires source-only factual claims, valid citations, an
 explicit conflict form, and an exact insufficient-context response. Because a
 model instruction is not an enforceable guarantee, deterministic validation
 rejects uncited answers, citations outside the prompt context, and conflict
-answers supported by fewer than two distinct citations. One invalid first
-answer receives one corrective generation attempt using the same retrieval
-result and loaded model. A second invalid answer becomes a concise command
-error instead of being presented as grounded output.
+answers supported by fewer than two distinct citations. One invalid answer
+becomes a concise command error instead of being presented as grounded output.
+
+Validated single-query answers are cached by default in
+`.local/cache/validated-answers.json`. The exact cache identity covers the
+normalized question, corpus and retrieval-pipeline fingerprints, retrieval and
+context controls, prompt version, model, device preference, and deterministic
+generation settings. Any difference is a miss. Invalid model output and
+controlled errors are never cached.
+
+The cache lookup happens before Qwen is loaded. A compatible hit therefore
+avoids model loading, retrieval, context construction, and generation while
+returning the original answer and source trace. On the development machine, a
+controlled CUDA miss took 10.03 seconds with peak resident memory of 3,741,572
+KiB; the identical cache hit took 0.64 seconds and 42,868 KiB. The same question
+with different case and repeated whitespace hit the normalized key in 0.70
+seconds. These measurements are machine-specific and the cache reports
+`cache_hit` explicitly so callers do not need to infer its behavior from time.
+Changing only `k` from 5 to 6 produced a miss in the same controlled run. The
+new model output failed citation validation, and repeating that request caused
+another full generation while the cache stayed at one entry. This confirms
+both parameter invalidation and the rule that rejected answers are not stored.
+
+Use an isolated cache path to reproduce the miss/hit comparison without
+changing the normal local cache:
+
+```bash
+uv run python -m src answer \
+  "What color is the project maintainer's bicycle?" \
+  --device cuda --offline \
+  --answer_cache_path /tmp/rag-answer-cache/answers.json
+```
+
+Run the same command again for a cache hit. The cache remains a local runtime
+artifact and is excluded from Git by the existing `.local/` rule when the
+default path is used.
 
 If the complete operation lasts more than five seconds, the command writes
 `Please wait, the local RAG answer is still running...` to the terminal. The
@@ -672,14 +809,41 @@ available and otherwise falls back to CPU. Missing files, malformed JSON,
 invalid source spans, model-loading failures, and invalid generated answers
 produce concise command errors without an unhandled traceback.
 
-## Answer Quality Findings
+`StudentSearchResults` and `StudentSearchResultsAndAnswer` are the explicit
+assignment-facing Pydantic names used at this file boundary. The reusable
+retrieval layer uses the domain names `RetrievalResults` and
+`RetrievalResultsWithAnswers`; both pairs preserve the same required JSON
+fields.
+
+## Answer Quality Review
+
+The fixed [answer quality checklist](docs/answer-quality-checklist.md) records
+six public cases and four controlled boundary cases. It separates retrieval,
+context, generation, citation, and validation failures instead of treating a
+structurally valid answer as automatically correct.
 
 Small fine-tuning experiments on the reviewed evidence dataset did not improve
-validation accuracy enough to justify additional model training in this
-project. A controlled Chroma/MiniLM experiment also performed worse than the
-existing BM25 retriever. The production pipeline therefore keeps BM25 as its
-primary retriever; embeddings remain a candidate for a later optional hybrid
-retrieval experiment.
+validation quality enough to justify additional model training:
+
+| Evidence experiment | Validation result | Observation |
+| --- | ---: | --- |
+| Unchanged Qwen scorer | 0.50 balanced accuracy | Predicted `ANSWERS` for all 20 cases |
+| Last-block fine-tuning | 0.50 balanced accuracy | Reproduced the same predictions |
+| Pairwise fine-tuning | 0.50 balanced accuracy | Reproduced the same predictions |
+
+A separate diagnostic compared retrieval methods on 100 reviewed fragments
+and ten held-out questions:
+
+| Retriever | R@1 | R@3 | R@5 | R@10 | MRR |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| BM25 | 0.60 | 0.90 | 0.90 | 0.90 | 0.75 |
+| Chroma + MiniLM | 0.50 | 0.60 | 0.80 | 0.80 | 0.60 |
+
+These small diagnostics are stopping evidence, not substitutes for the public
+full-corpus evaluation below. They do not justify adding training or semantic
+dependencies to the mandatory pipeline. Production therefore keeps BM25 as
+its primary retriever; embeddings remain a candidate for a later optional
+hybrid experiment.
 
 ## BM25 Evaluation
 

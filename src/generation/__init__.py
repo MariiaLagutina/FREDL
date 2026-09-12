@@ -31,7 +31,7 @@ from src.generation.context import (
 from src.generation.prompt import (
     CONFLICT_PREFIX,
     GROUNDING_PROMPT_VERSION,
-    GenerationAttemptObserver,
+    GeneratedAnswerObserver,
     GroundedAnswerResult,
     GroundedAnswerValidationError,
     INSUFFICIENT_CONTEXT_RESPONSE,
@@ -52,7 +52,7 @@ __all__ = [
     "GenerationBackendLoadError",
     "GenerationConfig",
     "GenerationError",
-    "GenerationAttemptObserver",
+    "GeneratedAnswerObserver",
     "GenerationRuntime",
     "GROUNDING_PROMPT_VERSION",
     "GroundedAnswerResult",
