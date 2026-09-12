@@ -21,6 +21,7 @@ class AnswerCacheKey(BaseModel):
     model_name: str
     device: str
     max_new_tokens: int
+    local_files_only: bool
     enable_thinking: bool
     do_sample: bool
 
@@ -36,6 +37,7 @@ class StoredValidatedAnswer(BaseModel):
     context_sources: tuple[MinimalSource, ...]
     used_context_tokens: int
     skipped_source_count: int
+    generation_device: str
 
 
 class StoredAnswerCache(BaseModel):

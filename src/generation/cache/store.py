@@ -35,6 +35,8 @@ class ValidatedAnswerCache:
             used_context_tokens=entry.used_context_tokens,
             skipped_source_count=entry.skipped_source_count,
             prompt_version=entry.key.prompt_version,
+            cache_hit=True,
+            generation_device=entry.generation_device,
         )
 
     def put(self, key: AnswerCacheKey, result: QueryAnswerResult) -> None:
@@ -49,6 +51,7 @@ class ValidatedAnswerCache:
             context_sources=result.context_sources,
             used_context_tokens=result.used_context_tokens,
             skipped_source_count=result.skipped_source_count,
+            generation_device=result.generation_device,
         )
         snapshot = StoredAnswerCache(
             schema_version=CACHE_SCHEMA_VERSION,
