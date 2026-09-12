@@ -1092,3 +1092,50 @@ Use small experiments to decide where complexity is justified. Ready-made
 models and vector stores are useful components, but measured retrieval,
 context, and validation boundaries provide more value here than turning the
 project into a separate data-collection and model-training programme.
+
+## 2026-09-12 - Remove the ineffective corrective generation retry
+
+**Status:** Accepted
+
+### Initial approach
+
+When the first generated answer violated the deterministic grounding contract,
+append that raw answer and a correction instruction to the prompt and allow one
+additional generation call. The retry reused the loaded model and retrieved
+context, remained bounded, and could theoretically repair citation formatting
+without weakening validation.
+
+### Why the approach was reconsidered
+
+The fixed prompt-v1 answer-quality baseline provided direct evidence about the
+real model rather than only a synthetic unit-test capability. One of ten cases
+passed validation on its first generation. The other nine reached the
+corrective path, but none produced a valid answer on the second generation.
+The separately observed KV-cache query failed in the same way after its retry.
+
+The retry therefore recovered `0/9` measured failures while adding a second
+expensive Qwen call to every rejected case. The unit test that supplied a valid
+second string proved only that the control flow could accept a correction; it
+did not demonstrate that `Qwen/Qwen3-0.6B` benefited from this strategy.
+
+### Decision
+
+Generate exactly once and validate exactly once. Return a controlled error as
+soon as the generated answer violates the grounding contract. Keep the
+diagnostic observer so answer-quality runs can preserve the single raw model
+response, but remove retry-specific production fields and correction-prompt
+logic.
+
+### Consequences
+
+- Invalid answers still never cross the validated output boundary.
+- A failing request uses one generation call instead of two.
+- Single-query and batch latency become more predictable.
+- Diagnostic reports keep the rejected raw response for manual analysis.
+- A future retry strategy requires new measured evidence before reintroduction.
+
+### Lesson
+
+A bounded fallback is not justified merely because it is safe and technically
+testable. Retain an expensive recovery path only when representative evidence
+shows that it recovers enough real failures to offset its cost and complexity.
