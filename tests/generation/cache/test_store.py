@@ -25,6 +25,7 @@ def _key(**changes: object) -> AnswerCacheKey:
         "model_name": "Qwen/Qwen3-0.6B",
         "device": "cpu",
         "max_new_tokens": 256,
+        "local_files_only": False,
         "enable_thinking": False,
         "do_sample": False,
     }
@@ -45,6 +46,7 @@ def _result() -> QueryAnswerResult:
         used_context_tokens=12,
         skipped_source_count=0,
         prompt_version="v1",
+        generation_device="cpu",
     )
 
 
@@ -60,7 +62,7 @@ def test_validated_answer_round_trips(tmp_path: Path) -> None:
 
     cache.put(_key(), expected)
 
-    assert cache.get(_key()) == expected
+    assert cache.get(_key()) == replace(expected, cache_hit=True)
 
 
 @pytest.mark.parametrize(
@@ -77,6 +79,7 @@ def test_validated_answer_round_trips(tmp_path: Path) -> None:
         ("model_name", "another/model"),
         ("device", "cuda"),
         ("max_new_tokens", 128),
+        ("local_files_only", True),
         ("enable_thinking", True),
         ("do_sample", True),
     ],

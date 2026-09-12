@@ -62,15 +62,11 @@ def test_answer_command_loads_backend_and_prints_trace(
         used_context_tokens=42,
         skipped_source_count=1,
         prompt_version="v1",
+        generation_device="cpu",
     )
-    backend = LoadedGenerationBackend(object(), object(), "cpu")
-
     with (
         patch("src.cli.delayed_status") as status,
-        patch(
-            "src.cli.load_generation_backend",
-            return_value=backend,
-        ) as load_backend,
+        patch("src.cli.load_generation_backend") as load_backend,
         patch("src.cli.answer_query", return_value=result) as run_answer,
     ):
         main(
@@ -85,24 +81,24 @@ def test_answer_command_loads_backend_and_prints_trace(
             ]
         )
 
-    config = load_backend.call_args.args[0]
+    load_backend.assert_not_called()
     status.assert_called_once_with(
         "Please wait, the local RAG answer is still running..."
     )
-    assert config == GenerationConfig(local_files_only=True)
     assert run_answer.call_args.args[:6] == (
         "Which cache policy is used?",
         Path("."),
         Path("data/raw"),
         Path("data/processed/bm25-index.json"),
-        backend,
-        config,
+        None,
+        GenerationConfig(local_files_only=True),
     )
     assert run_answer.call_args.kwargs == {
         "k": 2,
         "context_token_budget": 1000,
         "auxiliary_path_penalty": 0.5,
         "path_candidate_depth": 20,
+        "answer_cache": ANY,
     }
     output = capsys.readouterr().out
     assert "answer:               The cache uses LRU. [Source 1]" in output
@@ -112,6 +108,7 @@ def test_answer_command_loads_backend_and_prints_trace(
     assert "skipped_source_count: 1" in output
     assert "prompt_version:       v1" in output
     assert "device:               cpu" in output
+    assert "cache_hit:            false" in output
 
 
 @pytest.mark.parametrize(
@@ -128,7 +125,7 @@ def test_answer_command_reports_expected_failures_without_traceback(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Expected RAG boundary failures remain concise for terminal users."""
-    with patch("src.cli.load_generation_backend", side_effect=failure):
+    with patch("src.cli.answer_query", side_effect=failure):
         with pytest.raises(SystemExit) as exit_info:
             main(["answer", "Where is the cache?"])
 
@@ -155,11 +152,11 @@ def test_answer_rejects_degenerate_input_before_model_loading(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Cheap CLI validation runs before loading the local answer model."""
-    with patch("src.cli.load_generation_backend") as load_backend:
+    with patch("src.cli.answer_query") as run_answer:
         with pytest.raises(SystemExit) as exit_info:
             main(arguments)
 
-    load_backend.assert_not_called()
+    run_answer.assert_not_called()
     assert exit_info.value.code == 2
     captured = capsys.readouterr()
     assert message in captured.err

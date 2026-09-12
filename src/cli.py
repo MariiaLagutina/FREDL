@@ -32,6 +32,7 @@ from src.generation import (
     load_student_search_results,
     save_student_answers,
 )
+from src.generation.cache import ValidatedAnswerCache
 from src.models import UnansweredQuestion
 from src.retrieval import (
     DEFAULT_AUXILIARY_PATH_PENALTY,
@@ -60,6 +61,7 @@ DEFAULT_CORPUS_ROOT = Path("data/raw")
 DEFAULT_BM25_PARAMETERS = BM25Parameters()
 DEFAULT_MAX_CHUNK_SIZE = PipelineConfig().max_chunk_size
 DEFAULT_CONTEXT_TOKEN_BUDGET = 4096
+DEFAULT_ANSWER_CACHE_PATH = Path(".local/cache/validated-answers.json")
 ANSWER_WAIT_MESSAGE = "Please wait, the local RAG answer is still running..."
 BATCH_MODEL_WAIT_MESSAGE = (
     "Please wait, the local answer model is still loading..."
@@ -94,6 +96,7 @@ def answer(
     identifier_weight: float = DEFAULT_BM25_PARAMETERS.identifier_weight,
     auxiliary_path_penalty: float = DEFAULT_AUXILIARY_PATH_PENALTY,
     path_candidate_depth: int = DEFAULT_PATH_CANDIDATE_DEPTH,
+    answer_cache_path: str = str(DEFAULT_ANSWER_CACHE_PATH),
 ) -> dict[str, object]:
     """Answer one user question with traceable local RAG evidence."""
     try:
@@ -107,13 +110,12 @@ def answer(
             local_files_only=offline,
         )
         with delayed_status(ANSWER_WAIT_MESSAGE):
-            backend = load_generation_backend(generation_config)
             result = answer_query(
                 question,
                 Path(project_root),
                 Path(corpus_root),
                 Path(index_path),
-                backend,
+                None,
                 generation_config,
                 _pipeline_config(
                     max_chunk_size,
@@ -126,6 +128,9 @@ def answer(
                 context_token_budget=context_token_budget,
                 auxiliary_path_penalty=auxiliary_path_penalty,
                 path_candidate_depth=path_candidate_depth,
+                answer_cache=ValidatedAnswerCache(
+                    _below_root(Path(project_root), Path(answer_cache_path))
+                ),
             )
     except (OSError, UnicodeError, ValueError, RuntimeError) as error:
         raise CliError(_error_message(error)) from None
@@ -142,7 +147,8 @@ def answer(
         "skipped_source_count": result.skipped_source_count,
         "prompt_version": result.prompt_version,
         "model": generation_config.model_name,
-        "device": backend.device,
+        "device": result.generation_device,
+        "cache_hit": result.cache_hit,
     }
 
 
