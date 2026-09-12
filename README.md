@@ -22,6 +22,7 @@ grounding prompt, and local Qwen generation behind one validated command.
 
 - [Current Status](#current-status)
 - [Installation and Development](#installation)
+- [System Architecture](#system-architecture)
 - [Ingestion and Chunking](#ingestion-architecture)
 - [Lexical Retrieval](#bm25-lexical-retrieval)
 - [Retrieval Commands](#retrieval-search)
@@ -142,6 +143,48 @@ Evaluation-facing source paths are relative to the project root:
 ```text
 data/raw/vllm-0.10.1/docs/features/lora.md
 ```
+
+## System Architecture
+
+The Python Fire CLI is the public boundary for four connected flows. Reusable
+Python workflows own the domain logic, while the CLI resolves paths, reports
+progress, and converts expected failures into concise terminal errors.
+
+```mermaid
+flowchart TD
+    Corpus["Corpus: data/raw"] --> Discovery["File discovery and exact UTF-8 reading"]
+    Discovery --> Chunkers{"Source kind"}
+    Chunkers -->|Python| PythonChunker["Python AST chunker with safe fallbacks"]
+    Chunkers -->|Markdown or text| TextChunker["Heading and block-aware text chunker"]
+    PythonChunker --> LexicalDocs["Exact chunks plus content and metadata terms"]
+    TextChunker --> LexicalDocs
+    LexicalDocs --> BM25Index["Versioned BM25 index"]
+    BM25Index --> IndexFile["data/processed/bm25-index.json"]
+
+    Question["Single question or question dataset"] --> Retrieval["BM25 retrieval"]
+    IndexFile --> Compatibility["Schema, corpus, and pipeline compatibility checks"]
+    Compatibility --> Retrieval
+    Retrieval --> Reranker["Bounded auxiliary-path reranker"]
+    Reranker --> SearchResults["Exact ranked source locations"]
+
+    SearchResults --> ContextBuilder["Deduplicated, token-bounded source context"]
+    Corpus --> ContextBuilder
+    ContextBuilder --> Qwen["Local Qwen/Qwen3-0.6B generation"]
+    Qwen --> Validator["Deterministic grounding validation"]
+    Validator --> Answer["Grounded answer or controlled CLI error"]
+
+    SearchResults --> RetrievalEvaluator["Source IoU and retrieval evaluator"]
+    GroundTruth["Answered ground-truth dataset"] --> RetrievalEvaluator
+    RetrievalEvaluator --> Metrics["Recall@1/3/5/10 and MRR"]
+```
+
+`index` executes the ingestion branch and persists the compatible lexical
+index. `search` and `search_dataset` load that index and return exact source
+spans. `answer` continues from retrieval, while `answer_dataset` starts from
+persisted search results and reuses one loaded generation backend for the
+whole batch. `evaluate` joins persisted results to one labelled dataset by
+`question_id`; `evaluate_all` runs the same evaluator independently for Docs
+and Code. Generated datasets, indexes, and reports stay outside Git.
 
 ## Development Commands
 
