@@ -24,7 +24,9 @@ from src.retrieval.semantic.store import (
 )
 from src.retrieval.semantic.workflow import (
     SemanticIndexBuildReport,
+    SemanticSearchReport,
     build_and_store_semantic_index,
+    run_stored_semantic_search,
 )
 
 __all__ = [
@@ -41,9 +43,11 @@ __all__ = [
     "SemanticIndex",
     "SemanticIndexBuildReport",
     "SemanticIndexStore",
+    "SemanticSearchReport",
     "SemanticTextEncoder",
     "SEMANTIC_SCHEMA_VERSION",
     "build_semantic_index",
     "build_and_store_semantic_index",
     "load_semantic_backend",
+    "run_stored_semantic_search",
 ]

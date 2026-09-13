@@ -640,6 +640,66 @@ def test_index_semantic_loads_bm25_before_building_optional_index(
     assert "model_load_seconds:       1.5" in output
 
 
+def test_search_semantic_exposes_sources_and_separate_timings(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The bonus query command keeps cold-start costs inspectable."""
+    source = MinimalSource(
+        file_path="guide.md",
+        first_character_index=10,
+        last_character_index=20,
+    )
+    report = type(
+        "Report",
+        (),
+        {
+            "sources": (source,),
+            "index_load_seconds": 0.5,
+            "model_load_seconds": 3.0,
+            "query_encoding_seconds": 0.1,
+            "search_seconds": 0.01,
+        },
+    )()
+    with (
+        patch(
+            "src.cli._current_corpus_fingerprint",
+            return_value=FINGERPRINT,
+        ),
+        patch(
+            "src.cli._current_pipeline_fingerprint",
+            return_value=PIPELINE_FINGERPRINT,
+        ),
+        patch(
+            "src.cli.run_stored_semantic_search",
+            return_value=report,
+        ) as search_semantic,
+    ):
+        main(
+            [
+                "search_semantic",
+                "Where is the guide?",
+                "--k",
+                "1",
+                "--offline",
+            ]
+        )
+
+    config = search_semantic.call_args.args[3]
+    assert config.local_files_only
+    search_semantic.assert_called_once_with(
+        Path("data/processed/semantic-index"),
+        "Where is the guide?",
+        1,
+        config,
+        corpus_fingerprint=FINGERPRINT,
+        pipeline_fingerprint=PIPELINE_FINGERPRINT,
+    )
+    output = capsys.readouterr().out
+    assert '"file_path": "guide.md"' in output
+    assert "query_encoding_seconds: 0.1" in output
+    assert "search_seconds:         0.01" in output
+
+
 def test_search_command_routes_one_raw_query() -> None:
     """The Fire search command reaches the stored single-query workflow."""
     with (
