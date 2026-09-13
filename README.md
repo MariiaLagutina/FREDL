@@ -1007,15 +1007,32 @@ Controlled parameter history and provisional measurements are recorded in
 
 ## Verification
 
+Run the assignment quality gates and the stricter project gate from the
+repository root:
+
+```bash
+make test
+make lint
+make lint-strict
+```
+
 The current checks pass:
 
 ```text
 pytest: 479 passed
 flake8: passed
-mypy: passed
+mypy with the assignment flags: passed for 199 source files
+mypy --strict: passed for 199 source files
 ```
 
-These results cover the current implementation only.
+The Phase 30 audit found no missing docstrings on top-level public production
+functions or classes. Every production file read uses a context manager, and
+the source tree contains no bare exception handler or unexplained type-checker
+suppression. Five narrow `type: ignore` annotations remain in negative tests:
+they deliberately construct statically invalid values or mutate frozen models
+to verify runtime rejection. `--warn-unused-ignores` confirms that each one is
+active. GitHub CI repeats the locked installation, strict lint, typing, and
+complete test suite on Python 3.10.
 
 ## Design Decisions
 
