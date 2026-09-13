@@ -54,6 +54,7 @@ from src.retrieval.semantic import (
     DEFAULT_SEMANTIC_REVISION,
     SemanticEncoderConfig,
     build_and_store_semantic_index,
+    run_stored_semantic_search,
 )
 from src.retrieval.validation import (
     MAX_SOURCE_LENGTH,
@@ -419,6 +420,67 @@ def search(
     except (OSError, UnicodeError, ValueError) as error:
         raise CliError(_error_message(error)) from None
     return [source.model_dump() for source in sources]
+
+
+def search_semantic(
+    query: str,
+    k: int = 5,
+    semantic_index_directory: str = str(DEFAULT_SEMANTIC_INDEX_DIRECTORY),
+    corpus_root: str = str(DEFAULT_CORPUS_ROOT),
+    project_root: str = ".",
+    model: str = DEFAULT_SEMANTIC_MODEL,
+    model_revision: str = DEFAULT_SEMANTIC_REVISION,
+    batch_size: int = 32,
+    max_length: int = 256,
+    offline: bool = False,
+    max_chunk_size: int = DEFAULT_MAX_CHUNK_SIZE,
+    k1: float = DEFAULT_BM25_PARAMETERS.k1,
+    b: float = DEFAULT_BM25_PARAMETERS.b,
+    metadata_weight: float = DEFAULT_BM25_PARAMETERS.metadata_weight,
+    identifier_weight: float = DEFAULT_BM25_PARAMETERS.identifier_weight,
+) -> dict[str, object]:
+    """Search the optional semantic index and expose cold-query timings."""
+    try:
+        require_searchable_query(query)
+        _require_positive_k(k)
+        root = Path(project_root)
+        corpus_fingerprint = _current_corpus_fingerprint(
+            root,
+            Path(corpus_root),
+        )
+        pipeline_fingerprint = _current_pipeline_fingerprint(
+            _pipeline_config(
+                max_chunk_size,
+                k1,
+                b,
+                metadata_weight,
+                identifier_weight,
+            )
+        )
+        config = SemanticEncoderConfig(
+            model_name=model,
+            model_revision=model_revision,
+            batch_size=batch_size,
+            max_length=max_length,
+            local_files_only=offline,
+        )
+        report = run_stored_semantic_search(
+            _below_root(root, Path(semantic_index_directory)),
+            query,
+            k,
+            config,
+            corpus_fingerprint=corpus_fingerprint,
+            pipeline_fingerprint=pipeline_fingerprint,
+        )
+    except (OSError, UnicodeError, ValueError, RuntimeError) as error:
+        raise CliError(_error_message(error)) from None
+    return {
+        "sources": [source.model_dump() for source in report.sources],
+        "index_load_seconds": report.index_load_seconds,
+        "model_load_seconds": report.model_load_seconds,
+        "query_encoding_seconds": report.query_encoding_seconds,
+        "search_seconds": report.search_seconds,
+    }
 
 
 def search_dataset(
