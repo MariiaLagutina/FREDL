@@ -23,6 +23,22 @@ generated datasets, indexes, and reports remain outside Git.
 | Does it require a GPU? | No; CUDA and CPU execution are supported |
 | What is verified? | 479 tests, strict checks, clean-clone execution, and assignment performance limits |
 
+### Verified Results
+
+| Measure | Reproduced result | Assignment limit |
+| --- | ---: | ---: |
+| Index build, 20,096 searchable documents | 22.27 s | at most 300 s |
+| Retrieval, normalized to 200 questions | 19.51–19.88 s | at most 90 s |
+| Docs Recall@5 / Recall@10 | 0.850000 / 0.900000 | Recall@5 at least 0.80 |
+| Code Recall@5 / Recall@10 | 0.787879 / 0.848485 | Recall@5 at least 0.50 |
+| Automated tests | 479 passed | all required checks pass |
+
+Times are machine-specific measurements from the reproducible Linux run. The
+[performance analysis](#performance-analysis) records the hardware, commands,
+memory, repeated timings, and output hashes; the
+[retrieval evaluation](#bm25-evaluation) records the complete Recall@K and MRR
+results separately for Docs and Code.
+
 ## Instructions
 
 Requirements: Python 3.10 or later, `uv`, and the supplied vLLM corpus and
@@ -69,9 +85,10 @@ character ranges so every returned source can be inspected directly.
 - [Instructions](#instructions)
 - [Example Usage](#example-usage)
 - [System Architecture](#system-architecture)
-- [Ingestion and Chunking](#ingestion-architecture)
-- [Lexical Retrieval](#bm25-lexical-retrieval)
+- [Chunking Strategy](#chunking-strategy)
+- [Retrieval Method](#retrieval-method)
 - [Retrieval Commands](#retrieval-search)
+- [Performance Analysis](#performance-analysis)
 - [Grounded Answer Generation](#grounded-context-construction)
 - [Challenges Faced](#challenges-faced)
 - [Answer Quality Review](#answer-quality-review)
@@ -243,7 +260,7 @@ Run stricter type checking:
 make lint-strict
 ```
 
-## Ingestion Architecture
+## Chunking Strategy
 
 The public ingestion API is exported from `src.ingestion`, while internal
 format-specific implementations are separated by responsibility:
@@ -507,7 +524,7 @@ Text:     199 files,  1,521 chunks,   141,492 tokens
 Punctuation-only chunks are valid exact source slices but should be skipped by
 the lexical index because they provide no searchable terms.
 
-## BM25 Lexical Retrieval
+## Retrieval Method
 
 Each searchable chunk keeps exact source evidence and two independent lexical
 fields:
@@ -612,7 +629,7 @@ the persisted index, retrieval, and JSON output. Peak resident memory was
 byte identical to the established baseline, and source validation accepted all
 500 returned locations.
 
-## Performance Baseline
+## Performance Analysis
 
 The Phase 27 acceptance baseline used Linux, an Intel Core i7-10850H CPU with
 6 cores and 12 threads, and 30 GiB of RAM. The production configuration built
