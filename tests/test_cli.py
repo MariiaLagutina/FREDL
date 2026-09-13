@@ -700,6 +700,65 @@ def test_search_semantic_exposes_sources_and_separate_timings(
     assert "search_seconds:         0.01" in output
 
 
+def test_search_dataset_semantic_routes_compatible_batch_output(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The bonus batch command exposes reusable-resource timings."""
+    report = type(
+        "Report",
+        (),
+        {
+            "query_count": 100,
+            "index_load_seconds": 0.5,
+            "model_load_seconds": 2.0,
+            "query_encoding_seconds": 1.0,
+            "search_seconds": 3.0,
+            "average_query_seconds": 0.04,
+        },
+    )()
+    with (
+        patch(
+            "src.cli._current_corpus_fingerprint",
+            return_value=FINGERPRINT,
+        ),
+        patch(
+            "src.cli._current_pipeline_fingerprint",
+            return_value=PIPELINE_FINGERPRINT,
+        ),
+        patch(
+            "src.cli.run_stored_semantic_retrieval",
+            return_value=report,
+        ) as retrieve,
+    ):
+        main(
+            [
+                "search_dataset_semantic",
+                "--dataset_path",
+                "questions/docs.json",
+                "--save_directory",
+                "results/semantic",
+                "--project_root",
+                "/project",
+                "--offline",
+            ]
+        )
+
+    config = retrieve.call_args.args[4]
+    assert config.local_files_only
+    retrieve.assert_called_once_with(
+        Path("/project/data/processed/semantic-index"),
+        Path("/project/questions/docs.json"),
+        Path("/project/results/semantic/docs.json"),
+        5,
+        config,
+        corpus_fingerprint=FINGERPRINT,
+        pipeline_fingerprint=PIPELINE_FINGERPRINT,
+    )
+    output = capsys.readouterr().out
+    assert "query_count:            100" in output
+    assert "average_query_seconds:  0.04" in output
+
+
 def test_search_command_routes_one_raw_query() -> None:
     """The Fire search command reaches the stored single-query workflow."""
     with (

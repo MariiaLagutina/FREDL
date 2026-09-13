@@ -23,9 +23,11 @@ from src.retrieval.semantic.store import (
     SemanticIndexStore,
 )
 from src.retrieval.semantic.workflow import (
+    SemanticBatchSearchReport,
     SemanticIndexBuildReport,
     SemanticSearchReport,
     build_and_store_semantic_index,
+    run_stored_semantic_retrieval,
     run_stored_semantic_search,
 )
 
@@ -36,6 +38,7 @@ __all__ = [
     "LoadedSemanticBackend",
     "MiniLMEncoder",
     "SemanticBackendLoadError",
+    "SemanticBatchSearchReport",
     "SemanticDocument",
     "SemanticEncoderConfig",
     "SemanticEncodingError",
@@ -49,5 +52,6 @@ __all__ = [
     "build_semantic_index",
     "build_and_store_semantic_index",
     "load_semantic_backend",
+    "run_stored_semantic_retrieval",
     "run_stored_semantic_search",
 ]
