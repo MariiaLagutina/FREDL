@@ -1,5 +1,6 @@
 """Tests for measured semantic index construction."""
 
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,6 +14,7 @@ from src.retrieval.semantic import (
     SemanticEncoderConfig,
     SemanticIndex,
     build_and_store_semantic_index,
+    run_stored_semantic_retrieval,
     run_stored_semantic_search,
 )
 
@@ -120,3 +122,108 @@ def test_search_workflow_loads_encodes_and_reports_exact_source(
     assert report.model_load_seconds == 3.0
     assert report.query_encoding_seconds == pytest.approx(0.2)
     assert report.search_seconds == pytest.approx(0.01)
+
+
+def test_batch_workflow_preserves_question_order_and_reuses_resources(
+    tmp_path: Path,
+) -> None:
+    documents = (
+        SemanticDocument(
+            Chunk("first.md", 0, 5, "first", ())
+        ),
+        SemanticDocument(
+            Chunk("second.md", 0, 6, "second", ())
+        ),
+    )
+    index = SemanticIndex(
+        documents,
+        torch.tensor([[1.0, 0.0], [0.0, 1.0]]),
+    )
+    input_path = tmp_path / "questions.json"
+    output_path = tmp_path / "results" / "questions.json"
+    input_path.write_text(
+        json.dumps(
+            {
+                "rag_questions": [
+                    {"question_id": "q-1", "question": "First question"},
+                    {"question_id": "q-2", "question": "Second question"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    config = SemanticEncoderConfig(local_files_only=True)
+    clock_values = iter([0.0, 0.5, 1.0, 3.0, 4.0, 4.2, 5.0, 5.1])
+
+    with (
+        patch(
+            "src.retrieval.semantic.workflow.SemanticIndexStore"
+        ) as store_type,
+        patch(
+            "src.retrieval.semantic.workflow.MiniLMEncoder"
+        ) as encoder_type,
+    ):
+        store_type.return_value.load.return_value = index
+        encoder_type.return_value.encode.return_value = torch.tensor(
+            [[1.0, 0.0], [0.0, 1.0]]
+        )
+        report = run_stored_semantic_retrieval(
+            tmp_path / "semantic-index",
+            input_path,
+            output_path,
+            1,
+            config,
+            corpus_fingerprint="a" * 64,
+            pipeline_fingerprint="b" * 64,
+            clock=lambda: next(clock_values),
+        )
+
+    assert [
+        result.question_id for result in report.results.search_results
+    ] == ["q-1", "q-2"]
+    assert [
+        result.retrieved_sources[0].file_path
+        for result in report.results.search_results
+    ] == ["first.md", "second.md"]
+    encoder_type.assert_called_once_with(config)
+    encoder_type.return_value.encode.assert_called_once_with(
+        ("First question", "Second question")
+    )
+    assert json.loads(output_path.read_text())["k"] == 1
+    assert report.query_count == 2
+    assert report.average_query_seconds == pytest.approx(0.15)
+
+
+def test_empty_batch_saves_results_without_loading_resources(
+    tmp_path: Path,
+) -> None:
+    input_path = tmp_path / "questions.json"
+    output_path = tmp_path / "results.json"
+    input_path.write_text('{"rag_questions": []}', encoding="utf-8")
+
+    with (
+        patch(
+            "src.retrieval.semantic.workflow.SemanticIndexStore"
+        ) as store_type,
+        patch(
+            "src.retrieval.semantic.workflow.MiniLMEncoder"
+        ) as encoder_type,
+    ):
+        report = run_stored_semantic_retrieval(
+            tmp_path / "semantic-index",
+            input_path,
+            output_path,
+            5,
+            SemanticEncoderConfig(),
+            corpus_fingerprint="a" * 64,
+            pipeline_fingerprint="b" * 64,
+        )
+
+    store_type.assert_not_called()
+    encoder_type.assert_not_called()
+    assert report.query_count == 0
+    assert report.average_query_seconds == 0.0
+    assert json.loads(output_path.read_text()) == {
+        "search_results": [],
+        "k": 5,
+    }
