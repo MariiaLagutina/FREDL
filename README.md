@@ -77,7 +77,8 @@ Implemented:
 - a single-query `answer` command connecting BM25 retrieval to local Qwen;
 - an assignment-compatible `answer_dataset` command that reuses persisted
   retrieval results and loads the model once per dataset;
-- structural answer validation after one bounded generation attempt;
+- strict structural answer validation for interactive generation and cached
+  answers, with a separate assignment-compatible batch policy;
 - separate retrieved-source and prompt-source traces;
 - delayed terminal feedback for generation lasting more than five seconds;
 - an exact compatibility-bound cache for validated single-query answers;
@@ -85,9 +86,10 @@ Implemented:
   semantic-only replacement for the stronger lexical retrieval baseline;
 - automated tests organized by pipeline component.
 
-Current work profiles indexing, retrieval, and repeated generation on the
-Linux development machine. It also adds a compatibility-bound cache for only
-those generated answers that pass grounding validation.
+The complete public Docs and Code pipeline has been reproduced from a clean
+clone through indexing, retrieval, Moulinette evaluation, and batch answer
+generation. A compatibility-bound cache stores only single-query answers that
+pass strict grounding validation.
 
 ## Requirements
 
@@ -797,9 +799,15 @@ HF_HOME=.local/huggingface uv run python -m src answer_dataset \
 The command validates the input JSON, loads the configured model once, and
 answers questions in their stored order. Each answer keeps the original
 `question_id`, question text, and complete `retrieved_sources` list. Only the
-source spans admitted by the context-token budget are exposed to generation,
-and every generated answer passes the same single-attempt grounding validation
-as the single-query command.
+source spans admitted by the context-token budget are exposed to generation.
+
+The prompt still asks for source citations, but the assignment-facing JSON
+contract does not require the project's `[Source N]` or conflict syntax.
+`answer_dataset` therefore permits uncited model text while continuing to
+reject any citation whose number is outside the prompt context. Interactive
+`answer` remains strict: it requires citations, enforces the two-source
+conflict form, and caches only answers that pass that stronger boundary. The
+batch path does not invent citations or retry rejected text.
 
 The output is a Pydantic-valid `StudentSearchResultsAndAnswer` file written
 atomically under `save_directory` with the input filename. A progress bar
@@ -814,6 +822,13 @@ assignment-facing Pydantic names used at this file boundary. The reusable
 retrieval layer uses the domain names `RetrievalResults` and
 `RetrievalResultsWithAnswers`; both pairs preserve the same required JSON
 fields.
+
+The clean Phase 29 run completed all 100 Docs and 99 Code answers on the
+development GPU in 334.84 and 287.57 seconds respectively. All 1,990 retrieved
+source ranges passed validation, and the retrieval outputs reproduced the
+established hashes byte for byte. The full commands, memory measurements,
+Moulinette results, and observed Qwen quality limitations are recorded in the
+[end-to-end run log](docs/end-to-end-run-log.md).
 
 ## Controlled Errors and Edge Cases
 
@@ -877,6 +892,12 @@ full-corpus evaluation below. They do not justify adding training or semantic
 dependencies to the mandatory pipeline. Production therefore keeps BM25 as
 its primary retriever; embeddings remain a candidate for a later optional
 hybrid experiment.
+
+The mandatory workflow continues to use `Qwen/Qwen3-0.6B`. After the stable
+release, other free local models can be compared on the same persisted
+retrieval results and fixed questions. Keeping retrieval unchanged makes
+answer quality, citation compliance, false-conflict frequency, generation
+time, and memory directly comparable without weakening Qwen compatibility.
 
 ## BM25 Evaluation
 
@@ -989,7 +1010,7 @@ Controlled parameter history and provisional measurements are recorded in
 The current checks pass:
 
 ```text
-pytest: 446 passed
+pytest: 479 passed
 flake8: passed
 mypy: passed
 ```
@@ -1014,8 +1035,8 @@ These results cover the current implementation only.
 - Treat retrieved questions and source text as untrusted prompt data.
 - Keep every returned answer linked to the exact sources admitted into its
   token-bounded prompt context.
-- Validate structural grounding guarantees in deterministic code and allow at
-  most one corrective generation attempt.
+- Validate strict single-query grounding guarantees in deterministic code and
+  use exactly one generation attempt without a corrective retry.
 - Store Markdown heading paths as metadata instead of synthetic chunk text.
 - Preserve Markdown markup until retrieval evaluation justifies normalization.
 - Apply overlap only to forced splits inside oversized text blocks.

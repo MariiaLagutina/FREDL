@@ -70,3 +70,43 @@ def test_exact_fallback_is_required_when_no_sources_exist() -> None:
         match="does not cite any retrieved source",
     ):
         validate_grounded_answer("I do not know.", ())
+
+
+def test_assignment_policy_accepts_an_uncited_answer() -> None:
+    """The assignment output contract does not mandate citation syntax."""
+    validate_grounded_answer(
+        "The cache uses LRU.",
+        _sources(),
+        citations_required=False,
+    )
+
+
+@pytest.mark.parametrize(
+    ("answer", "message"),
+    [
+        (
+            "The cache uses LRU. [Source 3]",
+            "outside the prompt context",
+        ),
+    ],
+)
+def test_assignment_policy_rejects_invalid_claimed_citations(
+    answer: str,
+    message: str,
+) -> None:
+    """Optional citations remain truthful whenever the model emits them."""
+    with pytest.raises(GroundedAnswerValidationError, match=message):
+        validate_grounded_answer(
+            answer,
+            _sources(),
+            citations_required=False,
+        )
+
+
+def test_assignment_policy_does_not_enforce_internal_conflict_format() -> None:
+    """The assignment schema does not define our strict conflict contract."""
+    validate_grounded_answer(
+        "The sources conflict: details are unclear.",
+        _sources(),
+        citations_required=False,
+    )

@@ -26,12 +26,17 @@ def generate_grounded_answer(
     config: GenerationConfig,
     *,
     answer_observer: GeneratedAnswerObserver | None = None,
+    citations_required: bool = True,
 ) -> GroundedAnswerResult:
     """Generate one answer and preserve its exact grounding trace."""
     messages = build_grounded_messages(question, context)
     answer = generate_answer(messages, backend, config)
     _observe_answer(answer_observer, answer)
-    validate_grounded_answer(answer, context.sources)
+    validate_grounded_answer(
+        answer,
+        context.sources,
+        citations_required=citations_required,
+    )
     return GroundedAnswerResult(
         answer=answer,
         sources=context.sources,
