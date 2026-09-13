@@ -48,6 +48,7 @@ def generate_dataset_answers(
             context,
             backend,
             generation_config,
+            citations_required=False,
         )
         answers.append(
             MinimalAnswer(
