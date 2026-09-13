@@ -1,5 +1,9 @@
 """Public semantic retrieval contracts."""
 
+from src.retrieval.semantic.builder import (
+    SemanticTextEncoder,
+    build_semantic_index,
+)
 from src.retrieval.semantic.config import (
     DEFAULT_SEMANTIC_MODEL,
     SemanticEncoderConfig,
@@ -23,5 +27,7 @@ __all__ = [
     "SemanticEncodingError",
     "SemanticHit",
     "SemanticIndex",
+    "SemanticTextEncoder",
+    "build_semantic_index",
     "load_semantic_backend",
 ]
