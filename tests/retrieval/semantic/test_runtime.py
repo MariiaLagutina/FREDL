@@ -34,15 +34,18 @@ class FakeRuntime:
     tokenizer: object = field(default_factory=object)
     model: FakeModel = field(default_factory=FakeModel)
     fail_with: Exception | None = None
-    calls: list[tuple[str, str, bool]] = field(default_factory=list)
+    calls: list[tuple[str, str, str, bool]] = field(default_factory=list)
 
     def load_tokenizer(
         self,
         model_name: str,
         *,
+        revision: str,
         local_files_only: bool,
     ) -> object:
-        self.calls.append(("tokenizer", model_name, local_files_only))
+        self.calls.append(
+            ("tokenizer", model_name, revision, local_files_only)
+        )
         if self.fail_with is not None:
             raise self.fail_with
         return self.tokenizer
@@ -51,9 +54,10 @@ class FakeRuntime:
         self,
         model_name: str,
         *,
+        revision: str,
         local_files_only: bool,
     ) -> FakeModel:
-        self.calls.append(("model", model_name, local_files_only))
+        self.calls.append(("model", model_name, revision, local_files_only))
         if self.fail_with is not None:
             raise self.fail_with
         return self.model
@@ -69,8 +73,8 @@ def test_loader_always_places_encoder_on_cpu() -> None:
     assert runtime.model.devices == ["cpu"]
     assert runtime.model.eval_called
     assert runtime.calls == [
-        ("tokenizer", config.model_name, True),
-        ("model", config.model_name, True),
+        ("tokenizer", config.model_name, config.model_revision, True),
+        ("model", config.model_name, config.model_revision, True),
     ]
 
 
