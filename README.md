@@ -5,28 +5,75 @@
 ## Description
 
 This project is a local Retrieval-Augmented Generation (RAG) system for
-answering questions about the vLLM codebase. Development is incremental: each
-pipeline stage is implemented, tested, reviewed, and merged before work begins
-on the next stage.
+answering questions about the vLLM codebase. It discovers and chunks the local
+corpus, builds an explainable BM25 index, retrieves exact source spans, and can
+use those sources to generate a grounded answer with a local Qwen model.
 
-The current implementation provides validated exchange models, safe corpus
-file discovery, exact source reading, immutable chunks with character offsets,
-structural chunking for Python, Markdown, and plain text, and a full-corpus
-chunk invariant audit. It also provides separate lexical tokenization for code
-and documentation, explainable two-field BM25 retrieval, and reproducible
-source-aware retrieval evaluation. The complete single-query path connects the
-compatible stored BM25 index, token-bounded source context, a versioned
-grounding prompt, and local Qwen generation behind one validated command.
+The mandatory pipeline is fully local and does not depend on an external API.
+Its retrieval behavior is deterministic, evaluation is reproducible, and
+generated datasets, indexes, and reports remain outside Git.
+
+### At a Glance
+
+| Question | Answer |
+| --- | --- |
+| What does it retrieve? | Exact documentation and Python source spans from vLLM 0.10.1 |
+| How does it rank them? | Two-field BM25 plus a bounded auxiliary-path penalty |
+| How does it answer? | Retrieved context passed to `Qwen/Qwen3-0.6B` |
+| Does it require a GPU? | No; CUDA and CPU execution are supported |
+| What is verified? | 479 tests, strict checks, clean-clone execution, and assignment performance limits |
+
+## Instructions
+
+Requirements: Python 3.10 or later, `uv`, and the supplied vLLM corpus and
+question datasets. Place the local data in the
+[documented layout](#local-data-layout), then install the locked dependencies
+from the repository root:
+
+```bash
+make install
+```
+
+Build the compatible index and run one retrieval query:
+
+```bash
+uv run python -m src index --max_chunk_size 2000
+uv run python -m src search "Where is the cache implemented?" --k 5
+```
+
+The detailed commands below cover [batch retrieval](#retrieval-search),
+[single-query answers](#single-query-grounded-answers),
+[batch answers](#batch-grounded-answers), and [evaluation](#bm25-evaluation).
+Run `make test`, `make lint`, and `make lint-strict` before submitting a change.
+
+## Example Usage
+
+A normal local workflow first indexes the corpus, then retrieves sources for a
+question, and finally asks Qwen to answer from that bounded evidence:
+
+```bash
+uv run python -m src index
+uv run python -m src search "How does prefix caching work?" --k 5
+HF_HOME=.local/huggingface uv run python -m src answer \
+  "How does prefix caching work?" \
+  --device auto
+```
+
+The commands print progress and concise controlled errors to the terminal.
+The retrieval output includes project-relative file paths and exact half-open
+character ranges so every returned source can be inspected directly.
 
 ## Contents
 
 - [Current Status](#current-status)
-- [Installation and Development](#installation)
+- [Instructions](#instructions)
+- [Example Usage](#example-usage)
 - [System Architecture](#system-architecture)
 - [Ingestion and Chunking](#ingestion-architecture)
 - [Lexical Retrieval](#bm25-lexical-retrieval)
 - [Retrieval Commands](#retrieval-search)
 - [Grounded Answer Generation](#grounded-context-construction)
+- [Challenges Faced](#challenges-faced)
 - [Answer Quality Review](#answer-quality-review)
 - [Retrieval Evaluation](#bm25-evaluation)
 - [Verification](#verification)
@@ -90,25 +137,6 @@ The complete public Docs and Code pipeline has been reproduced from a clean
 clone through indexing, retrieval, Moulinette evaluation, and batch answer
 generation. A compatibility-bound cache stores only single-query answers that
 pass strict grounding validation.
-
-## Requirements
-
-- Python 3.10 or later;
-- `uv` for dependency and environment management.
-
-## Installation
-
-Clone the repository and install the locked dependencies from its root:
-
-```bash
-make install
-```
-
-The `make install` target runs:
-
-```bash
-uv sync
-```
 
 ## Local Data Layout
 
@@ -862,6 +890,30 @@ answers and controlled generation errors are never written to the cache.
 The negative acceptance suite covers these behaviors at both public CLI and
 domain boundaries. Model availability errors, including an explicit CUDA
 request on a machine without CUDA, use the same controlled-error path.
+
+## Challenges Faced
+
+- **Exact evidence boundaries:** corpus text must remain byte-for-byte
+  traceable to the source files. The ingestion layer therefore preserves
+  original newlines and represents every chunk with validated half-open
+  character offsets.
+- **Useful lexical ranking without semantic dependencies:** plain BM25 was
+  strong, but auxiliary examples and tests sometimes displaced primary
+  sources. Fixed Docs and Code evaluations justified a small, bounded path
+  penalty while preserving BM25 as the primary retriever.
+- **Small-model grounding:** Qwen sometimes omitted citations or reported a
+  conflict that the sources did not contain. Deterministic validation protects
+  the strict interactive command; the assignment batch command keeps the more
+  permissive output contract required by the subject.
+- **Experiments without production clutter:** small fine-tuning and semantic
+  retrieval diagnostics did not beat the established baseline. Their measured
+  results support a stopping decision instead of adding unused training or
+  vector-database code to the mandatory pipeline.
+
+The reasoning and measurements behind reconsidered choices are preserved in
+the [decision log](docs/decision-log.md),
+[BM25 tuning log](docs/bm25-tuning-log.md), and
+[end-to-end run log](docs/end-to-end-run-log.md).
 
 ## Answer Quality Review
 
