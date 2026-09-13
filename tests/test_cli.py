@@ -573,6 +573,73 @@ def test_index_command_accepts_assignment_max_chunk_size(
     )
 
 
+def test_index_semantic_loads_bm25_before_building_optional_index(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The bonus command reuses one compatible mandatory index."""
+    lexical_index = object()
+    report = type(
+        "Report",
+        (),
+        {
+            "document_count": 12,
+            "dimension": 384,
+            "model_load_seconds": 1.5,
+            "encoding_seconds": 2.0,
+            "save_seconds": 0.25,
+        },
+    )()
+    with (
+        patch(
+            "src.cli._current_corpus_fingerprint",
+            return_value=FINGERPRINT,
+        ),
+        patch(
+            "src.cli._current_pipeline_fingerprint",
+            return_value=PIPELINE_FINGERPRINT,
+        ),
+        patch("src.cli.IndexStore") as index_store,
+        patch(
+            "src.cli.build_and_store_semantic_index",
+            return_value=report,
+        ) as build_semantic,
+    ):
+        index_store.return_value.load.return_value = lexical_index
+        main(
+            [
+                "index_semantic",
+                "--project_root",
+                "/project",
+                "--index_path",
+                "indexes/bm25.json",
+                "--semantic_index_directory",
+                "indexes/semantic",
+                "--batch_size",
+                "8",
+                "--offline",
+            ]
+        )
+
+    index_store.assert_called_once_with(Path("/project/indexes/bm25.json"))
+    index_store.return_value.load.assert_called_once_with(
+        FINGERPRINT,
+        PIPELINE_FINGERPRINT,
+    )
+    config = build_semantic.call_args.args[2]
+    assert config.batch_size == 8
+    assert config.local_files_only
+    build_semantic.assert_called_once_with(
+        lexical_index,
+        Path("/project/indexes/semantic"),
+        config,
+        corpus_fingerprint=FINGERPRINT,
+        pipeline_fingerprint=PIPELINE_FINGERPRINT,
+    )
+    output = capsys.readouterr().out
+    assert "document_count:           12" in output
+    assert "model_load_seconds:       1.5" in output
+
+
 def test_search_command_routes_one_raw_query() -> None:
     """The Fire search command reaches the stored single-query workflow."""
     with (
