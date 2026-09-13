@@ -19,8 +19,10 @@ class GroundedAnswerValidationError(GenerationError):
 def validate_grounded_answer(
     answer: str,
     sources: Sequence[MinimalSource],
+    *,
+    citations_required: bool = True,
 ) -> None:
-    """Require valid source citations or the exact fallback response."""
+    """Validate citations under strict or assignment-facing policy."""
     if answer == INSUFFICIENT_CONTEXT_RESPONSE:
         return
 
@@ -28,7 +30,7 @@ def validate_grounded_answer(
         int(match.group(1))
         for match in SOURCE_CITATION_PATTERN.finditer(answer)
     }
-    if not citations:
+    if citations_required and not citations:
         raise GroundedAnswerValidationError(
             "Generated answer does not cite any retrieved source"
         )
@@ -39,7 +41,11 @@ def validate_grounded_answer(
             "Generated answer cites a source outside the prompt context"
         )
 
-    if answer.startswith(CONFLICT_PREFIX) and len(citations) < 2:
+    if (
+        citations_required
+        and answer.startswith(CONFLICT_PREFIX)
+        and len(citations) < 2
+    ):
         raise GroundedAnswerValidationError(
             "Generated conflict answer must cite at least two sources"
         )

@@ -1232,3 +1232,61 @@ not a web response.
 Validate whether input can drive the next operation before acquiring that
 operation's resources. A safe empty result is still poor UX when the input
 could never have produced a meaningful search.
+
+## 2026-09-13 - Separate strict and assignment answer validation
+
+**Status:** Accepted
+
+### Initial approach
+
+Use one grounding boundary for both interactive answers and assignment-facing
+batch output. Every generated answer had to use at least one valid
+`[Source N]` citation, and an answer beginning with `The sources conflict:`
+had to cite at least two distinct sources.
+
+### Why the approach was reconsidered
+
+The Phase 29 clean end-to-end run reproduced the official `answer_dataset`
+workflow with the mandatory `Qwen/Qwen3-0.6B` model. Both the Docs and Code
+runs stopped on their first question because Qwen did not reproduce the
+project-specific citation syntax. Allowing uncited prose alone was
+insufficient because the model then selected the project-specific conflict
+form without its required citations.
+
+The assignment output model requires an answer string and the complete
+retrieved-source list, but it does not define `[Source N]` or the conflict
+format. Enforcing those additional guarantees made the required batch command
+non-functional even though retrieval, context construction, generation, and
+the assignment JSON structure were valid.
+
+### Decision
+
+Keep strict grounding validation as the default for interactive answers and
+the validated-answer cache. In that mode, citations remain mandatory and a
+conflict requires two citations.
+
+Let `answer_dataset` explicitly use an assignment-facing validation policy.
+Citations and the internal conflict format are optional at this boundary. If
+the model does emit a citation, its source number must still exist in the
+prompt context. Do not invent citations in post-processing and do not restore
+the measured-ineffective corrective retry.
+
+### Consequences
+
+- Interactive answers retain the stronger user-facing grounding guarantee.
+- Only strictly validated single-query answers can enter the answer cache.
+- The mandatory batch pipeline completes with Qwen and preserves its original
+  generated text plus the full retrieved-source trace.
+- Batch completion does not claim that Qwen answer quality is good. The clean
+  run exposed a very high false-conflict rate, recorded in
+  [the end-to-end run log](end-to-end-run-log.md).
+- Qwen remains the mandatory default. Other free local models may be compared
+  after the stable release on fixed retrieval outputs, but they cannot replace
+  Qwen compatibility.
+
+### Lesson
+
+A stronger internal guarantee is valuable only at a boundary that promises
+it. Preserve strict validation where it protects an interactive user, but do
+not let project-specific output syntax make a required external contract
+impossible to satisfy.
