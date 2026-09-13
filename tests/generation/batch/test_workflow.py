@@ -129,8 +129,20 @@ def test_batch_generates_in_order_and_preserves_retrieval_contract() -> None:
         ),
     ]
     assert generate.call_args_list == [
-        call("Second question?", first_context, backend, config),
-        call("First question?", second_context, backend, config),
+        call(
+            "Second question?",
+            first_context,
+            backend,
+            config,
+            citations_required=False,
+        ),
+        call(
+            "First question?",
+            second_context,
+            backend,
+            config,
+            citations_required=False,
+        ),
     ]
     assert progress_calls == [(1, 2), (2, 2)]
 
