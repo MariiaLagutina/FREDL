@@ -18,6 +18,7 @@ class SemanticRuntime(Protocol):
         self,
         model_name: str,
         *,
+        revision: str,
         local_files_only: bool,
     ) -> Any:
         """Load one tokenizer from its model identifier."""
@@ -26,6 +27,7 @@ class SemanticRuntime(Protocol):
         self,
         model_name: str,
         *,
+        revision: str,
         local_files_only: bool,
     ) -> Any:
         """Load one base transformer model from its identifier."""
@@ -56,11 +58,13 @@ class TransformersSemanticRuntime:
         self,
         model_name: str,
         *,
+        revision: str,
         local_files_only: bool,
     ) -> Any:
         """Load a native tokenizer without executing repository code."""
         return self._transformers.AutoTokenizer.from_pretrained(
             model_name,
+            revision=revision,
             local_files_only=local_files_only,
             trust_remote_code=False,
         )
@@ -69,11 +73,13 @@ class TransformersSemanticRuntime:
         self,
         model_name: str,
         *,
+        revision: str,
         local_files_only: bool,
     ) -> Any:
         """Load a portable float32 encoder without repository code."""
         return self._transformers.AutoModel.from_pretrained(
             model_name,
+            revision=revision,
             local_files_only=local_files_only,
             trust_remote_code=False,
         )
@@ -88,10 +94,12 @@ def load_semantic_backend(
     try:
         tokenizer = selected_runtime.load_tokenizer(
             config.model_name,
+            revision=config.model_revision,
             local_files_only=config.local_files_only,
         )
         model = selected_runtime.load_model(
             config.model_name,
+            revision=config.model_revision,
             local_files_only=config.local_files_only,
         )
         model.to("cpu")
