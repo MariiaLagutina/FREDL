@@ -22,6 +22,10 @@ from src.retrieval.semantic.store import (
     SEMANTIC_SCHEMA_VERSION,
     SemanticIndexStore,
 )
+from src.retrieval.semantic.workflow import (
+    SemanticIndexBuildReport,
+    build_and_store_semantic_index,
+)
 
 __all__ = [
     "DEFAULT_SEMANTIC_MODEL",
@@ -35,9 +39,11 @@ __all__ = [
     "SemanticEncodingError",
     "SemanticHit",
     "SemanticIndex",
+    "SemanticIndexBuildReport",
     "SemanticIndexStore",
     "SemanticTextEncoder",
     "SEMANTIC_SCHEMA_VERSION",
     "build_semantic_index",
+    "build_and_store_semantic_index",
     "load_semantic_backend",
 ]

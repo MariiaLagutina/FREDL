@@ -49,6 +49,12 @@ from src.retrieval.index_store import (
     fingerprint_corpus,
     fingerprint_pipeline,
 )
+from src.retrieval.semantic import (
+    DEFAULT_SEMANTIC_MODEL,
+    DEFAULT_SEMANTIC_REVISION,
+    SemanticEncoderConfig,
+    build_and_store_semantic_index,
+)
 from src.retrieval.validation import (
     MAX_SOURCE_LENGTH,
     SourceValidationReport,
@@ -58,6 +64,7 @@ from src.retrieval.tokenization import require_searchable_query
 
 
 DEFAULT_INDEX_PATH = Path("data/processed/bm25-index.json")
+DEFAULT_SEMANTIC_INDEX_DIRECTORY = Path("data/processed/semantic-index")
 DEFAULT_CORPUS_ROOT = Path("data/raw")
 DEFAULT_BM25_PARAMETERS = BM25Parameters()
 DEFAULT_MAX_CHUNK_SIZE = PipelineConfig().max_chunk_size
@@ -297,6 +304,74 @@ def index(
         "document_count": len(build.index.documents),
         "corpus_fingerprint": build.corpus_fingerprint,
         "pipeline_fingerprint": build.pipeline_fingerprint,
+    }
+
+
+def index_semantic(
+    semantic_index_directory: str = str(DEFAULT_SEMANTIC_INDEX_DIRECTORY),
+    index_path: str = str(DEFAULT_INDEX_PATH),
+    corpus_root: str = str(DEFAULT_CORPUS_ROOT),
+    project_root: str = ".",
+    model: str = DEFAULT_SEMANTIC_MODEL,
+    model_revision: str = DEFAULT_SEMANTIC_REVISION,
+    batch_size: int = 32,
+    max_length: int = 256,
+    offline: bool = False,
+    max_chunk_size: int = DEFAULT_MAX_CHUNK_SIZE,
+    k1: float = DEFAULT_BM25_PARAMETERS.k1,
+    b: float = DEFAULT_BM25_PARAMETERS.b,
+    metadata_weight: float = DEFAULT_BM25_PARAMETERS.metadata_weight,
+    identifier_weight: float = DEFAULT_BM25_PARAMETERS.identifier_weight,
+) -> dict[str, object]:
+    """Build the optional CPU semantic index from a compatible BM25 index."""
+    try:
+        root = Path(project_root)
+        corpus_fingerprint = _current_corpus_fingerprint(
+            root,
+            Path(corpus_root),
+        )
+        pipeline_fingerprint = _current_pipeline_fingerprint(
+            _pipeline_config(
+                max_chunk_size,
+                k1,
+                b,
+                metadata_weight,
+                identifier_weight,
+            )
+        )
+        lexical_index = IndexStore(
+            _below_root(root, Path(index_path))
+        ).load(corpus_fingerprint, pipeline_fingerprint)
+        config = SemanticEncoderConfig(
+            model_name=model,
+            model_revision=model_revision,
+            batch_size=batch_size,
+            max_length=max_length,
+            local_files_only=offline,
+        )
+        output_directory = _below_root(
+            root,
+            Path(semantic_index_directory),
+        )
+        report = build_and_store_semantic_index(
+            lexical_index,
+            output_directory,
+            config,
+            corpus_fingerprint=corpus_fingerprint,
+            pipeline_fingerprint=pipeline_fingerprint,
+        )
+    except (OSError, UnicodeError, ValueError, RuntimeError) as error:
+        raise CliError(_error_message(error)) from None
+    return {
+        "semantic_index_directory": str(output_directory),
+        "model": config.model_name,
+        "model_revision": config.model_revision,
+        "device": "cpu",
+        "document_count": report.document_count,
+        "dimension": report.dimension,
+        "model_load_seconds": report.model_load_seconds,
+        "encoding_seconds": report.encoding_seconds,
+        "save_seconds": report.save_seconds,
     }
 
 
