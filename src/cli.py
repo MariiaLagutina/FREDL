@@ -49,6 +49,14 @@ from src.retrieval.index_store import (
     fingerprint_corpus,
     fingerprint_pipeline,
 )
+from src.retrieval.semantic import (
+    DEFAULT_SEMANTIC_MODEL,
+    DEFAULT_SEMANTIC_REVISION,
+    SemanticEncoderConfig,
+    build_and_store_semantic_index,
+    run_stored_semantic_retrieval,
+    run_stored_semantic_search,
+)
 from src.retrieval.validation import (
     MAX_SOURCE_LENGTH,
     SourceValidationReport,
@@ -58,6 +66,7 @@ from src.retrieval.tokenization import require_searchable_query
 
 
 DEFAULT_INDEX_PATH = Path("data/processed/bm25-index.json")
+DEFAULT_SEMANTIC_INDEX_DIRECTORY = Path("data/processed/semantic-index")
 DEFAULT_CORPUS_ROOT = Path("data/raw")
 DEFAULT_BM25_PARAMETERS = BM25Parameters()
 DEFAULT_MAX_CHUNK_SIZE = PipelineConfig().max_chunk_size
@@ -300,6 +309,74 @@ def index(
     }
 
 
+def index_semantic(
+    semantic_index_directory: str = str(DEFAULT_SEMANTIC_INDEX_DIRECTORY),
+    index_path: str = str(DEFAULT_INDEX_PATH),
+    corpus_root: str = str(DEFAULT_CORPUS_ROOT),
+    project_root: str = ".",
+    model: str = DEFAULT_SEMANTIC_MODEL,
+    model_revision: str = DEFAULT_SEMANTIC_REVISION,
+    batch_size: int = 32,
+    max_length: int = 256,
+    offline: bool = False,
+    max_chunk_size: int = DEFAULT_MAX_CHUNK_SIZE,
+    k1: float = DEFAULT_BM25_PARAMETERS.k1,
+    b: float = DEFAULT_BM25_PARAMETERS.b,
+    metadata_weight: float = DEFAULT_BM25_PARAMETERS.metadata_weight,
+    identifier_weight: float = DEFAULT_BM25_PARAMETERS.identifier_weight,
+) -> dict[str, object]:
+    """Build the optional CPU semantic index from a compatible BM25 index."""
+    try:
+        root = Path(project_root)
+        corpus_fingerprint = _current_corpus_fingerprint(
+            root,
+            Path(corpus_root),
+        )
+        pipeline_fingerprint = _current_pipeline_fingerprint(
+            _pipeline_config(
+                max_chunk_size,
+                k1,
+                b,
+                metadata_weight,
+                identifier_weight,
+            )
+        )
+        lexical_index = IndexStore(
+            _below_root(root, Path(index_path))
+        ).load(corpus_fingerprint, pipeline_fingerprint)
+        config = SemanticEncoderConfig(
+            model_name=model,
+            model_revision=model_revision,
+            batch_size=batch_size,
+            max_length=max_length,
+            local_files_only=offline,
+        )
+        output_directory = _below_root(
+            root,
+            Path(semantic_index_directory),
+        )
+        report = build_and_store_semantic_index(
+            lexical_index,
+            output_directory,
+            config,
+            corpus_fingerprint=corpus_fingerprint,
+            pipeline_fingerprint=pipeline_fingerprint,
+        )
+    except (OSError, UnicodeError, ValueError, RuntimeError) as error:
+        raise CliError(_error_message(error)) from None
+    return {
+        "semantic_index_directory": str(output_directory),
+        "model": config.model_name,
+        "model_revision": config.model_revision,
+        "device": "cpu",
+        "document_count": report.document_count,
+        "dimension": report.dimension,
+        "model_load_seconds": report.model_load_seconds,
+        "encoding_seconds": report.encoding_seconds,
+        "save_seconds": report.save_seconds,
+    }
+
+
 def search(
     query: str,
     k: int = 5,
@@ -344,6 +421,133 @@ def search(
     except (OSError, UnicodeError, ValueError) as error:
         raise CliError(_error_message(error)) from None
     return [source.model_dump() for source in sources]
+
+
+def search_semantic(
+    query: str,
+    k: int = 5,
+    semantic_index_directory: str = str(DEFAULT_SEMANTIC_INDEX_DIRECTORY),
+    corpus_root: str = str(DEFAULT_CORPUS_ROOT),
+    project_root: str = ".",
+    model: str = DEFAULT_SEMANTIC_MODEL,
+    model_revision: str = DEFAULT_SEMANTIC_REVISION,
+    batch_size: int = 32,
+    max_length: int = 256,
+    offline: bool = False,
+    max_chunk_size: int = DEFAULT_MAX_CHUNK_SIZE,
+    k1: float = DEFAULT_BM25_PARAMETERS.k1,
+    b: float = DEFAULT_BM25_PARAMETERS.b,
+    metadata_weight: float = DEFAULT_BM25_PARAMETERS.metadata_weight,
+    identifier_weight: float = DEFAULT_BM25_PARAMETERS.identifier_weight,
+) -> dict[str, object]:
+    """Search the optional semantic index and expose cold-query timings."""
+    try:
+        require_searchable_query(query)
+        _require_positive_k(k)
+        root = Path(project_root)
+        corpus_fingerprint = _current_corpus_fingerprint(
+            root,
+            Path(corpus_root),
+        )
+        pipeline_fingerprint = _current_pipeline_fingerprint(
+            _pipeline_config(
+                max_chunk_size,
+                k1,
+                b,
+                metadata_weight,
+                identifier_weight,
+            )
+        )
+        config = SemanticEncoderConfig(
+            model_name=model,
+            model_revision=model_revision,
+            batch_size=batch_size,
+            max_length=max_length,
+            local_files_only=offline,
+        )
+        report = run_stored_semantic_search(
+            _below_root(root, Path(semantic_index_directory)),
+            query,
+            k,
+            config,
+            corpus_fingerprint=corpus_fingerprint,
+            pipeline_fingerprint=pipeline_fingerprint,
+        )
+    except (OSError, UnicodeError, ValueError, RuntimeError) as error:
+        raise CliError(_error_message(error)) from None
+    return {
+        "sources": [source.model_dump() for source in report.sources],
+        "index_load_seconds": report.index_load_seconds,
+        "model_load_seconds": report.model_load_seconds,
+        "query_encoding_seconds": report.query_encoding_seconds,
+        "search_seconds": report.search_seconds,
+    }
+
+
+def search_dataset_semantic(
+    dataset_path: str,
+    save_directory: str,
+    k: int = 5,
+    semantic_index_directory: str = str(DEFAULT_SEMANTIC_INDEX_DIRECTORY),
+    corpus_root: str = str(DEFAULT_CORPUS_ROOT),
+    project_root: str = ".",
+    model: str = DEFAULT_SEMANTIC_MODEL,
+    model_revision: str = DEFAULT_SEMANTIC_REVISION,
+    batch_size: int = 32,
+    max_length: int = 256,
+    offline: bool = False,
+    max_chunk_size: int = DEFAULT_MAX_CHUNK_SIZE,
+    k1: float = DEFAULT_BM25_PARAMETERS.k1,
+    b: float = DEFAULT_BM25_PARAMETERS.b,
+    metadata_weight: float = DEFAULT_BM25_PARAMETERS.metadata_weight,
+    identifier_weight: float = DEFAULT_BM25_PARAMETERS.identifier_weight,
+) -> dict[str, object]:
+    """Search a question dataset with one shared semantic model load."""
+    try:
+        _require_positive_k(k)
+        root = Path(project_root)
+        dataset = _below_root(root, Path(dataset_path))
+        output = _below_root(root, Path(save_directory)) / dataset.name
+        corpus_fingerprint = _current_corpus_fingerprint(
+            root,
+            Path(corpus_root),
+        )
+        pipeline_fingerprint = _current_pipeline_fingerprint(
+            _pipeline_config(
+                max_chunk_size,
+                k1,
+                b,
+                metadata_weight,
+                identifier_weight,
+            )
+        )
+        config = SemanticEncoderConfig(
+            model_name=model,
+            model_revision=model_revision,
+            batch_size=batch_size,
+            max_length=max_length,
+            local_files_only=offline,
+        )
+        report = run_stored_semantic_retrieval(
+            _below_root(root, Path(semantic_index_directory)),
+            dataset,
+            output,
+            k,
+            config,
+            corpus_fingerprint=corpus_fingerprint,
+            pipeline_fingerprint=pipeline_fingerprint,
+        )
+    except (OSError, UnicodeError, ValueError, RuntimeError) as error:
+        raise CliError(_error_message(error)) from None
+    return {
+        "output_path": str(output),
+        "query_count": report.query_count,
+        "index_load_seconds": report.index_load_seconds,
+        "model_load_seconds": report.model_load_seconds,
+        "query_encoding_seconds": report.query_encoding_seconds,
+        "search_seconds": report.search_seconds,
+        "average_query_seconds": report.average_query_seconds,
+    }
 
 
 def search_dataset(

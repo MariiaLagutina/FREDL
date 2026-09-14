@@ -573,6 +573,192 @@ def test_index_command_accepts_assignment_max_chunk_size(
     )
 
 
+def test_index_semantic_loads_bm25_before_building_optional_index(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The bonus command reuses one compatible mandatory index."""
+    lexical_index = object()
+    report = type(
+        "Report",
+        (),
+        {
+            "document_count": 12,
+            "dimension": 384,
+            "model_load_seconds": 1.5,
+            "encoding_seconds": 2.0,
+            "save_seconds": 0.25,
+        },
+    )()
+    with (
+        patch(
+            "src.cli._current_corpus_fingerprint",
+            return_value=FINGERPRINT,
+        ),
+        patch(
+            "src.cli._current_pipeline_fingerprint",
+            return_value=PIPELINE_FINGERPRINT,
+        ),
+        patch("src.cli.IndexStore") as index_store,
+        patch(
+            "src.cli.build_and_store_semantic_index",
+            return_value=report,
+        ) as build_semantic,
+    ):
+        index_store.return_value.load.return_value = lexical_index
+        main(
+            [
+                "index_semantic",
+                "--project_root",
+                "/project",
+                "--index_path",
+                "indexes/bm25.json",
+                "--semantic_index_directory",
+                "indexes/semantic",
+                "--batch_size",
+                "8",
+                "--offline",
+            ]
+        )
+
+    index_store.assert_called_once_with(Path("/project/indexes/bm25.json"))
+    index_store.return_value.load.assert_called_once_with(
+        FINGERPRINT,
+        PIPELINE_FINGERPRINT,
+    )
+    config = build_semantic.call_args.args[2]
+    assert config.batch_size == 8
+    assert config.local_files_only
+    build_semantic.assert_called_once_with(
+        lexical_index,
+        Path("/project/indexes/semantic"),
+        config,
+        corpus_fingerprint=FINGERPRINT,
+        pipeline_fingerprint=PIPELINE_FINGERPRINT,
+    )
+    output = capsys.readouterr().out
+    assert "document_count:           12" in output
+    assert "model_load_seconds:       1.5" in output
+
+
+def test_search_semantic_exposes_sources_and_separate_timings(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The bonus query command keeps cold-start costs inspectable."""
+    source = MinimalSource(
+        file_path="guide.md",
+        first_character_index=10,
+        last_character_index=20,
+    )
+    report = type(
+        "Report",
+        (),
+        {
+            "sources": (source,),
+            "index_load_seconds": 0.5,
+            "model_load_seconds": 3.0,
+            "query_encoding_seconds": 0.1,
+            "search_seconds": 0.01,
+        },
+    )()
+    with (
+        patch(
+            "src.cli._current_corpus_fingerprint",
+            return_value=FINGERPRINT,
+        ),
+        patch(
+            "src.cli._current_pipeline_fingerprint",
+            return_value=PIPELINE_FINGERPRINT,
+        ),
+        patch(
+            "src.cli.run_stored_semantic_search",
+            return_value=report,
+        ) as search_semantic,
+    ):
+        main(
+            [
+                "search_semantic",
+                "Where is the guide?",
+                "--k",
+                "1",
+                "--offline",
+            ]
+        )
+
+    config = search_semantic.call_args.args[3]
+    assert config.local_files_only
+    search_semantic.assert_called_once_with(
+        Path("data/processed/semantic-index"),
+        "Where is the guide?",
+        1,
+        config,
+        corpus_fingerprint=FINGERPRINT,
+        pipeline_fingerprint=PIPELINE_FINGERPRINT,
+    )
+    output = capsys.readouterr().out
+    assert '"file_path": "guide.md"' in output
+    assert "query_encoding_seconds: 0.1" in output
+    assert "search_seconds:         0.01" in output
+
+
+def test_search_dataset_semantic_routes_compatible_batch_output(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The bonus batch command exposes reusable-resource timings."""
+    report = type(
+        "Report",
+        (),
+        {
+            "query_count": 100,
+            "index_load_seconds": 0.5,
+            "model_load_seconds": 2.0,
+            "query_encoding_seconds": 1.0,
+            "search_seconds": 3.0,
+            "average_query_seconds": 0.04,
+        },
+    )()
+    with (
+        patch(
+            "src.cli._current_corpus_fingerprint",
+            return_value=FINGERPRINT,
+        ),
+        patch(
+            "src.cli._current_pipeline_fingerprint",
+            return_value=PIPELINE_FINGERPRINT,
+        ),
+        patch(
+            "src.cli.run_stored_semantic_retrieval",
+            return_value=report,
+        ) as retrieve,
+    ):
+        main(
+            [
+                "search_dataset_semantic",
+                "--dataset_path",
+                "questions/docs.json",
+                "--save_directory",
+                "results/semantic",
+                "--project_root",
+                "/project",
+                "--offline",
+            ]
+        )
+
+    config = retrieve.call_args.args[4]
+    assert config.local_files_only
+    retrieve.assert_called_once_with(
+        Path("/project/data/processed/semantic-index"),
+        Path("/project/questions/docs.json"),
+        Path("/project/results/semantic/docs.json"),
+        5,
+        config,
+        corpus_fingerprint=FINGERPRINT,
+        pipeline_fingerprint=PIPELINE_FINGERPRINT,
+    )
+    output = capsys.readouterr().out
+    assert "query_count:            100" in output
+    assert "average_query_seconds:  0.04" in output
+
+
 def test_search_command_routes_one_raw_query() -> None:
     """The Fire search command reaches the stored single-query workflow."""
     with (
