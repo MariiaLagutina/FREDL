@@ -1366,3 +1366,74 @@ Aggregate metrics decide whether a component can replace the baseline, while
 per-question differences decide whether it may still complement the baseline.
 Keep a weaker retriever only when it contributes independent measured signal
 and can be disabled without weakening the known-good path.
+
+## 2026-09-14 - Apply hybrid retrieval only to documentation queries
+
+**Status:** Accepted
+
+### Initial approach
+
+Combine the selected production BM25 ranking and MiniLM ranking with
+reciprocal rank fusion (RRF). Start from the conventional rank constant `60`,
+equal weights, and a shared candidate depth of `20`, then seek one transparent
+configuration for both Docs and Code.
+
+### Why the approach was reconsidered
+
+The equal-weight H0 control improved neither domain reliably. Docs Recall@5
+fell from `0.850000` to `0.800000`, while Code fell from `0.787879` to
+`0.696970`. Increasing the lexical weight to `2:1` and `5:1` recovered part of
+the loss but still left Code materially below its production BM25 baseline.
+
+Two more targeted variants separated the effects of rank sensitivity and
+lexical protection:
+
+| Run | Rank constant | BM25:MiniLM | Docs R@5 | Code R@5 |
+| --- | ---: | ---: | ---: | ---: |
+| BM25 control | — | — | 0.850000 | 0.787879 |
+| H0 | 60 | 1:1 | 0.800000 | 0.696970 |
+| H1 | 60 | 2:1 | 0.820000 | 0.717172 |
+| H2 | 60 | 5:1 | 0.830000 | 0.727273 |
+| H3 | 10 | 2:1 | 0.860000 | 0.767677 |
+| H4 | 60 | 10:1 | 0.870000 | 0.777778 |
+
+H3 improved every aggregate Docs metric, but its three top-five gains came
+with two top-five regressions. H4 retained all three gains with one regression
+and restored the CUDA wheel question lost by H3. H4 therefore produced the
+stronger result for the project's primary Recall@5 measure. Neither profile
+matched production BM25 on Code, especially at rank one.
+
+### Decision
+
+Keep production BM25 as the universal default and the only selected retrieval
+mode for Code. Offer RRF as an explicit optional Docs bonus with rank constant
+`60`, BM25 weight `10.0`, MiniLM weight `1.0`, and candidate depth `20`.
+
+Do not infer the domain from query wording or a dataset filename. The caller
+must choose the optional Docs hybrid workflow explicitly; otherwise retrieval
+uses the unchanged mandatory BM25 path. Do not filter individual fused hits by
+file extension because documentation candidates could still displace code
+results inside one mixed ranking.
+
+The selected domain-aware evaluation combines H4 Docs with production BM25
+Code. Docs reaches Recall@1 `0.570000`, Recall@3 `0.790000`, Recall@5
+`0.870000`, Recall@10 `0.910000`, and MRR `0.691956`. Code remains
+behaviorally identical to the production baseline at Recall@1 `0.535354`,
+Recall@3 `0.707071`, Recall@5 `0.787879`, Recall@10 `0.848485`, and MRR
+`0.641186`.
+
+### Consequences
+
+- The optional bonus improves Docs Recall@5 by two questions without changing
+  any selected Code metric.
+- The remaining Docs top-five regression is recorded rather than hidden;
+  hybrid retrieval is a measured trade-off, not a universal improvement.
+- Disabling or omitting the bonus preserves the mandatory BM25 behavior.
+- MiniLM is loaded only for an explicitly requested Docs hybrid run.
+- Generated indexes and experiment outputs remain outside Git.
+
+### Lesson
+
+A retriever can be complementary in one domain and harmful in another. Prefer
+an explicit domain boundary over a single compromised parameter set or an
+unmeasured automatic query classifier.
