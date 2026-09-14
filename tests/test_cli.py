@@ -29,6 +29,7 @@ from src.evaluation.retrieval import (
     RetrievalMetrics,
 )
 from src.retrieval.bm25 import BM25Parameters
+from src.retrieval.hybrid import RRFParameters
 from src.retrieval.index_store import (
     PipelineConfig,
     SCHEMA_VERSION,
@@ -757,6 +758,73 @@ def test_search_dataset_semantic_routes_compatible_batch_output(
     output = capsys.readouterr().out
     assert "query_count:            100" in output
     assert "average_query_seconds:  0.04" in output
+
+
+def test_search_dataset_hybrid_uses_selected_docs_defaults(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The explicit bonus command routes the measured H4 configuration."""
+    report = type(
+        "Report",
+        (),
+        {
+            "query_count": 100,
+            "lexical_index_load_seconds": 0.5,
+            "semantic_index_load_seconds": 0.75,
+            "model_load_seconds": 2.0,
+            "query_encoding_seconds": 1.0,
+            "search_seconds": 3.0,
+            "average_query_seconds": 0.04,
+        },
+    )()
+    with (
+        patch(
+            "src.cli._current_corpus_fingerprint",
+            return_value=FINGERPRINT,
+        ),
+        patch(
+            "src.cli._current_pipeline_fingerprint",
+            return_value=PIPELINE_FINGERPRINT,
+        ),
+        patch(
+            "src.cli.run_stored_hybrid_retrieval",
+            return_value=report,
+        ) as retrieve,
+    ):
+        main(
+            [
+                "search_dataset_hybrid",
+                "--dataset_path",
+                "questions/docs.json",
+                "--save_directory",
+                "results/hybrid",
+                "--project_root",
+                "/project",
+                "--offline",
+            ]
+        )
+
+    config = retrieve.call_args.args[6]
+    assert config.local_files_only
+    retrieve.assert_called_once_with(
+        Path("/project/data/processed/bm25-index.json"),
+        Path("/project/data/processed/semantic-index"),
+        Path("/project/questions/docs.json"),
+        Path("/project/results/hybrid/docs.json"),
+        10,
+        20,
+        config,
+        corpus_fingerprint=FINGERPRINT,
+        pipeline_fingerprint=PIPELINE_FINGERPRINT,
+        rrf_parameters=RRFParameters(
+            rank_constant=60,
+            lexical_weight=10.0,
+            semantic_weight=1.0,
+        ),
+    )
+    output = capsys.readouterr().out
+    assert "lexical_weight:              10.0" in output
+    assert "candidate_k:                 20" in output
 
 
 def test_search_command_routes_one_raw_query() -> None:
