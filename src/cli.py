@@ -560,7 +560,7 @@ def search_dataset_hybrid(
     k: int = 10,
     candidate_k: int = 20,
     rank_constant: int = 60,
-    lexical_weight: float = 1.0,
+    lexical_weight: float = RRFParameters().lexical_weight,
     semantic_weight: float = 1.0,
     index_path: str = str(DEFAULT_INDEX_PATH),
     semantic_index_directory: str = str(DEFAULT_SEMANTIC_INDEX_DIRECTORY),

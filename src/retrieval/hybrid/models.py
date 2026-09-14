@@ -10,7 +10,7 @@ class RRFParameters:
     """Control reciprocal-rank contributions from both retrievers."""
 
     rank_constant: int = 60
-    lexical_weight: float = 1.0
+    lexical_weight: float = 10.0
     semantic_weight: float = 1.0
 
     def __post_init__(self) -> None:

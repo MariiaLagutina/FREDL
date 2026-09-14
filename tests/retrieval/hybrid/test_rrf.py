@@ -22,6 +22,15 @@ def _semantic_hit(chunk: Chunk, score: float = 0.5) -> SemanticHit:
     return SemanticHit(SemanticDocument(chunk), score)
 
 
+def test_rrf_defaults_use_the_selected_docs_hybrid_profile() -> None:
+    """The optional project workflow defaults to the measured H4 profile."""
+    assert RRFParameters() == RRFParameters(
+        rank_constant=60,
+        lexical_weight=10.0,
+        semantic_weight=1.0,
+    )
+
+
 def test_rrf_rewards_sources_supported_by_both_rankings() -> None:
     shared = _chunk("shared.py")
     lexical_only = _chunk("lexical.py")

@@ -657,9 +657,27 @@ it without a second evaluator.
 On the full public datasets, semantic-only Recall@5 reached `0.630000` for 100
 Docs questions and `0.414141` for 99 Code questions, compared with the
 corresponding BM25 `k=5` controls of `0.820000` and `0.757576`. MiniLM therefore
-does not replace BM25. It remains an optional complementary signal for a later
-rank-based hybrid, including measured cases where semantic retrieval found the
-expected source outside the BM25 top five.
+does not replace BM25. It remains an optional complementary signal in the
+explicit Docs hybrid workflow, including measured cases where semantic
+retrieval found the expected source outside the BM25 top five.
+
+Run the selected H4 hybrid profile for documentation questions only after both
+persisted indexes have been built:
+
+```bash
+uv run python -m src search_dataset_hybrid \
+  --dataset_path data/datasets/UnansweredQuestions/dataset_docs_public.json \
+  --save_directory data/output/search_results/hybrid-docs \
+  --offline
+```
+
+The command defaults to rank constant `60`, BM25:MiniLM weight `10:1`, and a
+candidate depth of `20`. On the 100 public Docs questions it reached Recall@1
+`0.570000`, Recall@3 `0.790000`, Recall@5 `0.870000`, Recall@10 `0.910000`, and
+MRR `0.691956`. This is an explicit bonus mode rather than an automatic query
+classifier. Code questions and the universal default continue to use the
+normal `search_dataset` BM25 command; their selected metrics therefore remain
+unchanged.
 
 Production search retrieves up to 20 BM25 candidates and applies a bounded
 post-ranking penalty of `0.50` only to paths containing exact `examples` or
@@ -1014,8 +1032,9 @@ full-corpus evaluation. Phase 33 subsequently evaluated pinned MiniLM over all
 20,096 production chunks and all 199 public questions. Its Docs/Code Recall@5
 of `0.630000`/`0.414141` remained below BM25's
 `0.820000`/`0.757576`. Production therefore keeps BM25 as its primary
-retriever; the optional embeddings remain available as complementary evidence
-for a later hybrid experiment.
+retriever. The optional H4 hybrid uses the embeddings only for an explicitly
+selected Docs run and improved full-corpus Docs Recall@5 from `0.850000` to
+`0.870000`; Code remains on the stronger BM25 baseline.
 
 The mandatory workflow continues to use `Qwen/Qwen3-0.6B`. After the stable
 release, other free local models can be compared on the same persisted
