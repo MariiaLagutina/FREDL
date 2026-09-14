@@ -21,7 +21,8 @@ generated datasets, indexes, and reports remain outside Git.
 | How does it rank them? | Two-field BM25 plus a bounded auxiliary-path penalty |
 | How does it answer? | Retrieved context passed to `Qwen/Qwen3-0.6B` |
 | Does it require a GPU? | No; CUDA and CPU execution are supported |
-| What is verified? | 479 tests, strict checks, clean-clone execution, and assignment performance limits |
+| Is semantic retrieval available? | Yes; pinned CPU MiniLM is an optional bonus and BM25 remains the default |
+| What is verified? | 518 tests, strict checks, clean-clone execution, and assignment performance limits |
 
 ### Verified Results
 
@@ -31,7 +32,9 @@ generated datasets, indexes, and reports remain outside Git.
 | Retrieval, normalized to 200 questions | 19.51–19.88 s | at most 90 s |
 | Docs Recall@5 / Recall@10 | 0.850000 / 0.900000 | Recall@5 at least 0.80 |
 | Code Recall@5 / Recall@10 | 0.787879 / 0.848485 | Recall@5 at least 0.50 |
-| Automated tests | 479 passed | all required checks pass |
+| Optional MiniLM index, 20,096 vectors | 443.56 s on CPU | bonus measurement |
+| Optional MiniLM warm query | 55.6–58.9 ms average | bonus measurement |
+| Automated tests | 518 passed | all required checks pass |
 
 Times are machine-specific measurements from the reproducible Linux run. The
 [performance analysis](#performance-analysis) records the hardware, commands,
@@ -146,8 +149,10 @@ Implemented:
 - separate retrieved-source and prompt-source traces;
 - delayed terminal feedback for generation lasting more than five seconds;
 - an exact compatibility-bound cache for validated single-query answers;
-- a measured stopping decision that rejects weak small-model training and a
-  semantic-only replacement for the stronger lexical retrieval baseline;
+- an optional pinned CPU MiniLM encoder, checksum-linked semantic index,
+  single-query search, and load-once batch retrieval;
+- a measured stopping decision that rejects both weak small-model training and
+  a semantic-only replacement for the stronger lexical retrieval baseline;
 - automated tests organized by pipeline component.
 
 The complete public Docs and Code pipeline has been reproduced from a clean
@@ -194,9 +199,10 @@ data/raw/vllm-0.10.1/docs/features/lora.md
 
 ## System Architecture
 
-The Python Fire CLI is the public boundary for four connected flows. Reusable
-Python workflows own the domain logic, while the CLI resolves paths, reports
-progress, and converts expected failures into concise terminal errors.
+The Python Fire CLI is the public boundary for the mandatory flows and an
+isolated semantic bonus. Reusable Python workflows own the domain logic, while
+the CLI resolves paths, reports progress, and converts expected failures into
+concise terminal errors.
 
 ```mermaid
 flowchart TD
@@ -208,12 +214,17 @@ flowchart TD
     TextChunker --> LexicalDocs
     LexicalDocs --> BM25Index["Versioned BM25 index"]
     BM25Index --> IndexFile["data/processed/bm25-index.json"]
+    LexicalDocs -. optional CPU encoding .-> MiniLM["Pinned MiniLM encoder"]
+    MiniLM -.-> SemanticIndex["Checksum-linked semantic index"]
 
     Question["Single question or question dataset"] --> Retrieval["BM25 retrieval"]
     IndexFile --> Compatibility["Schema, corpus, and pipeline compatibility checks"]
     Compatibility --> Retrieval
     Retrieval --> Reranker["Bounded auxiliary-path reranker"]
     Reranker --> SearchResults["Exact ranked source locations"]
+    Question -. optional .-> SemanticRetrieval["Exact cosine retrieval"]
+    SemanticIndex -.-> SemanticRetrieval
+    SemanticRetrieval -.-> SemanticSearchResults["Semantic source locations"]
 
     SearchResults --> ContextBuilder["Deduplicated, token-bounded source context"]
     Corpus --> ContextBuilder
@@ -222,6 +233,7 @@ flowchart TD
     Validator --> Answer["Grounded answer or controlled CLI error"]
 
     SearchResults --> RetrievalEvaluator["Source IoU and retrieval evaluator"]
+    SemanticSearchResults -.-> RetrievalEvaluator
     GroundTruth["Answered ground-truth dataset"] --> RetrievalEvaluator
     RetrievalEvaluator --> Metrics["Recall@1/3/5/10 and MRR"]
 ```
@@ -233,6 +245,10 @@ persisted search results and reuses one loaded generation backend for the
 whole batch. `evaluate` joins persisted results to one labelled dataset by
 `question_id`; `evaluate_all` runs the same evaluator independently for Docs
 and Code. Generated datasets, indexes, and reports stay outside Git.
+
+The dotted branch is optional and never changes `index`, `search`, or the
+answer workflows. It reuses the exact BM25 chunks so lexical and semantic
+results share the same source-coordinate contract.
 
 ## Development Commands
 
@@ -608,6 +624,43 @@ Internal BM25 scores are not included in the public result contract.
 Domain-oriented Python model names coexist with the exact
 assignment-compatible model names and JSON fields.
 
+### Optional Semantic Retrieval
+
+Build the bonus CPU MiniLM index from the compatible BM25 documents:
+
+```bash
+uv run python -m src index_semantic --offline
+```
+
+Search one question or a complete dataset:
+
+```bash
+uv run python -m src search_semantic \
+  "What method generates embedding vectors from prompts?" \
+  --k 5 \
+  --offline
+
+uv run python -m src search_dataset_semantic \
+  --dataset_path data/datasets/UnansweredQuestions/dataset_docs_public.json \
+  --save_directory data/output/search_results/semantic \
+  --k 5 \
+  --offline
+```
+
+The optional snapshot stores a normalized 384-dimensional matrix in
+`data/processed/semantic-index/embeddings.pt` and strict source metadata in
+`metadata.json`. It is bound to the corpus, BM25 pipeline, schema, model name,
+and pinned Hugging Face revision. The batch output uses the normal
+`RetrievalResults` JSON contract, so the existing `evaluate` command measures
+it without a second evaluator.
+
+On the full public datasets, semantic-only Recall@5 reached `0.630000` for 100
+Docs questions and `0.414141` for 99 Code questions, compared with the
+corresponding BM25 `k=5` controls of `0.820000` and `0.757576`. MiniLM therefore
+does not replace BM25. It remains an optional complementary signal for a later
+rank-based hybrid, including measured cases where semantic retrieval found the
+expected source outside the BM25 top five.
+
 Production search retrieves up to 20 BM25 candidates and applies a bounded
 post-ranking penalty of `0.50` only to paths containing exact `examples` or
 `tests` directory segments. This promotes close primary documentation and
@@ -922,10 +975,10 @@ request on a machine without CUDA, use the same controlled-error path.
   conflict that the sources did not contain. Deterministic validation protects
   the strict interactive command; the assignment batch command keeps the more
   permissive output contract required by the subject.
-- **Experiments without production clutter:** small fine-tuning and semantic
-  retrieval diagnostics did not beat the established baseline. Their measured
-  results support a stopping decision instead of adding unused training or
-  vector-database code to the mandatory pipeline.
+- **Experiments without mandatory-path clutter:** small fine-tuning and
+  semantic-only retrieval did not beat the established baseline. The measured
+  result keeps MiniLM isolated as an optional bonus and avoids adding an
+  unnecessary vector database to the mandatory pipeline.
 
 The reasoning and measurements behind reconsidered choices are preserved in
 the [decision log](docs/decision-log.md),
@@ -957,10 +1010,12 @@ and ten held-out questions:
 | Chroma + MiniLM | 0.50 | 0.60 | 0.80 | 0.80 | 0.60 |
 
 These small diagnostics are stopping evidence, not substitutes for the public
-full-corpus evaluation below. They do not justify adding training or semantic
-dependencies to the mandatory pipeline. Production therefore keeps BM25 as
-its primary retriever; embeddings remain a candidate for a later optional
-hybrid experiment.
+full-corpus evaluation. Phase 33 subsequently evaluated pinned MiniLM over all
+20,096 production chunks and all 199 public questions. Its Docs/Code Recall@5
+of `0.630000`/`0.414141` remained below BM25's
+`0.820000`/`0.757576`. Production therefore keeps BM25 as its primary
+retriever; the optional embeddings remain available as complementary evidence
+for a later hybrid experiment.
 
 The mandatory workflow continues to use `Qwen/Qwen3-0.6B`. After the stable
 release, other free local models can be compared on the same persisted
@@ -1088,10 +1143,10 @@ make lint-strict
 The current checks pass:
 
 ```text
-pytest: 479 passed
+pytest: 518 passed
 flake8: passed
-mypy with the assignment flags: passed for 199 source files
-mypy --strict: passed for 199 source files
+mypy with the assignment flags: passed for 216 source files
+mypy --strict: passed for 216 source files
 ```
 
 The Phase 30 audit found no missing docstrings on top-level public production
