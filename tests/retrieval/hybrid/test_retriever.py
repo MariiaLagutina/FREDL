@@ -5,7 +5,7 @@ from torch import Tensor
 
 from src.ingestion import Chunk
 from src.retrieval.bm25 import BM25Document, BM25Index, BM25Retriever
-from src.retrieval.hybrid import HybridRetriever
+from src.retrieval.hybrid import HybridRetriever, ProductionBM25Retriever
 from src.retrieval.semantic import SemanticDocument, SemanticIndex
 
 
@@ -70,3 +70,18 @@ def test_hybrid_retriever_rejects_too_shallow_candidate_pool() -> None:
         raise AssertionError("Expected an invalid candidate depth error")
 
     assert encoder.calls == []
+
+
+def test_production_lexical_candidates_keep_selected_path_penalty() -> None:
+    auxiliary = _document("tests/cache.py", "cache")
+    production = _document("src/cache.py", "cache")
+    retriever = ProductionBM25Retriever(
+        BM25Index((auxiliary, production)),
+        path_candidate_depth=2,
+    )
+
+    hits = retriever.search("cache", top_k=1)
+
+    assert [hit.document.chunk.file_path for hit in hits] == [
+        "src/cache.py"
+    ]

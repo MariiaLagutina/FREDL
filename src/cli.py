@@ -49,6 +49,10 @@ from src.retrieval.index_store import (
     fingerprint_corpus,
     fingerprint_pipeline,
 )
+from src.retrieval.hybrid import (
+    RRFParameters,
+    run_stored_hybrid_retrieval,
+)
 from src.retrieval.semantic import (
     DEFAULT_SEMANTIC_MODEL,
     DEFAULT_SEMANTIC_REVISION,
@@ -543,6 +547,90 @@ def search_dataset_semantic(
         "output_path": str(output),
         "query_count": report.query_count,
         "index_load_seconds": report.index_load_seconds,
+        "model_load_seconds": report.model_load_seconds,
+        "query_encoding_seconds": report.query_encoding_seconds,
+        "search_seconds": report.search_seconds,
+        "average_query_seconds": report.average_query_seconds,
+    }
+
+
+def search_dataset_hybrid(
+    dataset_path: str,
+    save_directory: str,
+    k: int = 10,
+    candidate_k: int = 20,
+    rank_constant: int = 60,
+    lexical_weight: float = 1.0,
+    semantic_weight: float = 1.0,
+    index_path: str = str(DEFAULT_INDEX_PATH),
+    semantic_index_directory: str = str(DEFAULT_SEMANTIC_INDEX_DIRECTORY),
+    corpus_root: str = str(DEFAULT_CORPUS_ROOT),
+    project_root: str = ".",
+    model: str = DEFAULT_SEMANTIC_MODEL,
+    model_revision: str = DEFAULT_SEMANTIC_REVISION,
+    batch_size: int = 32,
+    max_length: int = 256,
+    offline: bool = False,
+    max_chunk_size: int = DEFAULT_MAX_CHUNK_SIZE,
+    k1: float = DEFAULT_BM25_PARAMETERS.k1,
+    b: float = DEFAULT_BM25_PARAMETERS.b,
+    metadata_weight: float = DEFAULT_BM25_PARAMETERS.metadata_weight,
+    identifier_weight: float = DEFAULT_BM25_PARAMETERS.identifier_weight,
+) -> dict[str, object]:
+    """Search a dataset with the optional rank-based hybrid retriever."""
+    try:
+        _require_positive_k(k)
+        root = Path(project_root)
+        dataset = _below_root(root, Path(dataset_path))
+        output = _below_root(root, Path(save_directory)) / dataset.name
+        corpus_fingerprint = _current_corpus_fingerprint(
+            root,
+            Path(corpus_root),
+        )
+        pipeline_fingerprint = _current_pipeline_fingerprint(
+            _pipeline_config(
+                max_chunk_size,
+                k1,
+                b,
+                metadata_weight,
+                identifier_weight,
+            )
+        )
+        config = SemanticEncoderConfig(
+            model_name=model,
+            model_revision=model_revision,
+            batch_size=batch_size,
+            max_length=max_length,
+            local_files_only=offline,
+        )
+        parameters = RRFParameters(
+            rank_constant=rank_constant,
+            lexical_weight=lexical_weight,
+            semantic_weight=semantic_weight,
+        )
+        report = run_stored_hybrid_retrieval(
+            _below_root(root, Path(index_path)),
+            _below_root(root, Path(semantic_index_directory)),
+            dataset,
+            output,
+            k,
+            candidate_k,
+            config,
+            corpus_fingerprint=corpus_fingerprint,
+            pipeline_fingerprint=pipeline_fingerprint,
+            rrf_parameters=parameters,
+        )
+    except (OSError, UnicodeError, ValueError, RuntimeError) as error:
+        raise CliError(_error_message(error)) from None
+    return {
+        "output_path": str(output),
+        "query_count": report.query_count,
+        "rank_constant": parameters.rank_constant,
+        "lexical_weight": parameters.lexical_weight,
+        "semantic_weight": parameters.semantic_weight,
+        "candidate_k": candidate_k,
+        "lexical_index_load_seconds": report.lexical_index_load_seconds,
+        "semantic_index_load_seconds": report.semantic_index_load_seconds,
         "model_load_seconds": report.model_load_seconds,
         "query_encoding_seconds": report.query_encoding_seconds,
         "search_seconds": report.search_seconds,
