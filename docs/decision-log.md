@@ -1290,3 +1290,79 @@ A stronger internal guarantee is valuable only at a boundary that promises
 it. Preserve strict validation where it protects an interactive user, but do
 not let project-specific output syntax make a required external contract
 impossible to satisfy.
+
+## 2026-09-13 - Keep full-corpus MiniLM retrieval optional and complementary
+
+**Status:** Accepted
+
+### Initial approach
+
+Revisit the previously deferred embedding experiment as a release-isolated
+bonus. Build a lightweight CPU semantic index over the same chunks as the
+mandatory BM25 index, then determine from full public-dataset evidence whether
+semantic retrieval should replace, complement, or be removed from the product.
+
+### Why the approach was reconsidered
+
+The earlier Phase 25 Chroma diagnostic used only a small sample and showed that
+MiniLM was not a stronger standalone retriever. It was sufficient to reject an
+immediate production replacement, but not to measure the complete corpus or
+the cases where semantic similarity retrieves evidence missed by lexical
+matching.
+
+Phase 33 therefore indexed all 20,096 existing BM25 chunks with the pinned
+`sentence-transformers/all-MiniLM-L6-v2` revision
+`1110a243fdf4706b3f48f1d95db1a4f5529b4d41`. The 384-dimensional CPU index
+took 443.56 seconds to encode and 0.29 seconds to save. Its embedding matrix is
+about 30 MB. Warm query encoding plus exact cosine search averaged 55.6 ms for
+the 100 Docs questions and 58.9 ms for the 99 Code questions.
+
+The full evaluation confirmed that semantic-only retrieval remains weaker.
+At `k=5`, BM25 reached Docs Recall@5 `0.820000` and Code Recall@5 `0.757576`;
+MiniLM reached `0.630000` and `0.414141` respectively. Across both datasets,
+BM25 found the expected source for 157 of 199 questions, compared with 104 for
+MiniLM.
+
+MiniLM nevertheless supplied useful independent evidence. For the Docs
+question asking which `LLM` method generates prompt embeddings, BM25 missed
+the expected source at `k=5`, while MiniLM ranked the exact `LLM.embed` section
+second. Removing semantic retrieval would discard this measured complementary
+signal.
+
+### Decision
+
+Keep BM25 as the mandatory default and do not route existing `index`, `search`,
+or answer workflows through embeddings. Retain MiniLM behind separate optional
+commands, always on CPU, using the already declared PyTorch and Transformers
+dependencies rather than adding Chroma or Qdrant.
+
+Persist normalized vectors in a checksum-linked snapshot beside the lexical
+index. Bind it to the corpus fingerprint, lexical pipeline fingerprint, model
+name, pinned model revision, schema version, dimensions, document order, and
+exact source spans. A mismatch requires rebuilding instead of silently mixing
+incompatible documents and vectors.
+
+Use the Phase 33 result as the fixed semantic-only baseline for Phase 34.
+Evaluate an explicit rank-based hybrid of BM25 and MiniLM on Docs and Code
+separately. The bonus-off path must remain identical to the measured mandatory
+BM25 behavior.
+
+### Consequences
+
+- Phase 33 provides a real full-corpus vector index without changing mandatory
+  retrieval behavior.
+- Standalone MiniLM is not presented as a quality improvement over BM25.
+- Semantic candidates remain available for questions whose wording differs
+  from the relevant evidence.
+- Index construction is an explicit one-time operation; later warm queries
+  avoid rebuilding document embeddings.
+- The exact matrix implementation stays transparent for hybrid experiments and
+  avoids an unnecessary vector-database service on the assignment machines.
+- The generated index and evaluation outputs remain outside Git.
+
+### Lesson
+
+Aggregate metrics decide whether a component can replace the baseline, while
+per-question differences decide whether it may still complement the baseline.
+Keep a weaker retriever only when it contributes independent measured signal
+and can be disabled without weakening the known-good path.

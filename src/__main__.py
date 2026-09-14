@@ -14,8 +14,11 @@ from src.cli import (
     evaluate,
     evaluate_all,
     index,
+    index_semantic,
     search,
     search_dataset,
+    search_dataset_semantic,
+    search_semantic,
     validate_sources,
 )
 
@@ -32,8 +35,11 @@ def main(argv: Sequence[str] | None = None) -> None:
                 "evaluate": evaluate,
                 "evaluate_all": evaluate_all,
                 "index": index,
+                "index_semantic": index_semantic,
                 "search": search,
                 "search_dataset": search_dataset,
+                "search_dataset_semantic": search_dataset_semantic,
+                "search_semantic": search_semantic,
                 "validate_sources": validate_sources,
             },
             command=argv,
