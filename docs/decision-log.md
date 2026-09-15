@@ -1618,3 +1618,75 @@ already exists in the codebase. Reusing `ValidatedAnswerCache`'s key/
 store/versioned-envelope shape for a different cached value kept the
 change small and consistent, and confirmed the shape generalizes beyond
 answer caching.
+
+## 2026-09-15 - Load the API's index eagerly and its model lazily
+
+**Status:** Accepted
+
+### Initial approach
+
+Expose `/search` and `/answer` over a small local HTTP API, built with
+FastAPI and uvicorn, and load both the BM25 index and the generation
+backend once at server startup, mirroring how `run_stored_search` and
+`answer_query` already load their resources.
+
+### Why the approach was reconsidered
+
+Every CLI invocation is a fresh process, so `run_stored_search` and
+`answer_query` reload the index (and, for `answer`, the model) from disk
+on every call. A long-running server should not repeat that: it should
+load once and stay warm. But the index and the model have very different
+load costs. Reading the persisted BM25 snapshot is fast. Loading
+`Qwen/Qwen3-0.6B` is not, and a server whose traffic is only `/search`
+should not pay that cost, nor should every future test of `/search` need
+a real or mocked model just to construct the app.
+
+### Decision
+
+Load the BM25 index eagerly inside `create_app()`, using the same
+corpus/pipeline compatibility checks as `index`/`search`: a missing or
+incompatible index fails app construction immediately, so the server
+never starts in a broken state. `POST /search` calls `search_sources`
+directly against that loaded index and never reacquires it.
+
+Load the generation backend lazily instead: `AnswerState` caches it
+behind a lock, populated on the first `POST /answer` request and reused
+for every later one. `POST /answer` reuses the same loaded index for
+retrieval and reuses `build_context`/`generate_grounded_answer` exactly
+as `answer_query` does, so its behavior matches the CLI's `answer`
+command precisely, not approximately.
+
+Neither endpoint uses `ValidatedAnswerCache` or `SearchResultCache` in
+this step; wiring either into the API is a possible future extension, not
+a gap in this bonus, for the same reason those caches were scoped to
+specific CLI commands rather than every retrieval-adjacent interface.
+
+### Consequences
+
+- A `/search`-only server never loads the generation model.
+- `/answer`'s retrieval and generation costs are paid once each, not once
+  per request: verified live, a second `/answer` call after the first
+  completed in a fraction of the first call's time.
+- Manual verification against the real cached `Qwen/Qwen3-0.6B` model
+  confirmed `/answer` reproduces the CLI's behavior exactly: the same
+  question the CLI's `answer` command rejects for missing a citation
+  (a documented model limitation, not a new regression: the earlier
+  corrective-retry decision recorded this exact KV-cache question as a
+  known failure) is rejected identically through `/answer`, and the same
+  insufficient-context question that `answer` resolves successfully is
+  resolved identically through `/answer`.
+- `serve` adds `fastapi` and `uvicorn` as runtime dependencies, and
+  `httpx2` (required by `starlette.testclient.TestClient`) as a dev
+  dependency; no other command depends on them.
+- A running server does not notice a reindex on disk: verified live by
+  overwriting the on-disk BM25 snapshot while a server held the original
+  index in memory and observing `/search` keep returning the original
+  result. This is the expected consequence of loading once at startup,
+  not a defect, but it means picking up a reindex while serving requires
+  restarting `serve`; there is no live-reload endpoint.
+
+### Lesson
+
+"Load once at startup" is not one rule when a server holds two resources
+with very different costs. The right boundary follows the cost and the
+usage pattern of each resource, not a uniform policy applied to both.

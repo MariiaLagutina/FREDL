@@ -4,16 +4,19 @@ version = "0.1.0"
 description = "Retrieval-Augmented Generation system for querying a codebase"
 requires-python = ">=3.10"
 dependencies = [
+    "fastapi",
     "fire",
     "pydantic",
     "torch>=2.0",
     "tqdm",
     "transformers>=4.51,<5",
+    "uvicorn",
 ]
 
 [dependency-groups]
 dev = [
     "flake8",
+    "httpx2>=2.13.0",
     "mypy",
     "pytest",
 ]
