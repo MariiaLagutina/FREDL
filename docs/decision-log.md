@@ -1678,6 +1678,12 @@ specific CLI commands rather than every retrieval-adjacent interface.
 - `serve` adds `fastapi` and `uvicorn` as runtime dependencies, and
   `httpx2` (required by `starlette.testclient.TestClient`) as a dev
   dependency; no other command depends on them.
+- A running server does not notice a reindex on disk: verified live by
+  overwriting the on-disk BM25 snapshot while a server held the original
+  index in memory and observing `/search` keep returning the original
+  result. This is the expected consequence of loading once at startup,
+  not a defect, but it means picking up a reindex while serving requires
+  restarting `serve`; there is no live-reload endpoint.
 
 ### Lesson
 
