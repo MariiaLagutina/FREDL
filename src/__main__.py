@@ -20,6 +20,7 @@ from src.cli import (
     search_dataset_hybrid,
     search_dataset_semantic,
     search_semantic,
+    serve,
     validate_sources,
 )
 
@@ -42,6 +43,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 "search_dataset_hybrid": search_dataset_hybrid,
                 "search_dataset_semantic": search_dataset_semantic,
                 "search_semantic": search_semantic,
+                "serve": serve,
                 "validate_sources": validate_sources,
             },
             command=argv,

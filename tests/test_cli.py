@@ -856,6 +856,54 @@ def test_search_command_routes_one_raw_query() -> None:
     )
 
 
+def test_serve_command_builds_app_and_runs_uvicorn() -> None:
+    """The Fire serve command builds the app once and runs the server."""
+    with (
+        patch("src.cli.create_app") as create_app_mock,
+        patch("src.cli.uvicorn.run") as run_mock,
+    ):
+        main(["serve", "--host", "0.0.0.0", "--port", "9000"])
+
+    create_app_mock.assert_called_once_with(
+        project_root=Path("."),
+        corpus_root=Path("data/raw"),
+        index_path=Path("data/processed/bm25-index.json"),
+        pipeline_config=ANY,
+        generation_config=ANY,
+    )
+    run_mock.assert_called_once_with(
+        create_app_mock.return_value, host="0.0.0.0", port=9000
+    )
+
+
+def test_serve_reports_missing_index_without_traceback(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A missing persisted index is a concise user-facing failure."""
+    corpus_root = tmp_path / "corpus"
+    corpus_root.mkdir()
+    missing_index = tmp_path / "missing-index.json"
+
+    with pytest.raises(SystemExit) as exit_info:
+        main(
+            [
+                "serve",
+                "--project_root",
+                str(tmp_path),
+                "--corpus_root",
+                str(corpus_root),
+                "--index_path",
+                str(missing_index),
+            ]
+        )
+
+    assert exit_info.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.err == f"Error: File not found: {missing_index}\n"
+    assert "Traceback" not in captured.err
+
+
 def test_search_uses_requested_bm25_pipeline_fingerprint() -> None:
     """Search rejects accidental reuse of an index from another experiment."""
     parameters = BM25Parameters(metadata_weight=1.5)
