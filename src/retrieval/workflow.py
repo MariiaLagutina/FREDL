@@ -4,6 +4,8 @@ from pathlib import Path
 
 from src.models import MinimalSource, RagDataset, RetrievalResults
 from src.retrieval.bm25 import BM25Index
+from src.retrieval.cache import SearchCacheKey, SearchResultCache
+from src.retrieval.cache.store import normalize_question
 from src.retrieval.input import load_rag_dataset
 from src.retrieval.index_store import IndexStore
 from src.retrieval.output import save_search_results
@@ -28,13 +30,34 @@ def run_stored_search(
     identifier_candidate_depth: int = 0,
     auxiliary_path_penalty: float = DEFAULT_AUXILIARY_PATH_PENALTY,
     path_candidate_depth: int = DEFAULT_PATH_CANDIDATE_DEPTH,
+    cache: SearchResultCache | None = None,
 ) -> list[MinimalSource]:
-    """Load one compatible index and search one raw query."""
+    """Load one compatible index and search one raw query.
+
+    When `cache` is given, an exact-key hit returns cached sources without
+    loading the index, and a miss stores the freshly searched sources.
+    """
+    cache_key = None
+    if cache is not None:
+        cache_key = SearchCacheKey(
+            question=normalize_question(query),
+            corpus_fingerprint=corpus_fingerprint,
+            pipeline_fingerprint=pipeline_fingerprint,
+            k=k,
+            identifier_match_weight=identifier_match_weight,
+            identifier_candidate_depth=identifier_candidate_depth,
+            auxiliary_path_penalty=auxiliary_path_penalty,
+            path_candidate_depth=path_candidate_depth,
+        )
+        cached_sources = cache.get(cache_key)
+        if cached_sources is not None:
+            return cached_sources
+
     index = IndexStore(index_path).load(
         corpus_fingerprint,
         pipeline_fingerprint,
     )
-    return search_sources(
+    sources = search_sources(
         index,
         query,
         k,
@@ -43,6 +66,9 @@ def run_stored_search(
         auxiliary_path_penalty=auxiliary_path_penalty,
         path_candidate_depth=path_candidate_depth,
     )
+    if cache is not None and cache_key is not None:
+        cache.put(cache_key, sources)
+    return sources
 
 
 def run_stored_retrieval(
