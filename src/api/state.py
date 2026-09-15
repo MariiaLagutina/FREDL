@@ -1,8 +1,14 @@
-"""Load retrieval state once for the long-running HTTP API process."""
+"""Load retrieval and generation state for the long-running API process."""
 
 from dataclasses import dataclass
 from pathlib import Path
+from threading import Lock
 
+from src.generation import (
+    GenerationConfig,
+    LoadedGenerationBackend,
+    load_generation_backend,
+)
 from src.ingestion import discover_files
 from src.retrieval.bm25 import BM25Index
 from src.retrieval.index_store import (
@@ -41,3 +47,28 @@ def load_search_index_state(
         pipeline_fingerprint,
     )
     return SearchIndexState(index, corpus_fingerprint, pipeline_fingerprint)
+
+
+class AnswerState:
+    """Cache the generation backend across requests, loaded on first use."""
+
+    def __init__(self, generation_config: GenerationConfig) -> None:
+        """Keep the requested configuration without loading any model."""
+        self._generation_config = generation_config
+        self._backend: LoadedGenerationBackend | None = None
+        self._lock = Lock()
+
+    @property
+    def generation_config(self) -> GenerationConfig:
+        """Expose the configuration used to load the cached backend."""
+        return self._generation_config
+
+    def backend(self) -> LoadedGenerationBackend:
+        """Return the cached backend, loading it once on first use."""
+        if self._backend is None:
+            with self._lock:
+                if self._backend is None:
+                    self._backend = load_generation_backend(
+                        self._generation_config
+                    )
+        return self._backend
