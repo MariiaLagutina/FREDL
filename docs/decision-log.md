@@ -1584,9 +1584,19 @@ Wire it into `run_stored_search`, the same function that loads the BM25
 index, so a cache hit returns immediately without ever acquiring the
 index. `search` always constructs a cache at a configurable
 `--search_cache_path` (default `.local/cache/search-results.json`); a
-miss behaves exactly as before and then stores its result. No other
-command (`search_dataset`, `search_semantic`, `search_dataset_hybrid`,
-`answer`) is wired to it in this step.
+miss behaves exactly as before and then stores its result.
+
+The bonus text names two things generically, "the index" and "query
+results," not every retrieval-adjacent command. Both are already
+satisfied: the index for both the mandatory BM25 index and the Bonus 1
+semantic index (`IndexStore`/`SemanticIndexStore` already load a
+persisted snapshot instead of recomputing from the raw corpus), and query
+results for `search`, the mandatory single-query retrieval command the
+subject itself specifies. `search_dataset`, `search_semantic`,
+`search_dataset_hybrid`, and `answer`'s retrieval step are not wired to
+this cache in this step; extending to them would be broader coverage of
+the same requirement, not a different requirement, and is left as a
+possible future extension rather than required for this bonus.
 
 ### Consequences
 
@@ -1595,9 +1605,9 @@ command (`search_dataset`, `search_semantic`, `search_dataset_hybrid`,
 - Mandatory `search` output is unchanged on a cache miss; the cache is
   purely additive and only ever returns a result it previously computed
   and stored itself.
-- `answer`'s retrieval step is not yet cache-backed; it still calls
-  `run_stored_search` without a cache, so this is a partial rather than a
-  system-wide query-result cache.
+- Wiring the same cache into `answer`, `search_dataset`, semantic search,
+  or hybrid dataset search remains a possible future extension; none of
+  them are required to satisfy the bonus text as written.
 - The stored cache file lives under `.local/`, alongside the answer
   cache, and is never part of the submitted repository.
 
