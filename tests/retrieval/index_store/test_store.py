@@ -131,3 +131,82 @@ print(json.dumps([[hit.document.chunk.file_path, hit.score] for hit in hits]))
     assert json.loads(completed.stdout) == [
         [file_path, score] for file_path, score in _ranking(_index())
     ]
+
+
+def test_load_for_reuse_returns_none_without_a_prior_index(
+    tmp_path: Path,
+) -> None:
+    """A missing snapshot is a normal, expected first-build outcome."""
+    store = IndexStore(tmp_path / "bm25-index.json")
+
+    assert store.load_for_reuse(PIPELINE_FINGERPRINT) is None
+
+
+def test_load_for_reuse_returns_none_for_a_changed_pipeline(
+    tmp_path: Path,
+) -> None:
+    """A different pipeline cannot be trusted to reuse stored chunks."""
+    store = IndexStore(tmp_path / "bm25-index.json")
+    store.save(
+        _index(),
+        FINGERPRINT,
+        PIPELINE_FINGERPRINT,
+        {"docs/cache.md": "a" * 64, "src/cache.py": "b" * 64},
+    )
+
+    assert store.load_for_reuse("c" * 64) is None
+
+
+def test_load_for_reuse_returns_none_without_stored_file_fingerprints(
+    tmp_path: Path,
+) -> None:
+    """An index saved before this feature has nothing to reuse from."""
+    store = IndexStore(tmp_path / "bm25-index.json")
+    store.save(_index(), FINGERPRINT, PIPELINE_FINGERPRINT)
+
+    assert store.load_for_reuse(PIPELINE_FINGERPRINT) is None
+
+
+def test_load_for_reuse_returns_none_for_incompatible_schema(
+    tmp_path: Path,
+) -> None:
+    """An unknown schema version cannot be reused either."""
+    path = tmp_path / "bm25-index.json"
+    store = IndexStore(path)
+    store.save(
+        _index(),
+        FINGERPRINT,
+        PIPELINE_FINGERPRINT,
+        {"docs/cache.md": "a" * 64, "src/cache.py": "b" * 64},
+    )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["schema_version"] = 999
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    assert store.load_for_reuse(PIPELINE_FINGERPRINT) is None
+
+
+def test_load_for_reuse_groups_documents_by_file(tmp_path: Path) -> None:
+    """A compatible snapshot exposes each file's documents for reuse."""
+    store = IndexStore(tmp_path / "bm25-index.json")
+    original = _index()
+    store.save(
+        original,
+        FINGERPRINT,
+        PIPELINE_FINGERPRINT,
+        {"docs/cache.md": "a" * 64, "src/cache.py": "b" * 64},
+    )
+
+    snapshot = store.load_for_reuse(PIPELINE_FINGERPRINT)
+
+    assert snapshot is not None
+    assert snapshot.file_fingerprints == {
+        "docs/cache.md": "a" * 64,
+        "src/cache.py": "b" * 64,
+    }
+    assert snapshot.documents_by_file["docs/cache.md"] == (
+        original.documents[0],
+    )
+    assert snapshot.documents_by_file["src/cache.py"] == (
+        original.documents[1],
+    )
