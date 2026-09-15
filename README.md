@@ -1071,6 +1071,13 @@ the CLI's `ValidatedAnswerCache`; wiring the same cache into the API is a
 possible future extension, not a gap in this bonus, matching how the
 Bonus 4 search-result cache was scoped to the CLI's `search` command only.
 
+Because the index is loaded once at startup, a running server does not
+notice a reindex written to disk while it keeps serving; picking up new
+index content requires restarting `serve`. There is no live-reload
+endpoint. This was verified directly: overwriting the on-disk index while
+a server held the original one in memory left `/search` returning the
+original, unchanged result.
+
 ## Controlled Errors and Edge Cases
 
 Public commands convert expected filesystem, JSON, validation, index, cache,
