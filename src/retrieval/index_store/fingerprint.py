@@ -7,6 +7,30 @@ from pathlib import Path
 from src.ingestion import CorpusFile
 
 
+def fingerprint_file(project_root: Path, corpus_file: CorpusFile) -> str:
+    """Hash one corpus file's canonical path and exact bytes."""
+    resolved_root = project_root.resolve(strict=True)
+    if not resolved_root.is_dir():
+        raise NotADirectoryError(str(project_root))
+
+    source_path = (resolved_root / corpus_file.file_path).resolve(strict=True)
+    try:
+        canonical_path = source_path.relative_to(resolved_root).as_posix()
+    except ValueError as error:
+        message = "Corpus file must be inside project root"
+        raise ValueError(message) from error
+    if canonical_path != corpus_file.file_path:
+        raise ValueError(
+            "Corpus fingerprint path must be canonical and relative"
+        )
+
+    digest = sha256()
+    digest.update(corpus_file.file_path.encode("utf-8"))
+    digest.update(b"\0")
+    digest.update(source_path.read_bytes())
+    return digest.hexdigest()
+
+
 def fingerprint_corpus(
     project_root: Path,
     corpus_files: Sequence[CorpusFile],
