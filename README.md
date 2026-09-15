@@ -35,7 +35,7 @@ generated datasets, indexes, and reports remain outside Git.
 | Optional MiniLM index, 20,096 vectors | 443.56 s on CPU | bonus measurement |
 | Optional MiniLM warm query | 55.6–58.9 ms average | bonus measurement |
 | Incremental reindex, 1 of 1,952 files changed | 7.1 s (vs. 29.4 s full) | bonus measurement |
-| Automated tests | 567 passed | all required checks pass |
+| Automated tests | 579 passed | all required checks pass |
 
 Times are machine-specific Linux measurements; the indexing figures include
 the snapshot checksum and a separate, isolated one-file edit run. The
@@ -160,6 +160,9 @@ Implemented:
   rebuild;
 - an exact compatibility-bound cache for single-query search results that
   skips loading the stored index entirely on a hit;
+- a local HTTP API (`serve`) exposing `/search` and `/answer` with the
+  index loaded once at startup and the generation backend loaded once on
+  first use;
 - automated tests organized by pipeline component.
 
 The complete public Docs and Code pipeline has been reproduced from a clean
@@ -1021,6 +1024,52 @@ source ranges passed validation, and the retrieval outputs reproduced the
 established hashes byte for byte. The full commands, memory measurements,
 Moulinette results, and observed Qwen quality limitations are recorded in the
 [end-to-end run log](docs/end-to-end-run-log.md).
+
+## Local HTTP API
+
+The bonus `serve` command exposes `/search` and `/answer` over a small local
+HTTP API built with FastAPI and uvicorn, so the pipeline can be driven by
+anything that can make an HTTP request, not just the CLI:
+
+```bash
+uv run python -m src serve --host 127.0.0.1 --port 8000
+```
+
+```bash
+curl -s http://127.0.0.1:8000/health
+
+curl -s -X POST http://127.0.0.1:8000/search \
+  -H 'Content-Type: application/json' \
+  -d '{"question": "Where is the KV cache implemented?", "k": 5}'
+
+curl -s -X POST http://127.0.0.1:8000/answer \
+  -H 'Content-Type: application/json' \
+  -d '{"question": "How does vLLM manage the KV cache?", "k": 5}'
+```
+
+`serve` builds the app once at startup with the same corpus and pipeline
+compatibility checks as `index`/`search`: a missing or incompatible index
+fails the command immediately with the usual concise error, rather than
+serving broken requests. The BM25 index is loaded once, at startup, and
+kept in memory for every request; `/search` calls the retrieval core
+directly against that loaded index and never reacquires it. The generation
+backend follows a different rule on purpose: it is loaded once, on the
+first `/answer` request, and reused after that, so a server that only ever
+receives `/search` traffic never pays the model-load cost. Both endpoints
+validate their input (empty question, non-positive `k`, non-positive
+`context_token_budget`) before touching the index or the model, and report
+failures as a `400` with the same message the CLI produces for the same
+input, instead of an unhandled exception.
+
+`/answer` reuses `build_context` and `generate_grounded_answer` exactly as
+the CLI's `answer` command does, so it reproduces the CLI's behavior
+exactly, including known model limitations: the same question that the
+CLI's `answer` command rejects for missing a citation is rejected the same
+way here, and the same insufficient-context fallback that `answer` returns
+for an out-of-scope question is returned here too. `/answer` does not use
+the CLI's `ValidatedAnswerCache`; wiring the same cache into the API is a
+possible future extension, not a gap in this bonus, matching how the
+Bonus 4 search-result cache was scoped to the CLI's `search` command only.
 
 ## Controlled Errors and Edge Cases
 
