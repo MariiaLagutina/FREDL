@@ -1437,3 +1437,65 @@ Recall@3 `0.707071`, Recall@5 `0.787879`, Recall@10 `0.848485`, and MRR
 A retriever can be complementary in one domain and harmful in another. Prefer
 an explicit domain boundary over a single compromised parameter set or an
 unmeasured automatic query classifier.
+
+## 2026-09-15 - Choose incremental indexing as the engineering bonus
+
+**Status:** Accepted
+
+### Initial approach
+
+`index` always ran a full rebuild: every discovered file was re-read,
+re-chunked, and re-tokenized on every invocation, even when only one file in a
+1,952-file corpus had changed since the previous run. The remaining time
+budget for this project allowed exactly one additional engineering bonus, to
+be chosen from incremental indexing, a caching layer, or a local HTTP API,
+and implemented completely rather than split across three partial features.
+
+### Why the approach was reconsidered
+
+A caching layer for generated answers already existed
+(`ValidatedAnswerCache`), so a second caching bonus would have mostly
+restated an already-demonstrated pattern. A local HTTP API would wrap the
+existing CLI commands without exercising a new part of the retrieval
+pipeline. Full index rebuilds, by contrast, were the one remaining place
+where the system did asymptotically more work than the change actually
+justified, and the project already stored a corpus fingerprint and a
+pipeline fingerprint that made "what changed" a well-defined question rather
+than a vague one.
+
+### Decision
+
+Persist a SHA-256 content fingerprint per source file alongside each file's
+stored BM25 documents. On the next `index` run, reuse a file's already-chunked
+documents without re-reading or re-tokenizing it, but only when both its
+content fingerprint is unchanged and the declared pipeline (chunk-size limit,
+chunker and tokenizer versions, BM25 parameters, schema) still matches the one
+that produced the prior snapshot. Any other file, and any file no longer
+present in the corpus, is rebuilt or dropped normally. A missing, unreadable,
+or pipeline-incompatible prior snapshot degrades to a full rebuild rather than
+failing, since the very first `index` run always looks like that case.
+
+### Consequences
+
+- Reindexing the full 1,952-file vLLM corpus after a single-file edit dropped
+  from 21.4 s to 5.5 s, and produced a BM25 snapshot byte-for-byte identical
+  to a full rebuild of the same corpus state.
+- `search` and `search_dataset` are unaffected: reuse only skips redoing work
+  whose result would have been identical, never changes what gets returned.
+- The stored index schema grew by one optional field
+  (`file_fingerprints`), so older snapshots without it still load normally
+  through `load()`; they simply cannot be reused incrementally until rebuilt
+  once.
+
+### Lesson
+
+The synthetic fixtures used while developing this feature were small
+corpora built from a handful of non-empty files, and every test passed
+against them. Running the same code against the real 1,952-file vLLM corpus
+immediately raised a `KeyError`: a file that parses to zero BM25 documents
+(an empty `__init__.py`) still gets a stored content fingerprint, so the
+reuse check matched it, but it had no entry in the previous snapshot's
+per-file document groups because nothing had ever been stored for it. A
+small hand-built fixture corpus is not a substitute for running new
+corpus-shaped logic against the actual corpus at least once before calling
+it done.

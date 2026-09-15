@@ -34,6 +34,7 @@ generated datasets, indexes, and reports remain outside Git.
 | Code Recall@5 / Recall@10 | 0.787879 / 0.848485 | Recall@5 at least 0.50 |
 | Optional MiniLM index, 20,096 vectors | 443.56 s on CPU | bonus measurement |
 | Optional MiniLM warm query | 55.6–58.9 ms average | bonus measurement |
+| Incremental reindex, 1 of 1,952 files changed | 5.5 s (vs. 21.4 s full) | bonus measurement |
 | Automated tests | 518 passed | all required checks pass |
 
 Times are machine-specific measurements from the reproducible Linux run. The
@@ -153,6 +154,9 @@ Implemented:
   single-query search, and load-once batch retrieval;
 - a measured stopping decision that rejects both weak small-model training and
   a semantic-only replacement for the stronger lexical retrieval baseline;
+- incremental BM25 indexing that reuses unchanged files' stored chunks and
+  rebuilds only what actually changed, with results identical to a full
+  rebuild;
 - automated tests organized by pipeline component.
 
 The complete public Docs and Code pipeline has been reproduced from a clean
@@ -590,6 +594,44 @@ with the corpus and pipeline fingerprints. The required `max_chunk_size`
 option controls the largest permitted source chunk and is part of the stored
 pipeline identity. Generated indexes remain local and are not committed to
 Git.
+
+### Incremental Indexing
+
+`index` rebuilds only the files that actually changed since the previous
+snapshot at `index_path`, instead of always re-reading, re-chunking, and
+re-tokenizing the entire corpus. Every persisted snapshot now stores a
+SHA-256 content fingerprint per source file alongside its chunks. On the next
+`index` run, a file is reused exactly as stored, with no re-chunking or
+re-tokenization, only when both hold:
+
+- its content fingerprint is unchanged; and
+- the declared pipeline (chunk-size limit, chunker and tokenizer versions,
+  BM25 parameters, and index schema) still matches the one that produced the
+  prior snapshot.
+
+Any other file, including one that is new, edited, or renamed, is chunked and
+tokenized normally. A file removed from the corpus is simply absent from the
+rebuilt index. When no prior snapshot exists, is unreadable, or was built by
+an incompatible pipeline, `index` transparently falls back to a full rebuild;
+this is a controlled degradation, not an error. The command reports
+`total_file_count`, `reused_file_count`, and `rebuilt_file_count` so the
+effect is directly observable:
+
+```bash
+uv run python -m src index
+# rebuilt_file_count: 1952 (first build)
+
+# edit one file in data/raw/, then:
+uv run python -m src index
+# reused_file_count: 1951, rebuilt_file_count: 1
+```
+
+On the complete 1,952-file vLLM corpus, reindexing after a single-file edit
+completed in 5.5 s versus 21.4 s for a full rebuild, and produced a BM25
+snapshot byte-for-byte identical to a full rebuild of the same corpus state.
+Reuse never changes retrieval results: it only skips redoing work whose
+output would have been identical, so `search` and `search_dataset` behave
+exactly as if every run were a full rebuild.
 
 Search one raw query with the default compatible persisted index:
 
