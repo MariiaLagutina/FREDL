@@ -7,13 +7,19 @@ from unittest.mock import patch
 import pytest
 
 from src.ingestion import Chunk
-from src.models import RagDataset, RetrievalResults, UnansweredQuestion
+from src.models import (
+    MinimalSource,
+    RagDataset,
+    RetrievalResults,
+    UnansweredQuestion,
+)
 from src.retrieval import (
     run_retrieval,
     run_stored_retrieval,
     run_stored_search,
 )
 from src.retrieval.bm25 import BM25Document, BM25Index
+from src.retrieval.cache import SearchCacheKey, SearchResultCache
 from src.retrieval.index_store import IndexStore
 
 FINGERPRINT = "a" * 64
@@ -50,6 +56,87 @@ def test_run_stored_search_loads_index_for_one_raw_query(
     assert sources[0].file_path == "docs/cache.md"
     assert sources[0].first_character_index == 0
     assert sources[0].last_character_index == 5
+
+
+def test_run_stored_search_cache_hit_skips_index_load(
+    tmp_path: Path,
+) -> None:
+    """An exact cache hit returns sources without acquiring the index."""
+    cache = SearchResultCache(tmp_path / "search-cache.json")
+    cached_sources = [
+        MinimalSource(
+            file_path="docs/cache.md",
+            first_character_index=0,
+            last_character_index=5,
+        )
+    ]
+    cache.put(
+        SearchCacheKey(
+            question="where is the cache?",
+            corpus_fingerprint=FINGERPRINT,
+            pipeline_fingerprint=PIPELINE_FINGERPRINT,
+            k=1,
+            identifier_match_weight=0.0,
+            identifier_candidate_depth=0,
+            auxiliary_path_penalty=0.5,
+            path_candidate_depth=20,
+        ),
+        cached_sources,
+    )
+
+    with patch("src.retrieval.workflow.IndexStore.load") as load_index:
+        sources = run_stored_search(
+            tmp_path / "missing-index.json",
+            FINGERPRINT,
+            PIPELINE_FINGERPRINT,
+            "Where is the cache?",
+            k=1,
+            cache=cache,
+        )
+
+    load_index.assert_not_called()
+    assert sources == cached_sources
+
+
+def test_run_stored_search_cache_miss_stores_result(
+    tmp_path: Path,
+) -> None:
+    """A cache miss searches normally and stores the result for reuse."""
+    index_path = tmp_path / "bm25-index.json"
+    IndexStore(index_path).save(
+        BM25Index(
+            [
+                BM25Document(
+                    chunk=Chunk("docs/cache.md", 0, 5, "cache"),
+                    content_terms=("cache",),
+                )
+            ]
+        ),
+        FINGERPRINT,
+        PIPELINE_FINGERPRINT,
+    )
+    cache = SearchResultCache(tmp_path / "search-cache.json")
+
+    sources = run_stored_search(
+        index_path,
+        FINGERPRINT,
+        PIPELINE_FINGERPRINT,
+        "Where is the cache?",
+        k=1,
+        cache=cache,
+    )
+
+    key = SearchCacheKey(
+        question="where is the cache?",
+        corpus_fingerprint=FINGERPRINT,
+        pipeline_fingerprint=PIPELINE_FINGERPRINT,
+        k=1,
+        identifier_match_weight=0.0,
+        identifier_candidate_depth=0,
+        auxiliary_path_penalty=0.5,
+        path_candidate_depth=20,
+    )
+    assert cache.get(key) == sources
 
 
 def test_run_retrieval_connects_input_search_and_output(
