@@ -2,6 +2,7 @@
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from hashlib import sha256
 from pathlib import Path
 import re
 
@@ -58,6 +59,9 @@ class IndexStore:
             pipeline_fingerprint,
             file_fingerprints or {},
         )
+        snapshot = snapshot.model_copy(
+            update={"snapshot_checksum": _snapshot_checksum(snapshot)}
+        )
         self._path.parent.mkdir(parents=True, exist_ok=True)
         temporary_path = self._path.with_suffix(self._path.suffix + ".tmp")
         temporary_path.write_text(
@@ -93,6 +97,10 @@ class IndexStore:
             raise IncompatibleIndexError(
                 "Stored BM25 index pipeline differs; reindex required"
             )
+        if not _checksum_matches(snapshot):
+            raise ValueError(
+                "Stored BM25 index checksum differs; reindex required"
+            )
         return _index_from_snapshot(snapshot)
 
     def load_for_reuse(
@@ -121,6 +129,10 @@ class IndexStore:
         if snapshot.pipeline_fingerprint != expected_pipeline_fingerprint:
             return None
         if not snapshot.file_fingerprints:
+            return None
+        if snapshot.snapshot_checksum is None or not _checksum_matches(
+            snapshot
+        ):
             return None
 
         documents_by_file: dict[str, list[BM25Document]] = {}
@@ -219,3 +231,18 @@ def _validate_fingerprint(corpus_fingerprint: str) -> None:
     """Require the canonical lowercase SHA-256 representation."""
     if _SHA256_PATTERN.fullmatch(corpus_fingerprint) is None:
         raise ValueError("Corpus fingerprint must be a lowercase SHA-256 hex")
+
+
+def _snapshot_checksum(snapshot: StoredBM25Index) -> str:
+    """Hash canonical persisted fields excluding the checksum itself."""
+    payload = snapshot.model_dump_json(exclude={"snapshot_checksum"})
+    return sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _checksum_matches(snapshot: StoredBM25Index) -> bool:
+    """Accept legacy snapshots or verify a present content checksum."""
+    checksum = snapshot.snapshot_checksum
+    return checksum is None or (
+        _SHA256_PATTERN.fullmatch(checksum) is not None
+        and checksum == _snapshot_checksum(snapshot)
+    )

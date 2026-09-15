@@ -57,3 +57,4 @@ class StoredBM25Index(BaseModel):
     parameters: StoredParameters
     documents: tuple[StoredDocument, ...]
     file_fingerprints: tuple[StoredFileFingerprint, ...] = ()
+    snapshot_checksum: str | None = None
