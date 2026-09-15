@@ -3,8 +3,10 @@
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
+import uvicorn
 from tqdm import tqdm
 
+from src.api import create_app
 from src.evaluation.answer_quality import (
     diagnose_dataset_answers,
     write_diagnostic_report,
@@ -839,6 +841,47 @@ def analyze_retrieval_errors(
         "docs_top_5_misses": len(collect_top_five_misses(docs_cases)),
         "code_top_5_misses": len(collect_top_five_misses(code_cases)),
     }
+
+
+def serve(
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    max_chunk_size: int = DEFAULT_MAX_CHUNK_SIZE,
+    index_path: str = str(DEFAULT_INDEX_PATH),
+    corpus_root: str = str(DEFAULT_CORPUS_ROOT),
+    project_root: str = ".",
+    k1: float = DEFAULT_BM25_PARAMETERS.k1,
+    b: float = DEFAULT_BM25_PARAMETERS.b,
+    metadata_weight: float = DEFAULT_BM25_PARAMETERS.metadata_weight,
+    identifier_weight: float = DEFAULT_BM25_PARAMETERS.identifier_weight,
+    model: str = DEFAULT_MODEL_NAME,
+    device: str = DevicePreference.AUTO.value,
+    max_new_tokens: int = 256,
+    offline: bool = False,
+) -> None:
+    """Serve /search and /answer over a small local HTTP API."""
+    try:
+        app = create_app(
+            project_root=Path(project_root),
+            corpus_root=Path(corpus_root),
+            index_path=Path(index_path),
+            pipeline_config=_pipeline_config(
+                max_chunk_size,
+                k1,
+                b,
+                metadata_weight,
+                identifier_weight,
+            ),
+            generation_config=GenerationConfig(
+                model_name=model,
+                device=DevicePreference(device),
+                max_new_tokens=max_new_tokens,
+                local_files_only=offline,
+            ),
+        )
+    except (OSError, UnicodeError, ValueError) as error:
+        raise CliError(_error_message(error)) from None
+    uvicorn.run(app, host=host, port=port)
 
 
 def _current_corpus_fingerprint(
