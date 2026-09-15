@@ -40,6 +40,7 @@ from src.retrieval import (
     run_stored_retrieval,
     run_stored_search,
 )
+from src.retrieval.cache import SearchResultCache
 from src.retrieval.bm25 import BM25Parameters
 from src.retrieval.index_store import (
     IndexStore,
@@ -76,6 +77,7 @@ DEFAULT_BM25_PARAMETERS = BM25Parameters()
 DEFAULT_MAX_CHUNK_SIZE = PipelineConfig().max_chunk_size
 DEFAULT_CONTEXT_TOKEN_BUDGET = 4096
 DEFAULT_ANSWER_CACHE_PATH = Path(".local/cache/validated-answers.json")
+DEFAULT_SEARCH_CACHE_PATH = Path(".local/cache/search-results.json")
 ANSWER_WAIT_MESSAGE = "Please wait, the local RAG answer is still running..."
 BATCH_MODEL_WAIT_MESSAGE = (
     "Please wait, the local answer model is still loading..."
@@ -402,6 +404,7 @@ def search(
     identifier_candidate_depth: int = 0,
     auxiliary_path_penalty: float = DEFAULT_AUXILIARY_PATH_PENALTY,
     path_candidate_depth: int = DEFAULT_PATH_CANDIDATE_DEPTH,
+    search_cache_path: str = str(DEFAULT_SEARCH_CACHE_PATH),
 ) -> list[dict[str, object]]:
     """Return the top-k exact source locations for one raw query."""
     try:
@@ -427,6 +430,9 @@ def search(
             identifier_candidate_depth=identifier_candidate_depth,
             auxiliary_path_penalty=auxiliary_path_penalty,
             path_candidate_depth=path_candidate_depth,
+            cache=SearchResultCache(
+                _below_root(root, Path(search_cache_path))
+            ),
         )
     except (OSError, UnicodeError, ValueError) as error:
         raise CliError(_error_message(error)) from None

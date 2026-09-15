@@ -35,7 +35,7 @@ generated datasets, indexes, and reports remain outside Git.
 | Optional MiniLM index, 20,096 vectors | 443.56 s on CPU | bonus measurement |
 | Optional MiniLM warm query | 55.6–58.9 ms average | bonus measurement |
 | Incremental reindex, 1 of 1,952 files changed | 7.1 s (vs. 29.4 s full) | bonus measurement |
-| Automated tests | 550 passed | all required checks pass |
+| Automated tests | 567 passed | all required checks pass |
 
 Times are machine-specific Linux measurements; the indexing figures include
 the snapshot checksum and a separate, isolated one-file edit run. The
@@ -158,6 +158,8 @@ Implemented:
 - incremental BM25 indexing that reuses unchanged files' stored chunks and
   rebuilds only what actually changed, with results identical to a full
   rebuild;
+- an exact compatibility-bound cache for single-query search results that
+  skips loading the stored index entirely on a hit;
 - automated tests organized by pipeline component.
 
 The complete public Docs and Code pipeline has been reproduced from a clean
@@ -672,6 +674,31 @@ a concise error and non-zero exit status without an unhandled traceback.
 Internal BM25 scores are not included in the public result contract.
 Domain-oriented Python model names coexist with the exact
 assignment-compatible model names and JSON fields.
+
+### Search-Result Caching
+
+`search` also checks an exact-key result cache before acquiring the BM25
+index, and stores its result there on a miss. The cache key covers every
+input that can change a search result: the normalized question, the
+corpus and pipeline fingerprints, `k`, and every ranking parameter
+(identifier match weight and candidate depth, auxiliary path penalty and
+candidate depth). A hit returns immediately without loading the stored
+index at all; a miss searches exactly as before and then persists its
+result, so mandatory `search` output is unchanged either way.
+
+```bash
+uv run python -m src search "Where is the cache implemented?" --k 5
+# first run: loads the index, searches, stores the result
+
+uv run python -m src search "Where is the cache implemented?" --k 5
+# second run: exact cache hit, no index load
+```
+
+The cache is a JSON file at `--search_cache_path`, defaulting to
+`.local/cache/search-results.json`, using the same atomic-write and
+versioned-envelope pattern as the validated-answer cache. It is scoped to
+`search` only; `search_dataset`, `search_semantic`,
+`search_dataset_hybrid`, and `answer` do not read or write it.
 
 ### Optional Semantic Retrieval
 

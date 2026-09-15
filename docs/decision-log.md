@@ -1547,3 +1547,74 @@ but is not trusted for incremental reuse until rebuilt once.
 Compatibility fingerprints answer whether the source corpus and pipeline
 match. A separate integrity check answers whether the stored evidence itself
 still matches what was saved; incremental reuse needs both questions answered.
+
+## 2026-09-15 - Cache search results behind an exact compatibility key
+
+**Status:** Accepted
+
+### Initial approach
+
+Choose incremental indexing as the first engineering bonus and leave index
+and query-result caching for later, since `IndexStore` and
+`SemanticIndexStore` already persist their snapshots and avoid recomputing
+an index from the raw corpus. The remaining gap was that every `search`
+invocation still reloads and re-scores against the stored index from
+scratch, even for a question searched moments earlier with identical
+parameters.
+
+### Why the approach was reconsidered
+
+`ValidatedAnswerCache` already caches complete generated answers, but only
+for the `answer` command; it never covers plain retrieval. Repeated or
+scripted `search` calls (manual exploration, retries, or driving `search`
+from another tool) pay the full BM25 index load and scoring cost every
+time, even though the result is deterministic for the same query, index,
+and ranking parameters.
+
+### Decision
+
+Add `SearchResultCache`, a JSON-persisted cache keyed by `SearchCacheKey`
+(normalized question, corpus fingerprint, pipeline fingerprint, `k`, and
+every ranking parameter that can change the result: identifier match
+weight and candidate depth, auxiliary path penalty and candidate depth).
+It mirrors `ValidatedAnswerCache`'s exact-key, atomic-write, versioned-
+envelope pattern rather than introducing a new caching mechanism.
+
+Wire it into `run_stored_search`, the same function that loads the BM25
+index, so a cache hit returns immediately without ever acquiring the
+index. `search` always constructs a cache at a configurable
+`--search_cache_path` (default `.local/cache/search-results.json`); a
+miss behaves exactly as before and then stores its result.
+
+The bonus text names two things generically, "the index" and "query
+results," not every retrieval-adjacent command. Both are already
+satisfied: the index for both the mandatory BM25 index and the Bonus 1
+semantic index (`IndexStore`/`SemanticIndexStore` already load a
+persisted snapshot instead of recomputing from the raw corpus), and query
+results for `search`, the mandatory single-query retrieval command the
+subject itself specifies. `search_dataset`, `search_semantic`,
+`search_dataset_hybrid`, and `answer`'s retrieval step are not wired to
+this cache in this step; extending to them would be broader coverage of
+the same requirement, not a different requirement, and is left as a
+possible future extension rather than required for this bonus.
+
+### Consequences
+
+- A repeated identical `search` query skips loading and parsing the BM25
+  snapshot entirely, not just the scoring step.
+- Mandatory `search` output is unchanged on a cache miss; the cache is
+  purely additive and only ever returns a result it previously computed
+  and stored itself.
+- Wiring the same cache into `answer`, `search_dataset`, semantic search,
+  or hybrid dataset search remains a possible future extension; none of
+  them are required to satisfy the bonus text as written.
+- The stored cache file lives under `.local/`, alongside the answer
+  cache, and is never part of the submitted repository.
+
+### Lesson
+
+A new caching layer does not need a new mechanism when a validated one
+already exists in the codebase. Reusing `ValidatedAnswerCache`'s key/
+store/versioned-envelope shape for a different cached value kept the
+change small and consistent, and confirmed the shape generalizes beyond
+answer caching.

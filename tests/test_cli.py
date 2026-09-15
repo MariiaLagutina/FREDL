@@ -852,6 +852,7 @@ def test_search_command_routes_one_raw_query() -> None:
         identifier_candidate_depth=0,
         auxiliary_path_penalty=0.5,
         path_candidate_depth=20,
+        cache=ANY,
     )
 
 
