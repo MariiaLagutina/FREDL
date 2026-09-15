@@ -71,7 +71,7 @@ def build_index_incremental(
             corpus_file.file_path
         ) == content_fingerprint:
             documents.extend(
-                previous_documents_by_file[corpus_file.file_path]
+                previous_documents_by_file.get(corpus_file.file_path, ())
             )
             reused_file_count += 1
             continue
