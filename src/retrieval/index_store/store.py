@@ -1,5 +1,7 @@
 """Save and load validated BM25 snapshots without corpus parsing."""
 
+from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 import re
 
@@ -11,6 +13,7 @@ from src.retrieval.index_store.models import (
     StoredBM25Index,
     StoredChunk,
     StoredDocument,
+    StoredFileFingerprint,
     StoredParameters,
 )
 
@@ -20,6 +23,14 @@ _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 
 class IncompatibleIndexError(ValueError):
     """Report that a persisted index must be rebuilt."""
+
+
+@dataclass(frozen=True, slots=True)
+class ReusableIndexSnapshot:
+    """Expose one prior snapshot's documents grouped for incremental reuse."""
+
+    documents_by_file: Mapping[str, tuple[BM25Document, ...]]
+    file_fingerprints: Mapping[str, str]
 
 
 class IndexStore:
@@ -34,14 +45,18 @@ class IndexStore:
         index: BM25Index,
         corpus_fingerprint: str,
         pipeline_fingerprint: str,
+        file_fingerprints: Mapping[str, str] | None = None,
     ) -> None:
         """Atomically save exact chunks, lexical fields, and parameters."""
         _validate_fingerprint(corpus_fingerprint)
         _validate_fingerprint(pipeline_fingerprint)
+        for content_fingerprint in (file_fingerprints or {}).values():
+            _validate_fingerprint(content_fingerprint)
         snapshot = _snapshot_from_index(
             index,
             corpus_fingerprint,
             pipeline_fingerprint,
+            file_fingerprints or {},
         )
         self._path.parent.mkdir(parents=True, exist_ok=True)
         temporary_path = self._path.with_suffix(self._path.suffix + ".tmp")
@@ -80,11 +95,56 @@ class IndexStore:
             )
         return _index_from_snapshot(snapshot)
 
+    def load_for_reuse(
+        self,
+        expected_pipeline_fingerprint: str,
+    ) -> ReusableIndexSnapshot | None:
+        """Return a prior snapshot's documents grouped by file, if reusable.
+
+        Returns ``None`` instead of raising whenever the prior snapshot
+        cannot be trusted for incremental reuse: it is missing, unreadable,
+        built by an incompatible schema, or built by a different pipeline.
+        Any of these are a normal, expected outcome (for example the very
+        first `index` run) and simply mean every file must be rebuilt.
+        """
+        _validate_fingerprint(expected_pipeline_fingerprint)
+        try:
+            raw_snapshot = self._path.read_text(encoding="utf-8")
+        except OSError:
+            return None
+        try:
+            snapshot = StoredBM25Index.model_validate_json(raw_snapshot)
+        except ValidationError:
+            return None
+        if snapshot.schema_version != SCHEMA_VERSION:
+            return None
+        if snapshot.pipeline_fingerprint != expected_pipeline_fingerprint:
+            return None
+        if not snapshot.file_fingerprints:
+            return None
+
+        documents_by_file: dict[str, list[BM25Document]] = {}
+        for stored_document in snapshot.documents:
+            documents_by_file.setdefault(
+                stored_document.chunk.file_path, []
+            ).append(_document_from_stored(stored_document))
+        return ReusableIndexSnapshot(
+            documents_by_file={
+                file_path: tuple(documents)
+                for file_path, documents in documents_by_file.items()
+            },
+            file_fingerprints={
+                entry.file_path: entry.content_fingerprint
+                for entry in snapshot.file_fingerprints
+            },
+        )
+
 
 def _snapshot_from_index(
     index: BM25Index,
     corpus_fingerprint: str,
     pipeline_fingerprint: str,
+    file_fingerprints: Mapping[str, str],
 ) -> StoredBM25Index:
     """Convert runtime objects into the validated persistence schema."""
     parameters = index.parameters
@@ -113,6 +173,31 @@ def _snapshot_from_index(
             )
             for document in index.documents
         ),
+        file_fingerprints=tuple(
+            StoredFileFingerprint(
+                file_path=file_path,
+                content_fingerprint=content_fingerprint,
+            )
+            for file_path, content_fingerprint in sorted(
+                file_fingerprints.items()
+            )
+        ),
+    )
+
+
+def _document_from_stored(document: StoredDocument) -> BM25Document:
+    """Rebuild one runtime document from its stored lexical fields."""
+    return BM25Document(
+        chunk=Chunk(
+            file_path=document.chunk.file_path,
+            start=document.chunk.start,
+            end=document.chunk.end,
+            text=document.chunk.text,
+            section_path=document.chunk.section_path,
+        ),
+        content_terms=document.content_terms,
+        metadata_terms=document.metadata_terms,
+        identifier_terms=document.identifier_terms,
     )
 
 
@@ -120,21 +205,7 @@ def _index_from_snapshot(snapshot: StoredBM25Index) -> BM25Index:
     """Rebuild runtime scoring structures from stored lexical fields."""
     parameters = snapshot.parameters
     return BM25Index(
-        [
-            BM25Document(
-                chunk=Chunk(
-                    file_path=document.chunk.file_path,
-                    start=document.chunk.start,
-                    end=document.chunk.end,
-                    text=document.chunk.text,
-                    section_path=document.chunk.section_path,
-                ),
-                content_terms=document.content_terms,
-                metadata_terms=document.metadata_terms,
-                identifier_terms=document.identifier_terms,
-            )
-            for document in snapshot.documents
-        ],
+        [_document_from_stored(document) for document in snapshot.documents],
         BM25Parameters(
             k1=parameters.k1,
             b=parameters.b,
