@@ -1444,48 +1444,53 @@ unmeasured automatic query classifier.
 
 ### Initial approach
 
-`index` always ran a full rebuild: every discovered file was re-read,
+`index` always ran a full rebuild: every discovered file was decoded,
 re-chunked, and re-tokenized on every invocation, even when only one file in a
-1,952-file corpus had changed since the previous run. The remaining time
-budget for this project allowed exactly one additional engineering bonus, to
-be chosen from incremental indexing, a caching layer, or a local HTTP API,
-and implemented completely rather than split across three partial features.
+1,952-file corpus had changed since the previous run. The phase plan proposed
+choosing one finished engineering bonus from incremental indexing, index and
+query-result caching, or a local HTTP API. We chose which improvement to build
+first rather than deciding that the other two were not worth building.
 
 ### Why the approach was reconsidered
 
-A caching layer for generated answers already existed
-(`ValidatedAnswerCache`), so a second caching bonus would have mostly
-restated an already-demonstrated pattern. A local HTTP API would wrap the
-existing CLI commands without exercising a new part of the retrieval
-pipeline. Full index rebuilds, by contrast, were the one remaining place
-where the system did asymptotically more work than the change actually
-justified, and the project already stored a corpus fingerprint and a
-pipeline fingerprint that made "what changed" a well-defined question rather
-than a vague one.
+The existing `ValidatedAnswerCache` covers generated answers, not the bonus's
+index and query-result caching boundary. A local HTTP API would be a genuinely
+new interface, but it would not address repeated index construction. Since the
+mandatory CLI already works and full rebuilds repeat expensive decoding,
+chunking, and tokenization for unchanged files, incremental indexing was the
+most direct first improvement. Existing corpus and pipeline identities also
+provided a compatibility boundary for testing it against full rebuilds. The
+other engineering bonuses remain possible after evaluation as further
+development of the project.
 
 ### Decision
 
 Persist a SHA-256 content fingerprint per source file alongside each file's
 stored BM25 documents. On the next `index` run, reuse a file's already-chunked
-documents without re-reading or re-tokenizing it, but only when both its
-content fingerprint is unchanged and the declared pipeline (chunk-size limit,
-chunker and tokenizer versions, BM25 parameters, schema) still matches the one
-that produced the prior snapshot. Any other file, and any file no longer
-present in the corpus, is rebuilt or dropped normally. A missing, unreadable,
-or pipeline-incompatible prior snapshot degrades to a full rebuild rather than
-failing, since the very first `index` run always looks like that case.
+documents without decoding, re-chunking, or re-tokenizing it, but only when
+both its content fingerprint is unchanged and the declared pipeline
+(chunk-size limit, chunker and tokenizer versions, BM25 parameters, schema)
+matches the one that produced the prior snapshot. Changed files are rebuilt;
+removed files are dropped. A missing, unreadable, or pipeline-incompatible
+prior snapshot degrades to a full rebuild rather than failing, since the very
+first `index` run always looks like that case.
+Every source file is still read to calculate its content fingerprint and the
+whole-corpus fingerprint; reuse saves processing, not all I/O.
 
 ### Consequences
 
 - Reindexing the full 1,952-file vLLM corpus after a single-file edit dropped
-  from 21.4 s to 5.5 s, and produced a BM25 snapshot byte-for-byte identical
-  to a full rebuild of the same corpus state.
+  from 29.4 s to 7.1 s with snapshot integrity checks, and produced a BM25
+  snapshot byte-for-byte identical to a full rebuild of the same corpus state.
+  This was measured on an isolated corpus copy on the development machine.
 - `search` and `search_dataset` are unaffected: reuse only skips redoing work
   whose result would have been identical, never changes what gets returned.
 - The stored index schema grew by one optional field
   (`file_fingerprints`), so older snapshots without it still load normally
   through `load()`; they simply cannot be reused incrementally until rebuilt
   once.
+- This is the first selected engineering bonus, not a decision to abandon
+  index/query-result caching or a local HTTP API.
 
 ### Lesson
 
@@ -1499,3 +1504,46 @@ per-file document groups because nothing had ever been stored for it. A
 small hand-built fixture corpus is not a substitute for running new
 corpus-shaped logic against the actual corpus at least once before calling
 it done.
+
+## 2026-09-15 - Verify snapshot integrity before incremental reuse
+
+**Status:** Accepted
+
+### Initial approach
+
+Treat a prior BM25 snapshot as reusable when its JSON validates against the
+stored schema, its pipeline identity matches, and it contains per-file content
+fingerprints. Malformed JSON already fell back to a full rebuild.
+
+### Why the approach was reconsidered
+
+Schema validation proves field shapes, not that stored chunks are unchanged.
+A locally damaged snapshot can remain valid JSON and retain matching per-file
+fingerprints while one chunk's text changes. Incremental indexing would then
+copy that wrong chunk into a new snapshot despite unchanged source files.
+
+### Decision
+
+Write a SHA-256 checksum of the canonical snapshot fields alongside new BM25
+snapshots, excluding the checksum field itself. Verify it before loading a new
+snapshot for search or reusing its chunks. If it differs, `search` reports a
+controlled reindex error and `index` falls back to a full rebuild. A legacy
+snapshot without a checksum still loads for search, preserving compatibility,
+but is not trusted for incremental reuse until rebuilt once.
+
+### Consequences
+
+- A syntactically valid but changed stored chunk cannot silently poison a
+  future incremental index; a focused regression test covers this boundary.
+- This detects accidental local damage, not a deliberate writer that changes
+  the snapshot and recomputes its checksum. The local index file remains a
+  trusted runtime artifact rather than an authenticated external input.
+- The optional checksum does not change the required CLI or BM25 schema
+  version. Old snapshots remain readable, while new snapshots gain a stronger
+  reuse boundary.
+
+### Lesson
+
+Compatibility fingerprints answer whether the source corpus and pipeline
+match. A separate integrity check answers whether the stored evidence itself
+still matches what was saved; incremental reuse needs both questions answered.
