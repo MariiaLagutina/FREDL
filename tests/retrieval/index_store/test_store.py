@@ -210,3 +210,45 @@ def test_load_for_reuse_groups_documents_by_file(tmp_path: Path) -> None:
     assert snapshot.documents_by_file["src/cache.py"] == (
         original.documents[1],
     )
+
+
+def test_tampered_chunk_is_not_loaded_or_reused(tmp_path: Path) -> None:
+    """Valid JSON with changed evidence cannot poison a future snapshot."""
+    path = tmp_path / "bm25-index.json"
+    store = IndexStore(path)
+    store.save(
+        _index(),
+        FINGERPRINT,
+        PIPELINE_FINGERPRINT,
+        {"docs/cache.md": "a" * 64, "src/cache.py": "b" * 64},
+    )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["documents"][0]["chunk"]["text"] = "wrong"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="checksum differs"):
+        store.load(FINGERPRINT, PIPELINE_FINGERPRINT)
+    assert store.load_for_reuse(PIPELINE_FINGERPRINT) is None
+
+
+def test_legacy_snapshot_loads_but_cannot_be_reused(
+    tmp_path: Path,
+) -> None:
+    """Old valid indexes keep search compatibility until the next rebuild."""
+    path = tmp_path / "bm25-index.json"
+    store = IndexStore(path)
+    original = _index()
+    store.save(
+        original,
+        FINGERPRINT,
+        PIPELINE_FINGERPRINT,
+        {"docs/cache.md": "a" * 64, "src/cache.py": "b" * 64},
+    )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    del payload["snapshot_checksum"]
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    assert store.load(FINGERPRINT, PIPELINE_FINGERPRINT).documents == (
+        original.documents
+    )
+    assert store.load_for_reuse(PIPELINE_FINGERPRINT) is None

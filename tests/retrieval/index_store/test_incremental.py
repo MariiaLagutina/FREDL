@@ -1,5 +1,6 @@
 """Tests for reusing unchanged files across BM25 index rebuilds."""
 
+import json
 from pathlib import Path
 
 from src.retrieval.index_store import (
@@ -236,4 +237,27 @@ def test_incremental_rebuild_falls_back_when_stored_index_is_corrupt(
     full = build_index(
         tmp_path, corpus_root, config, index_schema_version=SCHEMA_VERSION
     )
+    assert incremental.build.index.documents == full.index.documents
+
+
+def test_incremental_rebuild_falls_back_when_stored_chunk_is_tampered(
+    tmp_path: Path,
+) -> None:
+    """A syntactically valid but changed snapshot is never reused."""
+    corpus_root = tmp_path / "data" / "raw"
+    _write_corpus(corpus_root)
+    index_path = tmp_path / "bm25-index.json"
+    config = PipelineConfig()
+    _reindex(tmp_path, corpus_root, index_path, config)
+
+    payload = json.loads(index_path.read_text(encoding="utf-8"))
+    payload["documents"][0]["chunk"]["text"] = "wrong"
+    index_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    incremental = _reindex(tmp_path, corpus_root, index_path, config)
+    full = build_index(
+        tmp_path, corpus_root, config, index_schema_version=SCHEMA_VERSION
+    )
+    assert incremental.reused_file_count == 0
+    assert incremental.rebuilt_file_count == 3
     assert incremental.build.index.documents == full.index.documents
