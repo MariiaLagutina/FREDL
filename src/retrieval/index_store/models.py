@@ -26,6 +26,15 @@ class StoredDocument(BaseModel):
     identifier_terms: tuple[str, ...]
 
 
+class StoredFileFingerprint(BaseModel):
+    """Persist one corpus file's content identity for incremental reuse."""
+
+    model_config = ConfigDict(frozen=True, strict=True)
+
+    file_path: str
+    content_fingerprint: str
+
+
 class StoredParameters(BaseModel):
     """Persist all values that affect BM25 scores."""
 
@@ -47,3 +56,5 @@ class StoredBM25Index(BaseModel):
     pipeline_fingerprint: str
     parameters: StoredParameters
     documents: tuple[StoredDocument, ...]
+    file_fingerprints: tuple[StoredFileFingerprint, ...] = ()
+    snapshot_checksum: str | None = None

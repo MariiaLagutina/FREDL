@@ -45,7 +45,7 @@ from src.retrieval.index_store import (
     IndexStore,
     PipelineConfig,
     SCHEMA_VERSION,
-    build_index,
+    build_index_incremental,
     fingerprint_corpus,
     fingerprint_pipeline,
 )
@@ -290,17 +290,20 @@ def index(
             metadata_weight,
             identifier_weight,
         )
-        build = build_index(
+        output_path = _below_root(root, Path(index_path))
+        incremental = build_index_incremental(
             root,
             _below_root(root, Path(corpus_root)),
             config,
             index_schema_version=SCHEMA_VERSION,
+            previous_index_path=output_path,
         )
-        output_path = _below_root(root, Path(index_path))
+        build = incremental.build
         IndexStore(output_path).save(
             build.index,
             build.corpus_fingerprint,
             build.pipeline_fingerprint,
+            incremental.file_fingerprints,
         )
     except (OSError, UnicodeError, ValueError) as error:
         raise CliError(_error_message(error)) from None
@@ -310,6 +313,9 @@ def index(
         "document_count": len(build.index.documents),
         "corpus_fingerprint": build.corpus_fingerprint,
         "pipeline_fingerprint": build.pipeline_fingerprint,
+        "total_file_count": incremental.total_file_count,
+        "reused_file_count": incremental.reused_file_count,
+        "rebuilt_file_count": incremental.rebuilt_file_count,
     }
 
 
