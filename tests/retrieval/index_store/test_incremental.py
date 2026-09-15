@@ -187,6 +187,32 @@ def test_incremental_rebuild_falls_back_when_pipeline_changes(
     assert incremental.build.index.documents == full.index.documents
 
 
+def test_incremental_rebuild_reuses_a_file_with_zero_chunks(
+    tmp_path: Path,
+) -> None:
+    """An unchanged, chunkless file (e.g. an empty module) is still reused."""
+    corpus_root = tmp_path / "data" / "raw"
+    _write_corpus(corpus_root)
+    (corpus_root / "empty.py").write_text("", encoding="utf-8")
+    index_path = tmp_path / "bm25-index.json"
+    config = PipelineConfig()
+    _reindex(tmp_path, corpus_root, index_path, config)
+
+    (corpus_root / "cache.md").write_text(
+        "# Cache\n\nThe cache now stores validated chunks.\n",
+        encoding="utf-8",
+    )
+    incremental = _reindex(tmp_path, corpus_root, index_path, config)
+
+    assert incremental.total_file_count == 4
+    assert incremental.reused_file_count == 3
+    assert incremental.rebuilt_file_count == 1
+    full = build_index(
+        tmp_path, corpus_root, config, index_schema_version=SCHEMA_VERSION
+    )
+    assert incremental.build.index.documents == full.index.documents
+
+
 def test_incremental_rebuild_falls_back_when_stored_index_is_corrupt(
     tmp_path: Path,
 ) -> None:
