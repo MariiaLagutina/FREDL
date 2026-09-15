@@ -22,24 +22,25 @@ generated datasets, indexes, and reports remain outside Git.
 | How does it answer? | Retrieved context passed to `Qwen/Qwen3-0.6B` |
 | Does it require a GPU? | No; CUDA and CPU execution are supported |
 | Is semantic retrieval available? | Yes; pinned CPU MiniLM is an optional bonus and BM25 remains the default |
-| What is verified? | 518 tests, strict checks, clean-clone execution, and assignment performance limits |
+| What is verified? | 550 tests, strict checks, clean-clone execution, and assignment performance limits |
 
 ### Verified Results
 
 | Measure | Reproduced result | Assignment limit |
 | --- | ---: | ---: |
-| Index build, 20,096 searchable documents | 22.27 s | at most 300 s |
+| Index build, 20,096 searchable documents | 29.4 s | at most 300 s |
 | Retrieval, normalized to 200 questions | 19.51–19.88 s | at most 90 s |
 | Docs Recall@5 / Recall@10 | 0.850000 / 0.900000 | Recall@5 at least 0.80 |
 | Code Recall@5 / Recall@10 | 0.787879 / 0.848485 | Recall@5 at least 0.50 |
 | Optional MiniLM index, 20,096 vectors | 443.56 s on CPU | bonus measurement |
 | Optional MiniLM warm query | 55.6–58.9 ms average | bonus measurement |
-| Incremental reindex, 1 of 1,952 files changed | 5.5 s (vs. 21.4 s full) | bonus measurement |
-| Automated tests | 518 passed | all required checks pass |
+| Incremental reindex, 1 of 1,952 files changed | 7.1 s (vs. 29.4 s full) | bonus measurement |
+| Automated tests | 550 passed | all required checks pass |
 
-Times are machine-specific measurements from the reproducible Linux run. The
-[performance analysis](#performance-analysis) records the hardware, commands,
-memory, repeated timings, and output hashes; the
+Times are machine-specific Linux measurements; the indexing figures include
+the snapshot checksum and a separate, isolated one-file edit run. The
+[performance analysis](#performance-analysis) records the earlier mandatory
+acceptance baseline, hardware, commands, memory, and repeated timings; the
 [retrieval evaluation](#bm25-evaluation) records the complete Recall@K and MRR
 results separately for Docs and Code.
 
@@ -597,12 +598,12 @@ Git.
 
 ### Incremental Indexing
 
-`index` rebuilds only the files that actually changed since the previous
-snapshot at `index_path`, instead of always re-reading, re-chunking, and
-re-tokenizing the entire corpus. Every persisted snapshot now stores a
-SHA-256 content fingerprint per source file alongside its chunks. On the next
-`index` run, a file is reused exactly as stored, with no re-chunking or
-re-tokenization, only when both hold:
+`index` rebuilds documents only for files that changed since the previous
+snapshot at `index_path`, instead of always decoding, re-chunking, and
+re-tokenizing the entire corpus. Every new snapshot stores a SHA-256 content
+fingerprint per source file alongside its chunks. On the next `index` run, a
+file's documents are reused exactly as stored, with no decoding, re-chunking,
+or re-tokenization, only when both hold:
 
 - its content fingerprint is unchanged; and
 - the declared pipeline (chunk-size limit, chunker and tokenizer versions,
@@ -613,7 +614,11 @@ Any other file, including one that is new, edited, or renamed, is chunked and
 tokenized normally. A file removed from the corpus is simply absent from the
 rebuilt index. When no prior snapshot exists, is unreadable, or was built by
 an incompatible pipeline, `index` transparently falls back to a full rebuild;
-this is a controlled degradation, not an error. The command reports
+this is a controlled degradation, not an error. It also falls back when the
+prior snapshot's checksum is absent or differs, while older snapshots remain
+loadable for normal search. Source bytes are still read for per-file and
+whole-corpus fingerprints; the speedup avoids repeated document processing,
+not all disk I/O. The command reports
 `total_file_count`, `reused_file_count`, and `rebuilt_file_count` so the
 effect is directly observable:
 
@@ -627,11 +632,13 @@ uv run python -m src index
 ```
 
 On the complete 1,952-file vLLM corpus, reindexing after a single-file edit
-completed in 5.5 s versus 21.4 s for a full rebuild, and produced a BM25
-snapshot byte-for-byte identical to a full rebuild of the same corpus state.
-Reuse never changes retrieval results: it only skips redoing work whose
-output would have been identical, so `search` and `search_dataset` behave
-exactly as if every run were a full rebuild.
+completed in 7.1 s with snapshot integrity checks versus 29.4 s for a full
+rebuild, and produced a BM25 snapshot byte-for-byte identical to a full rebuild
+of the same corpus state. Both runs used an isolated corpus copy and one edited
+Markdown file; times are specific to the development machine.
+With a valid prior snapshot, reuse does not change retrieval results: it only
+skips redoing work whose output would have been identical, so `search` and
+`search_dataset` behave exactly as if every run were a full rebuild.
 
 Search one raw query with the default compatible persisted index:
 
@@ -1204,10 +1211,10 @@ make lint-strict
 The current checks pass:
 
 ```text
-pytest: 518 passed
+pytest: 550 passed
 flake8: passed
-mypy with the assignment flags: passed for 216 source files
-mypy --strict: passed for 216 source files
+mypy with the assignment flags: passed for 227 source files
+mypy --strict: passed for 227 source files
 ```
 
 The Phase 30 audit found no missing docstrings on top-level public production
