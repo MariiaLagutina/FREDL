@@ -169,8 +169,8 @@ exceeds the assignment limit of 2000 characters.
   synthetic terms never change the evidence text returned to the evaluator.
 
 Unreadable, unsafe, binary, unsupported, or oversized files are rejected by
-the discovery boundary. A chunk audit verifies coverage, order, size, and
-source-slice equality.
+the discovery boundary. A chunk audit verifies deterministic output, valid
+ranges, size limits, non-empty content, and source-slice equality.
 
 ## Retrieval Method
 
@@ -213,7 +213,7 @@ All bonuses preserve the required BM25 CLI and run on CPU-only machines:
 4. **Caching:** search and validated-answer caches use complete compatibility
    identities and atomic replacement.
 5. **Local HTTP API:** FastAPI reuses one loaded index and lazily loads one
-   thread-safe generation backend.
+   shared generation backend with thread-safe initialization.
 
 Run the optional API:
 
