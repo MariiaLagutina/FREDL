@@ -169,8 +169,8 @@ exceeds the assignment limit of 2000 characters.
   synthetic terms never change the evidence text returned to the evaluator.
 
 Unreadable, unsafe, binary, unsupported, or oversized files are rejected by
-the discovery boundary. A chunk audit verifies coverage, order, size, and
-source-slice equality.
+the discovery boundary. A chunk audit verifies deterministic output, valid
+ranges, size limits, non-empty content, and source-slice equality.
 
 ## Retrieval Method
 
@@ -213,7 +213,7 @@ All bonuses preserve the required BM25 CLI and run on CPU-only machines:
 4. **Caching:** search and validated-answer caches use complete compatibility
    identities and atomic replacement.
 5. **Local HTTP API:** FastAPI reuses one loaded index and lazily loads one
-   thread-safe generation backend.
+   shared generation backend with thread-safe initialization.
 
 Run the optional API:
 
@@ -232,6 +232,7 @@ depends on hardware; the assignment limits are the acceptance criteria.
 | Retrieval normalized to 200 questions | 19.51–19.88 s | at most 90 s |
 | Docs Recall@5 / Recall@10 | 0.850000 / 0.900000 | Recall@5 >= 0.80 |
 | Code Recall@5 / Recall@10 | 0.787879 / 0.848485 | Recall@5 >= 0.50 |
+| Optional Docs hybrid Recall@5 / Recall@10 | 0.870000 / 0.910000 | bonus measurement |
 | Incremental reindex, one changed file | 7.1 s | bonus measurement |
 | Full automated test suite | 579 passed | all checks pass |
 
@@ -287,6 +288,19 @@ git diff --check: passed
 
 Expected third-party deprecation warnings currently come from Starlette's
 AnyIO compatibility alias and Python Fire's coroutine inspection.
+
+## Further Technical Evidence
+
+- [`docs/architecture.md`](docs/architecture.md) — component boundaries and
+  indexing, retrieval, generation, persistence, and bonus flows.
+- [`docs/decision-log.md`](docs/decision-log.md) — reconsidered choices,
+  measured trade-offs, and rejected alternatives.
+- [`docs/end-to-end-run-log.md`](docs/end-to-end-run-log.md) — complete
+  acceptance commands, timings, memory, retrieval scores, and Qwen findings.
+- [`docs/answer-quality-checklist.md`](docs/answer-quality-checklist.md) —
+  grounded-answer review criteria and diagnostic procedure.
+- [`docs/bm25-tuning-log.md`](docs/bm25-tuning-log.md) — BM25, semantic, and
+  hybrid experiments with their measured outcomes.
 
 ## Resources
 
