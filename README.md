@@ -4,1359 +4,311 @@
 
 ## Description
 
-This project is a local Retrieval-Augmented Generation (RAG) system for
-answering questions about the vLLM codebase. It discovers and chunks the local
-corpus, builds an explainable BM25 index, retrieves exact source spans, and can
-use those sources to generate a grounded answer with a local Qwen model.
+This project is a fully local Retrieval-Augmented Generation (RAG) system for
+questions about the vLLM codebase. It reads and chunks the supplied corpus,
+builds a deterministic BM25 index, retrieves exact source locations, and can
+give that evidence to `Qwen/Qwen3-0.6B` for a grounded answer.
 
-The mandatory pipeline is fully local and does not depend on an external API.
-Its retrieval behavior is deterministic, evaluation is reproducible, and
-generated datasets, indexes, and reports remain outside Git.
+The required workflow is CPU-compatible and uses no external API. Retrieval is
+measured independently from generation, persisted artifacts are validated
+before reuse, and generated data remains outside Git.
 
-### At a Glance
-
-| Question | Answer |
+| Capability | Implementation |
 | --- | --- |
-| What does it retrieve? | Exact documentation and Python source spans from vLLM 0.10.1 |
-| How does it rank them? | Two-field BM25 plus a bounded auxiliary-path penalty |
-| How does it answer? | Retrieved context passed to `Qwen/Qwen3-0.6B` |
-| Does it require a GPU? | No; CUDA and CPU execution are supported |
-| Is semantic retrieval available? | Yes; pinned CPU MiniLM is an optional bonus and BM25 remains the default |
-| What is verified? | 550 tests, strict checks, clean-clone execution, and assignment performance limits |
-
-### Verified Results
-
-| Measure | Reproduced result | Assignment limit |
-| --- | ---: | ---: |
-| Index build, 20,096 searchable documents | 29.4 s | at most 300 s |
-| Retrieval, normalized to 200 questions | 19.51–19.88 s | at most 90 s |
-| Docs Recall@5 / Recall@10 | 0.850000 / 0.900000 | Recall@5 at least 0.80 |
-| Code Recall@5 / Recall@10 | 0.787879 / 0.848485 | Recall@5 at least 0.50 |
-| Optional MiniLM index, 20,096 vectors | 443.56 s on CPU | bonus measurement |
-| Optional MiniLM warm query | 55.6–58.9 ms average | bonus measurement |
-| Incremental reindex, 1 of 1,952 files changed | 7.1 s (vs. 29.4 s full) | bonus measurement |
-| Automated tests | 579 passed | all required checks pass |
-
-Times are machine-specific Linux measurements; the indexing figures include
-the snapshot checksum and a separate, isolated one-file edit run. The
-[performance analysis](#performance-analysis) records the earlier mandatory
-acceptance baseline, hardware, commands, memory, and repeated timings; the
-[retrieval evaluation](#bm25-evaluation) records the complete Recall@K and MRR
-results separately for Docs and Code.
+| Required retrieval | Custom two-field BM25 with bounded reranking |
+| Answer generation | Local `Qwen/Qwen3-0.6B` |
+| Source traceability | Project-relative paths and exact character ranges |
+| Optional semantic search | Pinned CPU MiniLM embeddings |
+| Optional hybrid search | Weighted Reciprocal Rank Fusion for Docs |
+| Interfaces | Python Fire CLI and optional local FastAPI server |
 
 ## Instructions
 
-Requirements: Python 3.10 or later, `uv`, and the supplied vLLM corpus and
-question datasets. Place the local data in the
-[documented layout](#local-data-layout), then install the locked dependencies
-from the repository root:
+Requirements: Python 3.10 or later, `uv`, the supplied vLLM corpus, and the
+question datasets.
+
+Install the locked environment:
 
 ```bash
 make install
 ```
 
-Build the compatible index and run one retrieval query:
+The Makefile keeps large uv, Hugging Face, and virtual-environment files under
+`~/goinfre`, which is suitable for 42 campus storage limits.
+
+Prepare only the input directories needed during evaluation:
 
 ```bash
-uv run python -m src index --max_chunk_size 2000
-uv run python -m src search "Where is the cache implemented?" --k 5
+scripts/prepare_evaluation_inputs.sh
 ```
 
-The detailed commands below cover [batch retrieval](#retrieval-search),
-[single-query answers](#single-query-grounded-answers),
-[batch answers](#batch-grounded-answers), and [evaluation](#bm25-evaluation).
-Run `make test`, `make lint`, and `make lint-strict` before submitting a change.
-
-## Example Usage
-
-A normal local workflow first indexes the corpus, then retrieves sources for a
-question, and finally asks Qwen to answer from that bounded evidence:
-
-```bash
-uv run python -m src index
-uv run python -m src search "How does prefix caching work?" --k 5
-HF_HOME=.local/huggingface uv run python -m src answer \
-  "How does prefix caching work?" \
-  --device auto
-```
-
-The commands print progress and concise controlled errors to the terminal.
-The retrieval output includes project-relative file paths and exact half-open
-character ranges so every returned source can be inspected directly.
-
-## Contents
-
-- [Current Status](#current-status)
-- [Instructions](#instructions)
-- [Example Usage](#example-usage)
-- [System Architecture](#system-architecture)
-- [Chunking Strategy](#chunking-strategy)
-- [Retrieval Method](#retrieval-method)
-- [Retrieval Commands](#retrieval-search)
-- [Performance Analysis](#performance-analysis)
-- [Grounded Answer Generation](#grounded-context-construction)
-- [Challenges Faced](#challenges-faced)
-- [Answer Quality Review](#answer-quality-review)
-- [Retrieval Evaluation](#bm25-evaluation)
-- [Verification](#verification)
-- [Design Decisions and Resources](#design-decisions)
-
-## Current Status
-
-Implemented:
-
-- project bootstrap with `uv`;
-- pytest, flake8, and mypy checks;
-- the required Pydantic data models;
-- safe and deterministic corpus file discovery;
-- project-relative POSIX source paths;
-- filtering for supported, readable, non-binary files within a configurable
-  size limit;
-- exact UTF-8 source reading without newline normalization;
-- immutable source documents and half-open chunk spans;
-- Python-aware AST chunking with safe fallbacks;
-- Markdown and plain-text chunking with section metadata and bounded overlap;
-- a shared orchestrator for selecting format-specific chunkers;
-- deterministic chunk audits with invariant failures and size statistics;
-- code-aware identifier expansion and conservative documentation tokenization;
-- content and structural metadata terms stored as separate BM25 fields;
-- an inverted BM25 index with stable ranking and inspectable field scores;
-- a versioned JSON snapshot bound to both corpus content and the declared
-  indexing pipeline;
-- mixed natural-language and code query tokenization;
-- validated single-query and batch retrieval with exact source coordinates;
-- assignment-compatible Python Fire commands for single-query and batch
-  retrieval;
-- terminal batch progress without coupling retrieval logic to `tqdm`;
-- concise CLI failures for invalid input, missing files, malformed JSON, and
-  incompatible indexes;
-- full-dataset validation of source paths, half-open character ranges, and the
-  2,000-character source limit;
-- a controlled auxiliary-path reranker selected against both Docs and Code;
-- Moulinette-compatible source IoU, Recall@K, and MRR metrics;
-- file-based Docs and Code evaluation aligned safely by `question_id`;
-- a public local evaluator with separate Recall@1/3/5/10 and MRR reports;
-- a fixed documentation/code mini-suite and BM25 experiment CLI;
-- optional JSON reports with corpus, Git, environment, latency, and memory
-  evidence;
-- deterministic source-labelled context construction with strict token budgets;
-- a local `Qwen/Qwen3-0.6B` backend with automatic CUDA-to-CPU fallback;
-- deterministic chat-template generation and a real-model smoke command;
-- a versioned source-grounding prompt with exact insufficient-context output;
-- a single-query `answer` command connecting BM25 retrieval to local Qwen;
-- an assignment-compatible `answer_dataset` command that reuses persisted
-  retrieval results and loads the model once per dataset;
-- strict structural answer validation for interactive generation and cached
-  answers, with a separate assignment-compatible batch policy;
-- separate retrieved-source and prompt-source traces;
-- delayed terminal feedback for generation lasting more than five seconds;
-- an exact compatibility-bound cache for validated single-query answers;
-- an optional pinned CPU MiniLM encoder, checksum-linked semantic index,
-  single-query search, and load-once batch retrieval;
-- a measured stopping decision that rejects both weak small-model training and
-  a semantic-only replacement for the stronger lexical retrieval baseline;
-- incremental BM25 indexing that reuses unchanged files' stored chunks and
-  rebuilds only what actually changed, with results identical to a full
-  rebuild;
-- an exact compatibility-bound cache for single-query search results that
-  skips loading the stored index entirely on a hit;
-- a local HTTP API (`serve`) exposing `/search` and `/answer` with the
-  index loaded once at startup and the generation backend loaded once on
-  first use;
-- automated tests organized by pipeline component.
-
-The complete public Docs and Code pipeline has been reproduced from a clean
-clone through indexing, retrieval, Moulinette evaluation, and batch answer
-generation. A compatibility-bound cache stores only single-query answers that
-pass strict grounding validation.
-
-## Local Data Layout
-
-The supplied corpus, datasets, and generated outputs are not committed to Git.
-The current local layout is:
+Place evaluator-provided files as follows:
 
 ```text
 data/
 ├── raw/
-│   └── vllm-0.10.1/
-├── datasets/
-│   ├── AnsweredQuestions/
-│   └── UnansweredQuestions/
-├── processed/
-└── output/
-    ├── search_results/
-    └── search_results_and_answer/
+│   └── vllm-*/
+└── datasets/
+    ├── AnsweredQuestions/
+    │   ├── dataset_docs_public.json
+    │   └── dataset_code_public.json
+    └── UnansweredQuestions/
+        ├── dataset_docs_public.json
+        └── dataset_code_public.json
 ```
 
-The small deterministic BM25 acceptance suite is committed separately:
+`data/processed/` and `data/output/` are created by project commands. Datasets,
+indexes, model files, reports, and generated answers are ignored by Git.
 
-```text
-evals/bm25/mini/
-├── corpus/
-│   ├── docs/
-│   └── src/
-└── suite.json
-```
-
-It validates experiment mechanics and expected parameter effects. It is not a
-replacement for the complete evaluation datasets used to select final values.
-
-Evaluation-facing source paths are relative to the project root:
-
-```text
-data/raw/vllm-0.10.1/docs/features/lora.md
-```
-
-## System Architecture
-
-The Python Fire CLI is the public boundary for the mandatory flows and an
-isolated semantic bonus. Reusable Python workflows own the domain logic, while
-the CLI resolves paths, reports progress, and converts expected failures into
-concise terminal errors.
-
-```mermaid
-flowchart TD
-    Corpus["Corpus: data/raw"] --> Discovery["File discovery and exact UTF-8 reading"]
-    Discovery --> Chunkers{"Source kind"}
-    Chunkers -->|Python| PythonChunker["Python AST chunker with safe fallbacks"]
-    Chunkers -->|Markdown or text| TextChunker["Heading and block-aware text chunker"]
-    PythonChunker --> LexicalDocs["Exact chunks plus content and metadata terms"]
-    TextChunker --> LexicalDocs
-    LexicalDocs --> BM25Index["Versioned BM25 index"]
-    BM25Index --> IndexFile["data/processed/bm25-index.json"]
-    LexicalDocs -. optional CPU encoding .-> MiniLM["Pinned MiniLM encoder"]
-    MiniLM -.-> SemanticIndex["Checksum-linked semantic index"]
-
-    Question["Single question or question dataset"] --> Retrieval["BM25 retrieval"]
-    IndexFile --> Compatibility["Schema, corpus, and pipeline compatibility checks"]
-    Compatibility --> Retrieval
-    Retrieval --> Reranker["Bounded auxiliary-path reranker"]
-    Reranker --> SearchResults["Exact ranked source locations"]
-    Question -. optional .-> SemanticRetrieval["Exact cosine retrieval"]
-    SemanticIndex -.-> SemanticRetrieval
-    SemanticRetrieval -.-> SemanticSearchResults["Semantic source locations"]
-
-    SearchResults --> ContextBuilder["Deduplicated, token-bounded source context"]
-    Corpus --> ContextBuilder
-    ContextBuilder --> Qwen["Local Qwen/Qwen3-0.6B generation"]
-    Qwen --> Validator["Deterministic grounding validation"]
-    Validator --> Answer["Grounded answer or controlled CLI error"]
-
-    SearchResults --> RetrievalEvaluator["Source IoU and retrieval evaluator"]
-    SemanticSearchResults -.-> RetrievalEvaluator
-    GroundTruth["Answered ground-truth dataset"] --> RetrievalEvaluator
-    RetrievalEvaluator --> Metrics["Recall@1/3/5/10 and MRR"]
-```
-
-`index` executes the ingestion branch and persists the compatible lexical
-index. `search` and `search_dataset` load that index and return exact source
-spans. `answer` continues from retrieval, while `answer_dataset` starts from
-persisted search results and reuses one loaded generation backend for the
-whole batch. `evaluate` joins persisted results to one labelled dataset by
-`question_id`; `evaluate_all` runs the same evaluator independently for Docs
-and Code. Generated datasets, indexes, and reports stay outside Git.
-
-The dotted branch is optional and never changes `index`, `search`, or the
-answer workflows. It reuses the exact BM25 chunks so lexical and semantic
-results share the same source-coordinate contract.
-
-## Development Commands
-
-Install dependencies:
+### Development commands
 
 ```bash
-make install
+make run          # show the CLI
+make debug        # run the CLI through pdb
+make test         # run pytest
+make lint         # assignment lint configuration
+make lint-strict  # flake8 and strict mypy
+make clean        # remove local Python check caches
 ```
 
-Run the test suite:
+## Example Usage
 
-```bash
-make test
-```
-
-Run the mandatory lint and type checks:
-
-```bash
-make lint
-```
-
-Run stricter type checking:
-
-```bash
-make lint-strict
-```
-
-## Chunking Strategy
-
-The public ingestion API is exported from `src.ingestion`, while internal
-format-specific implementations are separated by responsibility:
-
-```text
-src/ingestion/
-├── audit/
-│   ├── invariants.py
-│   ├── models.py
-│   ├── runner.py
-│   └── statistics.py
-├── chunking/
-│   ├── orchestrator.py
-│   ├── python/
-│   └── text/
-├── documents.py
-└── files.py
-```
-
-The orchestrator selects a chunker from `SourceDocument.kind`. Chunking
-implementations do not know how the corpus was discovered, and the audit does
-not contain format-specific branches.
-
-## Implemented File Discovery
-
-File discovery currently supports:
-
-- `.py` files as Python sources;
-- `.md`, `.rst`, and `.txt` files as text sources;
-- stable sorting by project-relative path;
-- exclusion of unsupported files and hidden entries;
-- exclusion of symbolic links;
-- exclusion of files above a configurable size limit;
-- exclusion of binary-looking or unreadable files;
-- rejection of a corpus outside the project root;
-- rejection of the project root itself as a corpus.
-
-Example:
-
-```python
-from pathlib import Path
-
-from src.ingestion import discover_files
-
-project_root = Path.cwd()
-corpus_root = project_root / "data" / "raw" / "vllm-0.10.1"
-manifest = discover_files(project_root, corpus_root)
-
-print(f"Discovered {len(manifest)} supported files")
-```
-
-The default maximum source-file size is 10 MiB. It can be changed explicitly:
-
-```python
-manifest = discover_files(
-    project_root,
-    corpus_root,
-    max_file_size_bytes=5 * 1024 * 1024,
-)
-```
-
-The current vLLM corpus produces 1,952 manifest entries. All 147 unique source
-files referenced by the supplied AnsweredQuestions datasets are included.
-
-## Exact Source Offsets
-
-Discovered files are read as strict UTF-8 without newline normalization. This
-keeps character positions stable across ingestion and retrieval. The reader
-also verifies that every source path is the canonical, project-relative POSIX
-path expected by the evaluator.
-
-`SourceDocument` and `Chunk` are frozen, slotted dataclasses. A chunk uses the
-standard Python half-open interval `[start:end)` and must satisfy:
-
-```text
-0 <= start < end
-len(chunk.text) == end - start
-chunk.text == document.text[start:end]
-```
-
-Example:
-
-```python
-from pathlib import Path
-
-from src.ingestion import discover_files, make_chunk, read_document
-
-project_root = Path.cwd()
-corpus_root = project_root / "data" / "raw" / "vllm-0.10.1"
-corpus_file = discover_files(project_root, corpus_root)[0]
-document = read_document(project_root, corpus_file)
-chunk = make_chunk(document, start=0, end=min(2000, len(document.text)))
-
-assert chunk.text == document.text[chunk.start:chunk.end]
-```
-
-Overlapping chunks are supported because each chunk independently stores an
-exact source range. Chunking strategies decide the boundaries and overlap;
-the source-offset layer only guarantees their correctness.
-
-## Python-aware Chunking
-
-Python sources are parsed with the standard-library AST and divided at exact
-structural boundaries. Top-level functions and classes retain their
-decorators, signatures, docstrings, and directly preceding comment blocks.
-Oversized classes are divided around direct methods; oversized functions are
-divided around direct body statements. Adjacent small units are packed while
-the configured maximum size is respected.
-
-If parsing fails because a source file is incomplete or syntactically invalid,
-the chunker falls back to exact line boundaries and then to character limits.
-The fallback preserves Unicode text and original LF, CRLF, or CR newlines.
-
-```python
-from src.ingestion import chunk_python_document
-
-chunks = chunk_python_document(document, max_chunk_size=2000)
-
-assert all(len(chunk.text) <= 2000 for chunk in chunks)
-assert all(
-    chunk.text == document.text[chunk.start:chunk.end]
-    for chunk in chunks
-)
-```
-
-Chunk text never contains synthetic class or function context. Structural
-names can later be stored as retrieval metadata without invalidating exact
-source coordinates.
-
-## Markdown and Plain-Text Chunking
-
-Markdown files are partitioned into headings, paragraphs, lists, fenced code
-blocks, and whitespace ranges. Heading-like text inside backtick or tilde code
-fences remains code. Each resulting chunk stores its active heading hierarchy
-as an immutable `section_path` without adding synthetic text to the exact
-source slice.
-
-Plain `.txt` and `.rst` files use paragraph boundaries and do not interpret
-hash-prefixed lines as Markdown headings. Oversized text blocks prefer line
-boundaries and fall back to character limits when necessary.
-
-```python
-from src.ingestion import chunk_text_document
-
-chunks = chunk_text_document(
-    document,
-    max_chunk_size=2000,
-)
-
-assert all(len(chunk.text) <= 2000 for chunk in chunks)
-assert all(
-    chunk.text == document.text[chunk.start:chunk.end]
-    for chunk in chunks
-)
-```
-
-Overlap is limited to forced splits inside one oversized block. Its default is
-the smaller of 100 characters and ten percent of `max_chunk_size`; callers can
-disable it with `overlap_size=0`. Natural structural boundaries do not create
-duplicate chunks. Original Markdown markup is preserved until retrieval
-evaluation provides evidence that a separate normalization layer improves
-Recall@5.
-
-## Chunk Audit
-
-`audit_documents()` checks an in-memory document stream. `audit_corpus()` runs
-the complete discovery, reading, chunking, and audit flow without retaining
-every source document in memory.
-
-Each document is chunked twice to verify deterministic output. Every chunk is
-then checked for:
-
-- a valid half-open source range;
-- exact equality with its source slice;
-- a size at or below `max_chunk_size`;
-- at least one non-whitespace character.
-
-The resulting immutable `ChunkAuditReport` contains actionable issues and a
-size distribution with the minimum, median, nearest-rank P95, and maximum.
-
-```python
-from pathlib import Path
-
-from src.ingestion import audit_corpus
-
-project_root = Path.cwd()
-corpus_root = project_root / "data" / "raw" / "vllm-0.10.1"
-report = audit_corpus(project_root, corpus_root)
-
-assert report.passed
-assert report.size_summary is not None
-assert report.size_summary.maximum <= 2000
-```
-
-The current local vLLM corpus audit reports:
-
-```text
-documents: 1,952
-chunks: 20,099
-invalid chunks: 0
-minimum size: 5
-median size: 931
-P95 size: 1,978
-maximum size: 2,000
-```
-
-## Lexical Tokenization
-
-Lexical retrieval uses separate tokenizers for code and documentation. Both
-preserve source order and repeated terms so a later BM25 index can measure term
-frequency.
-
-`CodeTokenizer` retains each complete normalized identifier and adds subword
-signals for snake_case, dotted names, CamelCase, acronyms, and numeric suffixes:
-
-```text
-gpu_memory_utilization
-→ gpu_memory_utilization, gpu, memory, utilization
-
-PagedAttention.forward
-→ pagedattention.forward, pagedattention, paged, attention, forward
-
-HTTPServer2
-→ httpserver2, http, server, 2
-```
-
-Capitalization is preserved until structural boundaries have been extracted.
-Unicode components remain complete instead of being partially interpreted by
-the ASCII CamelCase rule.
-
-`TextTokenizer` lowercases Unicode text, discards surrounding punctuation,
-splits hyphenated words, preserves technical underscore and dotted forms, and
-normalizes typographic apostrophes. It does not apply stemming or remove stop
-words before retrieval measurements justify those transformations.
-
-Possessive expansion uses a bounded heuristic. The complete apostrophe form is
-always retained. A suffix-free base is added only when it contains at least
-four letters or the original base is uppercase:
-
-```text
-model's → model's, model
-GPU's   → gpu's, gpu
-it's    → it's
-```
-
-This threshold is not a grammatical rule. It removes common contraction noise
-without adding a language parser, and it remains subject to retrieval
-evaluation.
-
-The current local corpus sanity check reports:
-
-```text
-Python: 1,753 files, 18,578 chunks, 2,919,369 tokens
-        median 149, P95 322, maximum 607 tokens per chunk
-        3 punctuation-only chunks with no lexical terms
-Text:     199 files,  1,521 chunks,   141,492 tokens
-        median 66, P95 256, maximum 393 tokens per chunk
-        0 chunks with no lexical terms
-```
-
-Punctuation-only chunks are valid exact source slices but should be skipped by
-the lexical index because they provide no searchable terms.
-
-## Retrieval Method
-
-Each searchable chunk keeps exact source evidence and two independent lexical
-fields:
-
-```text
-content terms  = normalized terms from the exact chunk text
-metadata terms = path, heading hierarchy, and overlapping Python symbols
-```
-
-Content preserves repeated terms for term-frequency scoring. Metadata terms
-are stably deduplicated so repeated structural sources do not create an
-undeclared weight. Python symbol spans come from the AST and use the same exact
-character-offset conversion as Python chunking.
-
-The index calculates separate document frequencies and average lengths for the
-two fields. Metadata is combined only after both field scores are known:
-
-```text
-final_score = content_score + metadata_weight * metadata_score
-```
-
-This supports fractional weights exactly and keeps every retrieval result
-explainable. Token repetition is not used as an approximation of metadata
-weight. The default control parameters are `k1=1.5`, `b=0.75`, and
-`metadata_weight=1.0`.
-
-The inverted index stores postings from each term to matching document indexes
-and term frequencies. Query execution visits matching candidates instead of
-recounting every document. Zero-score documents are omitted, and equal scores
-use `(file_path, start, end)` for deterministic ordering.
-
-`QueryTokenizer` combines natural-language normalization with code identifier
-expansion. `BM25Retriever` keeps this preparation outside the mathematical
-index while accepting normal string queries.
-
-## Retrieval Search
-
-Build or rebuild the default pipeline-compatible index:
+Build the required index:
 
 ```bash
 uv run python -m src index --max_chunk_size 2000
 ```
 
-The command runs production ingestion over `data/raw/`, saves schema version 3
-to `data/processed/bm25-index.json`, and reports the document count together
-with the corpus and pipeline fingerprints. The required `max_chunk_size`
-option controls the largest permitted source chunk and is part of the stored
-pipeline identity. Generated indexes remain local and are not committed to
-Git.
-
-### Incremental Indexing
-
-`index` rebuilds documents only for files that changed since the previous
-snapshot at `index_path`, instead of always decoding, re-chunking, and
-re-tokenizing the entire corpus. Every new snapshot stores a SHA-256 content
-fingerprint per source file alongside its chunks. On the next `index` run, a
-file's documents are reused exactly as stored, with no decoding, re-chunking,
-or re-tokenization, only when both hold:
-
-- its content fingerprint is unchanged; and
-- the declared pipeline (chunk-size limit, chunker and tokenizer versions,
-  BM25 parameters, and index schema) still matches the one that produced the
-  prior snapshot.
-
-Any other file, including one that is new, edited, or renamed, is chunked and
-tokenized normally. A file removed from the corpus is simply absent from the
-rebuilt index. When no prior snapshot exists, is unreadable, or was built by
-an incompatible pipeline, `index` transparently falls back to a full rebuild;
-this is a controlled degradation, not an error. It also falls back when the
-prior snapshot's checksum is absent or differs, while older snapshots remain
-loadable for normal search. Source bytes are still read for per-file and
-whole-corpus fingerprints; the speedup avoids repeated document processing,
-not all disk I/O. The command reports
-`total_file_count`, `reused_file_count`, and `rebuilt_file_count` so the
-effect is directly observable:
+Search one question:
 
 ```bash
-uv run python -m src index
-# rebuilt_file_count: 1952 (first build)
-
-# edit one file in data/raw/, then:
-uv run python -m src index
-# reused_file_count: 1951, rebuilt_file_count: 1
+uv run python -m src search "How does prefix caching work?" --k 5
 ```
 
-On the complete 1,952-file vLLM corpus, reindexing after a single-file edit
-completed in 7.1 s with snapshot integrity checks versus 29.4 s for a full
-rebuild, and produced a BM25 snapshot byte-for-byte identical to a full rebuild
-of the same corpus state. Both runs used an isolated corpus copy and one edited
-Markdown file; times are specific to the development machine.
-With a valid prior snapshot, reuse does not change retrieval results: it only
-skips redoing work whose output would have been identical, so `search` and
-`search_dataset` behave exactly as if every run were a full rebuild.
-
-Search one raw query with the default compatible persisted index:
-
-```bash
-uv run python -m src search "Where is the cache implemented?" --k 5
-```
-
-Search a complete dataset and preserve its filename below the requested output
-directory:
+Search a complete dataset:
 
 ```bash
 uv run python -m src search_dataset \
   --dataset_path data/datasets/UnansweredQuestions/dataset_docs_public.json \
-  --k 5 \
+  --k 10 \
   --save_directory data/output/search_results/UnansweredQuestions
 ```
 
-Both commands use `data/processed/bm25-index.json` and calculate the current
-`data/raw/` corpus fingerprint automatically. They also calculate a pipeline
-fingerprint from the chunk-size limit, chunker and tokenizer versions, BM25
-parameters, and index schema version. A mismatch in the schema, corpus, or
-pipeline requires reindexing. The positive `k` value is the maximum number of
-exact source locations returned for one query.
-
-The batch command validates its input as `RagDataset`, loads the index once,
-reports question progress through `tqdm`, searches questions in their original
-order, and atomically writes UTF-8 JSON. The progress iterator is injected at
-the CLI boundary, so Python workflows can use the same retrieval logic without
-terminal output. Expected input, file, JSON, and compatibility failures produce
-a concise error and non-zero exit status without an unhandled traceback.
-Internal BM25 scores are not included in the public result contract.
-Domain-oriented Python model names coexist with the exact
-assignment-compatible model names and JSON fields.
-
-### Search-Result Caching
-
-`search` also checks an exact-key result cache before acquiring the BM25
-index, and stores its result there on a miss. The cache key covers every
-input that can change a search result: the normalized question, the
-corpus and pipeline fingerprints, `k`, and every ranking parameter
-(identifier match weight and candidate depth, auxiliary path penalty and
-candidate depth). A hit returns immediately without loading the stored
-index at all; a miss searches exactly as before and then persists its
-result, so mandatory `search` output is unchanged either way.
-
-```bash
-uv run python -m src search "Where is the cache implemented?" --k 5
-# first run: loads the index, searches, stores the result
-
-uv run python -m src search "Where is the cache implemented?" --k 5
-# second run: exact cache hit, no index load
-```
-
-The cache is a JSON file at `--search_cache_path`, defaulting to
-`.local/cache/search-results.json`, using the same atomic-write and
-versioned-envelope pattern as the validated-answer cache. It is scoped to
-`search` only; `search_dataset`, `search_semantic`,
-`search_dataset_hybrid`, and `answer` do not read or write it.
-
-### Optional Semantic Retrieval
-
-Build the bonus CPU MiniLM index from the compatible BM25 documents:
-
-```bash
-uv run python -m src index_semantic --offline
-```
-
-Search one question or a complete dataset:
-
-```bash
-uv run python -m src search_semantic \
-  "What method generates embedding vectors from prompts?" \
-  --k 5 \
-  --offline
-
-uv run python -m src search_dataset_semantic \
-  --dataset_path data/datasets/UnansweredQuestions/dataset_docs_public.json \
-  --save_directory data/output/search_results/semantic \
-  --k 5 \
-  --offline
-```
-
-The optional snapshot stores a normalized 384-dimensional matrix in
-`data/processed/semantic-index/embeddings.pt` and strict source metadata in
-`metadata.json`. It is bound to the corpus, BM25 pipeline, schema, model name,
-and pinned Hugging Face revision. The batch output uses the normal
-`RetrievalResults` JSON contract, so the existing `evaluate` command measures
-it without a second evaluator.
-
-On the full public datasets, semantic-only Recall@5 reached `0.630000` for 100
-Docs questions and `0.414141` for 99 Code questions, compared with the
-corresponding BM25 `k=5` controls of `0.820000` and `0.757576`. MiniLM therefore
-does not replace BM25. It remains an optional complementary signal in the
-explicit Docs hybrid workflow, including measured cases where semantic
-retrieval found the expected source outside the BM25 top five.
-
-Run the selected H4 hybrid profile for documentation questions only after both
-persisted indexes have been built:
-
-```bash
-uv run python -m src search_dataset_hybrid \
-  --dataset_path data/datasets/UnansweredQuestions/dataset_docs_public.json \
-  --save_directory data/output/search_results/hybrid-docs \
-  --offline
-```
-
-The command defaults to rank constant `60`, BM25:MiniLM weight `10:1`, and a
-candidate depth of `20`. On the 100 public Docs questions it reached Recall@1
-`0.570000`, Recall@3 `0.790000`, Recall@5 `0.870000`, Recall@10 `0.910000`, and
-MRR `0.691956`. This is an explicit bonus mode rather than an automatic query
-classifier. Code questions and the universal default continue to use the
-normal `search_dataset` BM25 command; their selected metrics therefore remain
-unchanged.
-
-Production search retrieves up to 20 BM25 candidates and applies a bounded
-post-ranking penalty of `0.50` only to paths containing exact `examples` or
-`tests` directory segments. This promotes close primary documentation and
-production-code candidates without changing BM25 scores, directly boosting a
-source type, or using embeddings. Pass `--auxiliary_path_penalty 0` and
-`--path_candidate_depth 0` to run the unmodified BM25 ranking explicitly.
-
-The Linux full-corpus acceptance run used the 20,096-document snapshot and
-produced results for 100 documentation questions and 99 code questions at
-`k=5`. All 995 returned source locations referenced existing files and valid
-half-open character ranges. The schema-version-3 snapshot with identifier
-scoring disabled preserved the unmodified BM25 control files byte for byte.
-
-The Linux batch acceptance run processed 100 documentation questions in one
-process. Retrieval progressed at approximately 8.67 questions per second, and
-the complete command took 16.46 seconds including fingerprint checks, loading
-the persisted index, retrieval, and JSON output. Peak resident memory was
-838,044 KiB on the development machine. The resulting file remained byte for
-byte identical to the established baseline, and source validation accepted all
-500 returned locations.
-
-## Performance Analysis
-
-The Phase 27 acceptance baseline used Linux, an Intel Core i7-10850H CPU with
-6 cores and 12 threads, and 30 GiB of RAM. The production configuration built
-a 20,096-document index in 22.27 seconds with peak resident memory of
-1,252,268 KiB. This is below the assignment's 300-second indexing limit.
-
-Two complete sequential retrieval runs used `k=10` for the 100-question Docs
-dataset and the 99-question Code dataset:
-
-| Run | Docs | Code | Combined | Normalized to 200 questions |
-| --- | ---: | ---: | ---: | ---: |
-| 1 | 10.19 s | 9.22 s | 19.41 s | 19.51 s |
-| 2 | 10.42 s | 9.36 s | 19.78 s | 19.88 s |
-
-Both normalized results are below the assignment's 90-second retrieval limit.
-The two Docs outputs shared SHA-256
-`7e40738fdf083c372abbefa82843a2fb18a2e4d24cac2d16e6f2d912fbb54d28`;
-the two Code outputs shared
-`8affaec8ce8153e4a1c0e8d385582a7ee6e4266db9100b5ec53a39494fa8bbd4`.
-This confirms byte-for-byte deterministic retrieval across the measured runs.
-Peak retrieval memory was 873,308 KiB.
-
-Use `/usr/bin/time` around the normal commands to reproduce elapsed time and
-peak resident memory on another machine:
-
-```bash
-/usr/bin/time -f 'elapsed_seconds: %e\npeak_rss_kib: %M' \
-  uv run python -m src index --max_chunk_size 2000
-
-/usr/bin/time -f 'elapsed_seconds: %e\npeak_rss_kib: %M' \
-  uv run python -m src search_dataset \
-  --dataset_path data/datasets/UnansweredQuestions/dataset_docs_public.json \
-  --k 10 \
-  --save_directory /tmp/rag-performance/docs
-```
-
-These are machine-specific observations rather than universal speed
-guarantees. The commands and assignment limits are the portable acceptance
-contract.
-
-## Grounded Context Construction
-
-`ContextBuilder` converts ranked retrieval results into deterministic,
-source-labelled context without changing their exact source spans. It removes
-only exact duplicate `(file_path, start, end)` locations and otherwise keeps
-retrieval order. Included blocks use `[Source N]` labels, project-relative
-paths, half-open character ranges, and complete source slices separated by an
-explicit delimiter.
-
-The builder counts the complete candidate context after each addition. A block
-that would exceed the positive token budget is skipped rather than truncated,
-and a later shorter block may still be included. The result reports the exact
-sources used, consumed tokens, and skipped-source count.
-
-Token counting is injected through a small protocol instead of importing a
-model runtime. A Hugging Face-compatible adapter calls the selected model
-tokenizer with `add_special_tokens=False`, so the same builder can use the
-mandatory `Qwen/Qwen3-0.6B` tokenizer when the generation backend is loaded.
-The single-query command uses a configurable 4,096-token context budget, while
-the prompt and generator retain responsibility for control tokens and the
-separate answer-token limit.
-
-The filesystem workflow loads only unique files referenced by retrieval. It
-preserves UTF-8 text and original newline characters, requires canonical
-project-relative POSIX paths, and rejects any source that resolves outside the
-configured corpus root.
-
-## Local Qwen Backend
-
-The generation backend uses `Qwen/Qwen3-0.6B` by default. It disables Qwen's
-thinking mode and sampling so the same prompt follows a deterministic decoding
-path. Automatic device selection uses CUDA when PyTorch can access it and
-otherwise falls back to portable CPU execution. An explicit CUDA request fails
-clearly when CUDA is unavailable.
-
-Run the first smoke check with network access to download the model into the
-Git-ignored local cache:
-
-```bash
-HF_HOME=.local/huggingface uv run python -m src.generation.backend
-```
-
-Repeat the check without network access and require the cached checkpoint:
-
-```bash
-HF_HOME=.local/huggingface uv run python -m src.generation.backend --offline
-```
-
-Select either compute path explicitly:
-
-```bash
-HF_HOME=.local/huggingface uv run python -m src.generation.backend \
-  --device cuda --offline
-
-HF_HOME=.local/huggingface uv run python -m src.generation.backend \
-  --device cpu --offline
-```
-
-The command reports the model, actual device, cache mode, model-load time,
-generation time, and answer. Use `--prompt` and `--max-new-tokens` to change
-the smoke input without changing production defaults. Downloaded model files
-remain under `.local/` and are never committed.
-
-A controlled development-machine comparison used the same cached checkpoint,
-prompt, and decoding settings on a Quadro RTX 3000 with 6 GiB VRAM. Warm CUDA
-generation produced approximately 30.9 tokens per second, while CPU generation
-produced approximately 9.1 tokens per second. These measurements demonstrate
-that both paths work; they are machine-specific observations, not performance
-requirements.
-
-## Single-Query Grounded Answers
-
-Build a compatible index whenever the corpus or declared retrieval pipeline
-changes:
-
-```bash
-uv run python -m src index
-```
-
-Then ask a question through the complete local RAG pipeline:
-
-```bash
-HF_HOME=.local/huggingface uv run python -m src answer \
-  "How does vLLM manage the KV cache?" \
-  --k 5
-```
-
-To require the already downloaded checkpoint without network access, enable
-both the application option and the Hugging Face hub offline mode:
-
-```bash
-HF_HOME=.local/huggingface HF_HUB_OFFLINE=1 \
-  uv run python -m src answer \
-  "How does vLLM manage the KV cache?" \
-  --k 5 \
-  --offline
-```
-
-The command validates the current corpus and retrieval-pipeline fingerprints
-before loading the stored index. It retrieves ranked BM25 sources, builds
-source-labelled context with a default 4,096-token budget, generates through
-the configured local model, and reports the answer together with the model,
-device, prompt version, cache-hit status, consumed context tokens, and
-skipped-source count.
-
-`retrieved_sources` contains every location returned by BM25. `sources`
-contains only the locations that fit into the bounded prompt context and can
-therefore support `[Source N]` citations. This distinction keeps token-budget
-decisions visible.
-
-The versioned grounding prompt treats the question and retrieved text as
-untrusted data. It requires source-only factual claims, valid citations, an
-explicit conflict form, and an exact insufficient-context response. Because a
-model instruction is not an enforceable guarantee, deterministic validation
-rejects uncited answers, citations outside the prompt context, and conflict
-answers supported by fewer than two distinct citations. One invalid answer
-becomes a concise command error instead of being presented as grounded output.
-
-Validated single-query answers are cached by default in
-`.local/cache/validated-answers.json`. The exact cache identity covers the
-normalized question, corpus and retrieval-pipeline fingerprints, retrieval and
-context controls, prompt version, model, device preference, and deterministic
-generation settings. Any difference is a miss. Invalid model output and
-controlled errors are never cached.
-
-The cache lookup happens before Qwen is loaded. A compatible hit therefore
-avoids model loading, retrieval, context construction, and generation while
-returning the original answer and source trace. On the development machine, a
-controlled CUDA miss took 10.03 seconds with peak resident memory of 3,741,572
-KiB; the identical cache hit took 0.64 seconds and 42,868 KiB. The same question
-with different case and repeated whitespace hit the normalized key in 0.70
-seconds. These measurements are machine-specific and the cache reports
-`cache_hit` explicitly so callers do not need to infer its behavior from time.
-Changing only `k` from 5 to 6 produced a miss in the same controlled run. The
-new model output failed citation validation, and repeating that request caused
-another full generation while the cache stayed at one entry. This confirms
-both parameter invalidation and the rule that rejected answers are not stored.
-
-Use an isolated cache path to reproduce the miss/hit comparison without
-changing the normal local cache:
-
-```bash
-uv run python -m src answer \
-  "What color is the project maintainer's bicycle?" \
-  --device cuda --offline \
-  --answer_cache_path /tmp/rag-answer-cache/answers.json
-```
-
-Run the same command again for a cache hit. The cache remains a local runtime
-artifact and is excluded from Git by the existing `.local/` rule when the
-default path is used.
-
-If the complete operation lasts more than five seconds, the command writes
-`Please wait, the local RAG answer is still running...` to the terminal. The
-delayed status is especially useful for portable CPU execution while avoiding
-noise for faster runs.
-
-## Batch Grounded Answers
-
-Generate answers from an existing `StudentSearchResults` file without running
-retrieval again:
-
-```bash
-HF_HOME=.local/huggingface uv run python -m src answer_dataset \
-  --student_search_results_path \
-  data/output/search_results/UnansweredQuestions/dataset_docs_public.json \
-  --save_directory \
-  data/output/search_results_and_answer/UnansweredQuestions \
-  --offline
-```
-
-The command validates the input JSON, loads the configured model once, and
-answers questions in their stored order. Each answer keeps the original
-`question_id`, question text, and complete `retrieved_sources` list. Only the
-source spans admitted by the context-token budget are exposed to generation.
-
-The prompt still asks for source citations, but the assignment-facing JSON
-contract does not require the project's `[Source N]` or conflict syntax.
-`answer_dataset` therefore permits uncited model text while continuing to
-reject any citation whose number is outside the prompt context. Interactive
-`answer` remains strict: it requires citations, enforces the two-source
-conflict form, and caches only answers that pass that stronger boundary. The
-batch path does not invent citations or retry rejected text.
-
-The output is a Pydantic-valid `StudentSearchResultsAndAnswer` file written
-atomically under `save_directory` with the input filename. A progress bar
-reports completed questions. Relative input, output, and corpus paths are
-resolved from `project_root`; automatic device selection uses CUDA when
-available and otherwise falls back to CPU. Missing files, malformed JSON,
-invalid source spans, model-loading failures, and invalid generated answers
-produce concise command errors without an unhandled traceback.
-
-`StudentSearchResults` and `StudentSearchResultsAndAnswer` are the explicit
-assignment-facing Pydantic names used at this file boundary. The reusable
-retrieval layer uses the domain names `RetrievalResults` and
-`RetrievalResultsWithAnswers`; both pairs preserve the same required JSON
-fields.
-
-The clean Phase 29 run completed all 100 Docs and 99 Code answers on the
-development GPU in 334.84 and 287.57 seconds respectively. All 1,990 retrieved
-source ranges passed validation, and the retrieval outputs reproduced the
-established hashes byte for byte. The full commands, memory measurements,
-Moulinette results, and observed Qwen quality limitations are recorded in the
-[end-to-end run log](docs/end-to-end-run-log.md).
-
-## Local HTTP API
-
-The bonus `serve` command exposes `/search` and `/answer` over a small local
-HTTP API built with FastAPI and uvicorn, so the pipeline can be driven by
-anything that can make an HTTP request, not just the CLI:
-
-```bash
-uv run python -m src serve --host 127.0.0.1 --port 8000
-```
-
-```bash
-curl -s http://127.0.0.1:8000/health
-
-curl -s -X POST http://127.0.0.1:8000/search \
-  -H 'Content-Type: application/json' \
-  -d '{"question": "Where is the KV cache implemented?", "k": 5}'
-
-curl -s -X POST http://127.0.0.1:8000/answer \
-  -H 'Content-Type: application/json' \
-  -d '{"question": "How does vLLM manage the KV cache?", "k": 5}'
-```
-
-`serve` builds the app once at startup with the same corpus and pipeline
-compatibility checks as `index`/`search`: a missing or incompatible index
-fails the command immediately with the usual concise error, rather than
-serving broken requests. The BM25 index is loaded once, at startup, and
-kept in memory for every request; `/search` calls the retrieval core
-directly against that loaded index and never reacquires it. The generation
-backend follows a different rule on purpose: it is loaded once, on the
-first `/answer` request, and reused after that, so a server that only ever
-receives `/search` traffic never pays the model-load cost. Both endpoints
-validate their input (empty question, non-positive `k`, non-positive
-`context_token_budget`) before touching the index or the model, and report
-failures as a `400` with the same message the CLI produces for the same
-input, instead of an unhandled exception.
-
-`/answer` reuses `build_context` and `generate_grounded_answer` exactly as
-the CLI's `answer` command does, so it reproduces the CLI's behavior
-exactly, including known model limitations: the same question that the
-CLI's `answer` command rejects for missing a citation is rejected the same
-way here, and the same insufficient-context fallback that `answer` returns
-for an out-of-scope question is returned here too. `/answer` does not use
-the CLI's `ValidatedAnswerCache`; wiring the same cache into the API is a
-possible future extension, not a gap in this bonus, matching how the
-Bonus 4 search-result cache was scoped to the CLI's `search` command only.
-
-Because the index is loaded once at startup, a running server does not
-notice a reindex written to disk while it keeps serving; picking up new
-index content requires restarting `serve`. There is no live-reload
-endpoint. This was verified directly: overwriting the on-disk index while
-a server held the original one in memory left `/search` returning the
-original, unchanged result.
-
-## Controlled Errors and Edge Cases
-
-Public commands convert expected filesystem, JSON, validation, index, cache,
-and model failures into concise messages with exit code 2 and no unhandled
-traceback. The message identifies the failed boundary without exposing an
-internal stack trace.
-
-Single-query commands reject unusable input before reading the corpus or
-index, checking the answer cache, or loading the generation model. Empty or
-whitespace-only input reports `Question must not be empty`. Nonblank input that
-produces no lexical terms, such as punctuation-only text, reports `Question
-must contain searchable text`. A normal searchable query remains valid when
-it simply has no matching documents.
-
-`k` must be positive. A positive value larger than the number of available
-results is valid because it is an upper bound, not a required result count.
-The command returns every available unique source up to that bound.
-
-Batch retrieval validates `k`, reads and validates the complete dataset, and
-checks every question before loading the persisted index. Missing or malformed
-input therefore fails before index acquisition, and an unusable question
-cannot create a partial output. An empty valid dataset atomically produces an
-empty result file without loading an index.
-
-A missing index reports its exact path. Incompatible or malformed persisted
-state is rejected instead of being reused. A corrupted answer cache fails
-before Qwen is loaded, while an absent cache is a normal miss. Invalid model
-answers and controlled generation errors are never written to the cache.
-
-The negative acceptance suite covers these behaviors at both public CLI and
-domain boundaries. Model availability errors, including an explicit CUDA
-request on a machine without CUDA, use the same controlled-error path.
-
-## Challenges Faced
-
-- **Exact evidence boundaries:** corpus text must remain byte-for-byte
-  traceable to the source files. The ingestion layer therefore preserves
-  original newlines and represents every chunk with validated half-open
-  character offsets.
-- **Useful lexical ranking without semantic dependencies:** plain BM25 was
-  strong, but auxiliary examples and tests sometimes displaced primary
-  sources. Fixed Docs and Code evaluations justified a small, bounded path
-  penalty while preserving BM25 as the primary retriever.
-- **Small-model grounding:** Qwen sometimes omitted citations or reported a
-  conflict that the sources did not contain. Deterministic validation protects
-  the strict interactive command; the assignment batch command keeps the more
-  permissive output contract required by the subject.
-- **Experiments without mandatory-path clutter:** small fine-tuning and
-  semantic-only retrieval did not beat the established baseline. The measured
-  result keeps MiniLM isolated as an optional bonus and avoids adding an
-  unnecessary vector database to the mandatory pipeline.
-
-The reasoning and measurements behind reconsidered choices are preserved in
-the [decision log](docs/decision-log.md),
-[BM25 tuning log](docs/bm25-tuning-log.md), and
-[end-to-end run log](docs/end-to-end-run-log.md).
-
-## Answer Quality Review
-
-The fixed [answer quality checklist](docs/answer-quality-checklist.md) records
-six public cases and four controlled boundary cases. It separates retrieval,
-context, generation, citation, and validation failures instead of treating a
-structurally valid answer as automatically correct.
-
-Small fine-tuning experiments on the reviewed evidence dataset did not improve
-validation quality enough to justify additional model training:
-
-| Evidence experiment | Validation result | Observation |
-| --- | ---: | --- |
-| Unchanged Qwen scorer | 0.50 balanced accuracy | Predicted `ANSWERS` for all 20 cases |
-| Last-block fine-tuning | 0.50 balanced accuracy | Reproduced the same predictions |
-| Pairwise fine-tuning | 0.50 balanced accuracy | Reproduced the same predictions |
-
-A separate diagnostic compared retrieval methods on 100 reviewed fragments
-and ten held-out questions:
-
-| Retriever | R@1 | R@3 | R@5 | R@10 | MRR |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| BM25 | 0.60 | 0.90 | 0.90 | 0.90 | 0.75 |
-| Chroma + MiniLM | 0.50 | 0.60 | 0.80 | 0.80 | 0.60 |
-
-These small diagnostics are stopping evidence, not substitutes for the public
-full-corpus evaluation. Phase 33 subsequently evaluated pinned MiniLM over all
-20,096 production chunks and all 199 public questions. Its Docs/Code Recall@5
-of `0.630000`/`0.414141` remained below BM25's
-`0.820000`/`0.757576`. Production therefore keeps BM25 as its primary
-retriever. The optional H4 hybrid uses the embeddings only for an explicitly
-selected Docs run and improved full-corpus Docs Recall@5 from `0.850000` to
-`0.870000`; Code remains on the stronger BM25 baseline.
-
-The mandatory workflow continues to use `Qwen/Qwen3-0.6B`. After the stable
-release, other free local models can be compared on the same persisted
-retrieval results and fixed questions. Keeping retrieval unchanged makes
-answer quality, citation compliance, false-conflict frequency, generation
-time, and memory directly comparable without weakening Qwen compatibility.
-
-## BM25 Evaluation
-
-Evaluate one persisted search-results file against its labelled dataset with
-the assignment-compatible command:
+Evaluate persisted results locally:
 
 ```bash
 uv run python -m src evaluate \
-  --student_search_results_path data/output/search_results/UnansweredQuestions/dataset_docs_public.json \
-  --dataset_path data/datasets/AnsweredQuestions/dataset_docs_public.json
+  --student_search_results_path \
+    data/output/search_results/UnansweredQuestions/dataset_docs_public.json \
+  --dataset_path \
+    data/datasets/AnsweredQuestions/dataset_docs_public.json
 ```
 
-The additional `evaluate_all` command keeps the project convenience workflow
-for reporting documentation and code results independently in one run:
+The official moulinette receives the student results first and ground truth
+second:
 
 ```bash
-uv run python -m src evaluate_all \
-  --docs_ground_truth_path data/datasets/AnsweredQuestions/dataset_docs_public.json \
-  --docs_results_path data/output/search_results/UnansweredQuestions/dataset_docs_public.json \
-  --code_ground_truth_path data/datasets/AnsweredQuestions/dataset_code_public.json \
-  --code_results_path data/output/search_results/UnansweredQuestions/dataset_code_public.json
+./moulinette evaluate_student_search_results \
+  data/output/search_results/UnansweredQuestions/dataset_docs_public.json \
+  data/datasets/AnsweredQuestions/dataset_docs_public.json \
+  --k 10 \
+  --max_context_length 2000
 ```
 
-The evaluator joins each result to its label by `question_id`, preserves
-ground-truth order, and rejects missing, unrelated, or duplicate IDs and
-mismatched question text. Expected file, JSON, and alignment failures produce
-a concise error without an unhandled traceback. `evaluate` labels its single
-report as `Dataset`; `evaluate_all` keeps Docs and Code separate. Both include
-query count, Recall@1/3/5/10, and MRR. Generate at least ten retrieved sources
-per question with `search_dataset --k 10` for a complete Recall@10 measurement;
-with only five stored results, Recall@10 necessarily equals Recall@5.
-
-The first full public-dataset lexical BM25 baseline produced:
-
-| Dataset | Queries | R@1 | R@3 | R@5 | R@10 | MRR |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Docs | 100 | 0.540000 | 0.740000 | 0.820000 | 0.820000 | 0.643000 |
-| Code | 99 | 0.484848 | 0.676768 | 0.757576 | 0.757576 | 0.595623 |
-
-This baseline uses lexical content and structural metadata tokens only; it
-does not use embeddings or semantic vector search. A real documentation query
-was also checked manually: its top result and reference shared the exact file
-path, intersection length `1403`, union length `1405`, and IoU approximately
-`0.99858`. The result therefore satisfies the inclusive `0.05` threshold at
-rank 1, giving Recall@1/3/5/10 and reciprocal rank equal to `1.0`.
-
-The tuned production defaults are `k1=1.4`, `b=0.65`,
-`metadata_weight=1.0`, `identifier_weight=0.0`, an auxiliary-path penalty of
-`0.50`, and a path candidate depth of `20`. Both batch searches invoked
-without explicit ranking flags reproduced the selected experiment byte for
-byte. The compatible schema-version-3 index contains 20,096 lexical documents
-and has pipeline fingerprint
-`1e17bff570fcb04de292fbcedafd6ff56e122594d886dabedb0d52894fdcde9e`.
-The local evaluator reported:
-
-| Dataset | Queries | R@1 | R@3 | R@5 | R@10 | MRR |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Docs | 100 | 0.560000 | 0.770000 | 0.850000 | 0.900000 | 0.672052 |
-| Code | 99 | 0.535354 | 0.707071 | 0.787879 | 0.848485 | 0.641186 |
-
-These results use lexical BM25 over content and structural metadata followed
-by the deterministic auxiliary-path reranker. The configuration does not use
-embeddings or vector search. The complete control series, per-question
-comparison, artifact hashes, and stopping evidence are in the
-[B5 experiment record](docs/bm25-tuning-log.md#b5---auxiliary-path-reranking).
-
-Run the neutral mini-suite control:
+Generate one answer or a complete answer dataset:
 
 ```bash
-.venv/bin/python -m src.evaluation.bm25 --suite mini --run M0
+uv run python -m src answer "How does prefix caching work?" --k 5 --device auto
+
+uv run python -m src answer_dataset \
+  --student_search_results_path \
+    data/output/search_results/UnansweredQuestions/dataset_docs_public.json \
+  --save_directory \
+    data/output/search_results_and_answer/UnansweredQuestions \
+  --device auto
 ```
 
-Compare the planned metadata weights:
+Use `--offline` after the model is cached. CPU works on campus machines; CUDA
+is selected only when explicitly available.
+
+## System Architecture
+
+```mermaid
+flowchart LR
+    Corpus["vLLM corpus"] --> Ingest["Discover, read, chunk"]
+    Ingest --> Index["Versioned BM25 index"]
+    Question["Question"] --> Search["Retrieve and rerank"]
+    Index --> Search
+    Search --> Sources["Exact source spans"]
+    Sources --> Eval["IoU and Recall@K"]
+    Truth["Ground truth"] --> Eval
+    Sources --> Context["Token-bounded context"]
+    Context --> Qwen["Local Qwen"]
+    Qwen --> Answer["Validated answer"]
+```
+
+The CLI and HTTP API are public adapters. Workflows coordinate independently
+tested ingestion, retrieval, evaluation, and generation components. Stored
+indexes bind together a schema version, corpus fingerprint, pipeline
+fingerprint, and snapshot checksum.
+
+Detailed component and sequence diagrams are in
+[`docs/architecture.md`](docs/architecture.md).
+
+## Chunking Strategy
+
+All chunks preserve exact source text, project-relative paths, and half-open
+`[start, end)` character ranges. The configured maximum is validated and never
+exceeds the assignment limit of 2000 characters.
+
+- **Python:** AST-aware boundaries preserve modules, classes, methods, and
+  functions. Oversized structures use safe recursive or line-based fallbacks.
+- **Markdown and text:** headings, paragraphs, lists, fenced blocks, and
+  bounded overlap preserve prose context.
+- **Ranking metadata:** section paths and identifiers are indexed separately;
+  synthetic terms never change the evidence text returned to the evaluator.
+
+Unreadable, unsafe, binary, unsupported, or oversized files are rejected by
+the discovery boundary. A chunk audit verifies coverage, order, size, and
+source-slice equality.
+
+## Retrieval Method
+
+The mandatory retriever is a custom BM25 inverted index. It uses content terms
+and lower-weight metadata terms, rare-term IDF, document-length normalization,
+and deterministic tie-breaking. A bounded auxiliary-path penalty reduces
+irrelevant tests, examples, and generated assets without excluding them.
+
+Search returns at most `k` ranked `Source` objects. Evaluation matches a result
+only when its path equals the reference path and source-span IoU is at least
+0.05. Results are joined to ground truth by `question_id`; missing, unrelated,
+duplicate, or question-text-mismatched records are rejected.
+
+BM25 remains the default because it outperformed semantic-only retrieval on
+this corpus, especially for exact code identifiers. Experiments and parameter
+choices are recorded in
+[`docs/bm25-tuning-log.md`](docs/bm25-tuning-log.md).
+
+## Grounded Answer Generation
+
+Retrieved locations are read from the corpus, deduplicated, labelled as
+sources, and added whole while they fit the context token budget. Qwen is
+loaded once per process and reused for batch generation. Single-query answers
+apply deterministic citation validation; invalid grounding becomes a
+controlled error rather than an unverified answer.
+
+The small mandatory model has known reasoning limits. The project guarantees a
+traceable evidence path and controlled behavior, not perfect prose.
+
+## Optional Bonuses
+
+All bonuses preserve the required BM25 CLI and run on CPU-only machines:
+
+1. **Semantic embeddings:** MiniLM encodes the same exact chunks into a
+   checksum-linked vector index.
+2. **Hybrid retrieval:** weighted RRF combines lexical and semantic ranks for
+   Docs; Code remains on the stronger BM25 path.
+3. **Incremental indexing:** unchanged files reuse trusted lexical documents;
+   final BM25 statistics are rebuilt from the current corpus.
+4. **Caching:** search and validated-answer caches use complete compatibility
+   identities and atomic replacement.
+5. **Local HTTP API:** FastAPI reuses one loaded index and lazily loads one
+   thread-safe generation backend.
+
+Run the optional API:
 
 ```bash
-.venv/bin/python -m src.evaluation.bm25 \
-  --suite mini \
-  --compare M0 M1 M2 M3
+uv run uvicorn 'src.api:create_app' --factory --host 127.0.0.1 --port 8000
 ```
 
-Add `--verbose` to inspect every query, expected source, relevant rank, and
-separate content and metadata scores. Generate complete machine-readable
-evidence locally only when needed:
+## Performance Analysis
 
-```bash
-.venv/bin/python -m src.evaluation.bm25 \
-  --suite mini \
-  --compare M0 M1 M2 M3 \
-  --verbose \
-  --output reports/bm25-mini.json
-```
+Measurements below were reproduced on the development Linux machine. Timing
+depends on hardware; the assignment limits are the acceptance criteria.
 
-The report records the Git commit and dirty state, suite fingerprint,
-environment, parameters, file and chunk counts, documentation and code metrics,
-ranked hits, build time, recursive in-memory index size, traced peak build
-memory, and median/P95 query latency. Generated JSON reports are ignored by Git;
-compact measurements and conclusions belong in the tuning log.
+| Measure | Result | Required limit |
+| --- | ---: | ---: |
+| Full index, 20,096 documents | 29.4 s | at most 300 s |
+| Retrieval normalized to 200 questions | 19.51–19.88 s | at most 90 s |
+| Docs Recall@5 / Recall@10 | 0.850000 / 0.900000 | Recall@5 >= 0.80 |
+| Code Recall@5 / Recall@10 | 0.787879 / 0.848485 | Recall@5 >= 0.50 |
+| Incremental reindex, one changed file | 7.1 s | bonus measurement |
+| Full automated test suite | 579 passed | all checks pass |
 
-Retrieval relevance requires an exact file path and source-range IoU of at
-least `0.05`. Documentation and code metrics are reported separately. The
-mini-suite demonstrates both useful structural boosts and metadata dominance;
-it does not select a production weight. Hardware-dependent measurements are
-repeated on one Linux machine before performance conclusions are recorded.
-
-Controlled parameter history and provisional measurements are recorded in
-`docs/bm25-tuning-log.md`.
-
-## Verification
-
-Run the assignment quality gates and the stricter project gate from the
-repository root:
-
-```bash
-make test
-make lint
-make lint-strict
-```
-
-The current checks pass:
-
-```text
-pytest: 550 passed
-flake8: passed
-mypy with the assignment flags: passed for 227 source files
-mypy --strict: passed for 227 source files
-```
-
-The Phase 30 audit found no missing docstrings on top-level public production
-functions or classes. Every production file read uses a context manager, and
-the source tree contains no bare exception handler or unexplained type-checker
-suppression. Five narrow `type: ignore` annotations remain in negative tests:
-they deliberately construct statically invalid values or mutate frozen models
-to verify runtime rejection. `--warn-unused-ignores` confirms that each one is
-active. GitHub CI repeats the locked installation, strict lint, typing, and
-complete test suite on Python 3.10.
+Recall is measured independently for Docs and Code. MRR and Recall@1/3/5/10
+are available through `evaluate` and `evaluate_all`; the external moulinette
+remains the official evaluator.
 
 ## Design Decisions
 
-- Store portable project-relative paths instead of machine-specific absolute
-  paths.
-- Serialize paths with POSIX `/` separators on every operating system.
-- Return a stable manifest order for reproducible processing.
-- Reject symbolic links instead of reading files outside the intended corpus.
-- Require the corpus to be a strict descendant of the project root.
-- Read complete sources as strict UTF-8 and preserve original newline
-  characters.
-- Use Pydantic for assignment-facing JSON and frozen, slotted dataclasses for
-  high-volume internal ingestion records.
-- Represent chunk coordinates as half-open Python ranges.
-- Keep Python chunk text exact and reserve synthetic retrieval context for
-  metadata.
-- Treat retrieved questions and source text as untrusted prompt data.
-- Keep every returned answer linked to the exact sources admitted into its
-  token-bounded prompt context.
-- Validate strict single-query grounding guarantees in deterministic code and
-  use exactly one generation attempt without a corrective retry.
-- Store Markdown heading paths as metadata instead of synthetic chunk text.
-- Preserve Markdown markup until retrieval evaluation justifies normalization.
-- Apply overlap only to forced splits inside oversized text blocks.
-- Keep format-specific chunkers behind one shared orchestrator.
-- Audit format-independent invariants through the public chunking path.
-- Preserve identifier capitalization until code structure is extracted.
-- Bound possessive expansion and preserve the original apostrophe form.
-- Score content and structural metadata as independent BM25 fields.
-- Apply fractional metadata weight after field scoring.
-- Use postings to avoid scanning every document for every query.
-- Compare parameters on fixed, fingerprinted docs/code evaluation suites.
+- **Custom BM25:** exposes tokenization, scoring, persistence, and deterministic
+  behavior; experiments cross-checked it against a standard implementation.
+- **Exact evidence plus separate metadata:** improves ranking without corrupting
+  evaluator-visible source ranges.
+- **BM25 as the stable default:** measured better than semantic-only retrieval.
+- **RRF instead of raw-score mixing:** BM25 and cosine scores have incompatible
+  scales, while rank positions can be combined safely.
+- **One generation attempt:** retries did not show reliable quality improvement
+  and doubled model cost.
+- **Strict compatibility validation:** stale indexes and caches fail clearly
+  instead of producing plausible but incorrect results.
+- **Thin adapters:** CLI and HTTP translate errors and presentation while domain
+  packages own algorithms.
 
-Reconsidered choices and their consequences are recorded in
-`docs/decision-log.md`.
+Reconsidered decisions and rejected experiments are recorded in
+[`docs/decision-log.md`](docs/decision-log.md).
+
+## Challenges Faced
+
+- Preserving exact UTF-8 offsets while creating useful structural chunks was
+  solved with immutable source slices and format-specific chunkers.
+- Broad code questions exposed the limits of lexical matching; identifier and
+  path signals improved ranking without changing returned evidence.
+- Semantic retrieval helped selected Docs questions but reduced aggregate
+  performance when applied universally; hybrid retrieval is therefore scoped.
+- Small-model generation sometimes omitted or invented citations; deterministic
+  validation makes this limitation visible.
+- Fine-tuning on 100 curated examples produced no material improvement and was
+  removed from production rather than retained as unused complexity.
+- Incremental and cached artifacts required explicit identity and integrity
+  checks to remain equivalent to clean computation.
+
+## Verification
+
+Current checks:
+
+```text
+pytest: 579 passed
+flake8: passed
+mypy with assignment flags: passed for 239 source files
+mypy --strict: passed for 239 source files
+git diff --check: passed
+```
+
+Expected third-party deprecation warnings currently come from Starlette's
+AnyIO compatibility alias and Python Fire's coroutine inspection.
 
 ## Resources
 
-- [Python pathlib documentation](https://docs.python.org/3/library/pathlib.html)
-- [Python os.walk documentation](https://docs.python.org/3/library/os.html#os.walk)
-- [Python dataclasses documentation](https://docs.python.org/3/library/dataclasses.html)
-- [Python statistics documentation](https://docs.python.org/3/library/statistics.html)
-- [Python regular expression documentation](https://docs.python.org/3/library/re.html)
+- [Python `ast` documentation](https://docs.python.org/3/library/ast.html)
 - [Pydantic documentation](https://docs.pydantic.dev/)
+- [Python Fire documentation](https://google.github.io/python-fire/)
+- [Hugging Face Transformers documentation](https://huggingface.co/docs/transformers/)
+- [Qwen3-0.6B model card](https://huggingface.co/Qwen/Qwen3-0.6B)
+- [Sentence Transformers documentation](https://www.sbert.net/)
+- [FastAPI documentation](https://fastapi.tiangolo.com/)
+- [Robertson and Zaragoza, *The Probabilistic Relevance Framework: BM25 and Beyond*](https://www.staff.city.ac.uk/~sbrp622/papers/foundations_bm25_review.pdf)
+- [Cormack, Clarke, and Buettcher, *Reciprocal Rank Fusion Outperforms Condorcet and Individual Rank Learning Methods*](https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf)
 
 ### AI Usage
 
-AI was used as a collaborative learning and review tool to discuss the subject,
-identify implementation risks, propose tests, and improve documentation. Every
-accepted change is reviewed, discussed, and tested before it is committed. The
-author remains responsible for understanding, explaining, and maintaining all
-submitted code.
+AI assisted with architecture discussion, test-case brainstorming,
+documentation editing, and reviewing implementation alternatives. All
+production behavior, measurements, source locations, and commands were checked
+locally. AI-generated suggestions were accepted only after tests, lint, and
+manual review; AI is not used at runtime except for the required local Qwen
+generation model.
+
+## License
+
+This project is available under the [MIT License](LICENSE).
