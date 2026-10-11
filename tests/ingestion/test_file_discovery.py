@@ -20,6 +20,13 @@ def test_discover_files_returns_canonical_paths_and_kinds(
     corpus_root = tmp_path / "data" / "raw" / "vllm-0.10.1"
     write_file(corpus_root / "vllm" / "engine.py")
     write_file(corpus_root / "docs" / "guide.md")
+    (corpus_root / "books" / "reference.PDF").parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+    (corpus_root / "books" / "reference.PDF").write_bytes(
+        b"%PDF-1.7\n\x00binary content"
+    )
     write_file(corpus_root / "CMakeLists.txt")
 
     manifest = discover_files(tmp_path, corpus_root)
@@ -28,6 +35,10 @@ def test_discover_files_returns_canonical_paths_and_kinds(
         {
             "file_path": "data/raw/vllm-0.10.1/CMakeLists.txt",
             "kind": "text",
+        },
+        {
+            "file_path": "data/raw/vllm-0.10.1/books/reference.PDF",
+            "kind": "pdf",
         },
         {
             "file_path": "data/raw/vllm-0.10.1/docs/guide.md",

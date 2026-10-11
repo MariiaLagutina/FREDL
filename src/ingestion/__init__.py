@@ -15,6 +15,7 @@ from src.ingestion.documents import (
     read_document,
 )
 from src.ingestion.files import CorpusFile, FileKind, discover_files
+from src.ingestion.pdf import PdfBookIdentity, read_pdf_identity
 from src.ingestion.chunking.python.chunker import chunk_python_document
 from src.ingestion.chunking.python.identifiers import (
     extract_python_identifier_spans,
@@ -34,6 +35,7 @@ __all__ = [
     "ChunkSizeSummary",
     "CorpusFile",
     "FileKind",
+    "PdfBookIdentity",
     "PythonSymbolSpan",
     "PythonIdentifierSpan",
     "SourceDocument",
@@ -47,4 +49,5 @@ __all__ = [
     "chunk_text_document",
     "make_chunk",
     "read_document",
+    "read_pdf_identity",
 ]

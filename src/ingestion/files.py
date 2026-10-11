@@ -16,6 +16,7 @@ BINARY_SAMPLE_SIZE_BYTES = 8192
 class FileKind(str, Enum):
     """Identify the chunking strategy required for a corpus file."""
 
+    PDF = "pdf"
     PYTHON = "python"
     TEXT = "text"
 
@@ -29,6 +30,7 @@ class CorpusFile(BaseModel):
 
 SUFFIX_TO_KIND: dict[str, FileKind] = {
     ".md": FileKind.TEXT,
+    ".pdf": FileKind.PDF,
     ".py": FileKind.PYTHON,
     ".rst": FileKind.TEXT,
     ".txt": FileKind.TEXT,
@@ -116,12 +118,13 @@ def discover_files(
             ):
                 continue
 
-            try:
-                is_binary = _is_binary(candidate)
-            except OSError:
-                continue
-            if is_binary:
-                continue
+            if kind is not FileKind.PDF:
+                try:
+                    is_binary = _is_binary(candidate)
+                except OSError:
+                    continue
+                if is_binary:
+                    continue
 
             relative_path = candidate.relative_to(
                 resolved_project_root
