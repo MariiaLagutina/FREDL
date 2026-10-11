@@ -20,6 +20,7 @@ def pdf_page(
         image_count=0,
         drawing_operator_count=0,
         text=text,
+        text_fragments=(),
         extractor="pypdf-test",
     )
 
