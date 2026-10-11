@@ -12,6 +12,11 @@ from src.ingestion.pdf.layout import (
     PdfTextLayout,
 )
 from src.ingestion.pdf.metadata import PdfBookIdentity, read_pdf_identity
+from src.ingestion.pdf.margins import (
+    find_repeated_margin_patterns,
+    PdfMarginLocation,
+    PdfMarginPattern,
+)
 from src.ingestion.pdf.pages import (
     extract_pdf_page,
     extract_pdf_pages,
@@ -28,6 +33,8 @@ __all__ = [
     "BookCard",
     "PdfBookIdentity",
     "PdfBookPagePlan",
+    "PdfMarginLocation",
+    "PdfMarginPattern",
     "PdfPage",
     "PdfPageAssessment",
     "PdfPageContentKind",
@@ -41,6 +48,7 @@ __all__ = [
     "extract_pdf_page",
     "extract_pdf_pages",
     "extract_pdf_text_layout",
+    "find_repeated_margin_patterns",
     "plan_pdf_pages",
     "read_pdf_identity",
 ]
