@@ -5,6 +5,29 @@ from pathlib import Path
 
 import pypdf
 from pypdf import PdfReader
+from pypdf.generic import ContentStream
+
+
+DRAWING_OPERATORS: frozenset[bytes] = frozenset(
+    {
+        b"B",
+        b"B*",
+        b"F",
+        b"S",
+        b"b",
+        b"b*",
+        b"c",
+        b"f",
+        b"f*",
+        b"h",
+        b"l",
+        b"m",
+        b"re",
+        b"s",
+        b"v",
+        b"y",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -16,6 +39,7 @@ class PdfPage:
     width_points: float
     height_points: float
     image_count: int
+    drawing_operator_count: int
     text: str
     extractor: str
 
@@ -56,6 +80,7 @@ def extract_pdf_page(
 
     page = reader.pages[page_number - 1]
     text = page.extract_text() or ""
+    drawing_operator_count = _count_drawing_operators(page, reader)
 
     return PdfPage(
         book_path=book_path,
@@ -63,6 +88,20 @@ def extract_pdf_page(
         width_points=float(page.mediabox.width),
         height_points=float(page.mediabox.height),
         image_count=len(page.images),
+        drawing_operator_count=drawing_operator_count,
         text=text,
         extractor=f"pypdf-{pypdf.__version__}",
+    )
+
+
+def _count_drawing_operators(page: object, reader: PdfReader) -> int:
+    """Count PDF path-painting commands without inferring their meaning."""
+    get_contents = getattr(page, "get_contents")
+    contents = get_contents()
+    if contents is None:
+        return 0
+
+    operations = ContentStream(contents, reader).operations
+    return sum(
+        operator in DRAWING_OPERATORS for _, operator in operations
     )

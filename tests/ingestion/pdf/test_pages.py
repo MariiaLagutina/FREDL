@@ -70,6 +70,7 @@ def test_extract_pdf_page_returns_text_dimensions_and_provenance(
     assert page.width_points == 500
     assert page.height_points == 600
     assert page.image_count == 0
+    assert page.drawing_operator_count == 0
     assert page.text.strip() == "Second page text"
     assert page.extractor.startswith("pypdf-")
 
