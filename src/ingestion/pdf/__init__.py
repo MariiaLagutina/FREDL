@@ -13,6 +13,11 @@ from src.ingestion.pdf.pages import (
     PdfPage,
 )
 from src.ingestion.pdf.planning import PdfBookPagePlan, plan_pdf_pages
+from src.ingestion.pdf.text_flow import (
+    build_pdf_text_flows,
+    PdfPageTextSpan,
+    PdfTextFlow,
+)
 
 __all__ = [
     "BookCard",
@@ -21,8 +26,11 @@ __all__ = [
     "PdfPage",
     "PdfPageAssessment",
     "PdfPageContentKind",
+    "PdfPageTextSpan",
+    "PdfTextFlow",
     "assess_pdf_page",
     "build_book_card",
+    "build_pdf_text_flows",
     "extract_pdf_page",
     "extract_pdf_pages",
     "plan_pdf_pages",
