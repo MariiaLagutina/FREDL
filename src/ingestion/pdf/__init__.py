@@ -12,6 +12,7 @@ from src.ingestion.pdf.chunks import (
     PdfChunkPageJoin,
     PdfChunkPageSpan,
 )
+from src.ingestion.pdf.chunker import chunk_pdf_reading_document
 from src.ingestion.pdf.layout import (
     extract_pdf_text_layout,
     PdfTextFragment,
@@ -76,6 +77,7 @@ __all__ = [
     "assess_pdf_page",
     "build_book_card",
     "build_pdf_text_flows",
+    "chunk_pdf_reading_document",
     "build_pdf_reading_pages",
     "build_pdf_reading_flows",
     "extract_pdf_page",
