@@ -10,7 +10,7 @@ from pypdf.generic import (
     NameObject,
 )
 
-from src.ingestion.pdf import extract_pdf_page
+from src.ingestion.pdf import extract_pdf_page, extract_pdf_pages
 
 
 def write_text_pdf(path: Path) -> None:
@@ -73,6 +73,24 @@ def test_extract_pdf_page_returns_text_dimensions_and_provenance(
     assert page.drawing_operator_count == 0
     assert page.text.strip() == "Second page text"
     assert page.extractor.startswith("pypdf-")
+
+
+def test_extract_pdf_pages_returns_every_page_in_physical_order(
+    tmp_path: Path,
+) -> None:
+    """A book pass preserves every physical page and its order."""
+    library_root = tmp_path / "library"
+    book_path = "books/synthetic.pdf"
+    write_text_pdf(library_root / book_path)
+
+    pages = extract_pdf_pages(library_root, book_path)
+
+    assert tuple(page.page_number for page in pages) == (1, 2)
+    assert tuple(page.text.strip() for page in pages) == (
+        "First page text",
+        "Second page text",
+    )
+    assert all(page.book_path == book_path for page in pages)
 
 
 @pytest.mark.parametrize("page_number", [0, -1])
