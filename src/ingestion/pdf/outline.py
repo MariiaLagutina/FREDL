@@ -2,11 +2,15 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast, TypeAlias
 
 from pypdf import PdfReader
 from pypdf.generic import Destination
 
 from src.ingestion.pdf.pages import _resolve_book_path
+
+
+PdfOutlineItem: TypeAlias = Destination | list["PdfOutlineItem"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,7 +35,7 @@ def read_pdf_outline(
     entries: list[PdfOutlineEntry] = []
 
     def visit(
-        items: list[Destination | list],
+        items: list[PdfOutlineItem],
         parent_path: tuple[str, ...],
     ) -> None:
         previous_path = parent_path
@@ -51,5 +55,5 @@ def read_pdf_outline(
             entries.append(PdfOutlineEntry(title, section_path, page_number))
             previous_path = section_path
 
-    visit(reader.outline, ())
+    visit(cast(list[PdfOutlineItem], reader.outline), ())
     return tuple(entries)
