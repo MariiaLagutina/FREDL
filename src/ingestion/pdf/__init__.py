@@ -56,6 +56,8 @@ __all__ = [
     "BookCard",
     "PdfBookIdentity",
     "PdfBookPagePlan",
+    "PdfOutlineEntry",
+    "read_pdf_outline",
     "PdfChunk",
     "PdfChunkPageJoin",
     "PdfChunkPageSpan",
@@ -90,3 +92,5 @@ __all__ = [
     "prepare_pdf_reading_document",
     "read_pdf_identity",
 ]
+
+from src.ingestion.pdf.outline import PdfOutlineEntry, read_pdf_outline
