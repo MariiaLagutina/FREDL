@@ -231,7 +231,7 @@ def run_stored_hybrid_retrieval(
 def _sources_from_hits(
     hits: Sequence[HybridHit],
 ) -> tuple[MinimalSource, ...]:
-    """Convert fused hits to the unchanged assignment source contract."""
+    """Convert fused hits to the unchanged source contract."""
     return tuple(
         MinimalSource(
             file_path=hit.chunk.file_path,

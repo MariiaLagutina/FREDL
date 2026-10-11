@@ -26,7 +26,7 @@ from src.cli import (
 
 
 def main(argv: Sequence[str] | None = None) -> None:
-    """Expose assignment-compatible RAG commands through Python Fire."""
+    """Expose FREDL retrieval commands through Python Fire."""
     try:
         fire.Fire(
             {

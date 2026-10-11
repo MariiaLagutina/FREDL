@@ -1,4 +1,4 @@
-"""Tests for Moulinette-compatible retrieval metrics."""
+"""Tests for source-aware retrieval metrics."""
 
 from math import isclose
 
@@ -62,7 +62,7 @@ def test_source_match_exact_iou_boundaries(
 
 
 def test_source_match_accepts_exact_iou_threshold() -> None:
-    """An IoU of exactly 0.05 satisfies the Moulinette rule."""
+    """An IoU of exactly 0.05 satisfies the relevance rule."""
     retrieved = _chunk("src/cache.py", 0, 105)
     reference = _source("src/cache.py", 95, 200)
 

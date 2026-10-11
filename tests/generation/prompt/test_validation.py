@@ -73,7 +73,7 @@ def test_exact_fallback_is_required_when_no_sources_exist() -> None:
 
 
 def test_assignment_policy_accepts_an_uncited_answer() -> None:
-    """The assignment output contract does not mandate citation syntax."""
+    """The batch output contract does not mandate citation syntax."""
     validate_grounded_answer(
         "The cache uses LRU.",
         _sources(),
@@ -104,7 +104,7 @@ def test_assignment_policy_rejects_invalid_claimed_citations(
 
 
 def test_assignment_policy_does_not_enforce_internal_conflict_format() -> None:
-    """The assignment schema does not define our strict conflict contract."""
+    """The batch schema does not define our strict conflict contract."""
     validate_grounded_answer(
         "The sources conflict: details are unclear.",
         _sources(),

@@ -16,13 +16,13 @@ from src.generation import (
     build_context,
     generate_grounded_answer,
 )
-from src.models import MinimalSource, StudentSearchResults
+from src.models import MinimalSource, SearchResults
 
 
 def diagnose_dataset_answers(
     project_root: Path,
     corpus_root: Path,
-    search_results: StudentSearchResults,
+    search_results: SearchResults,
     backend: LoadedGenerationBackend,
     generation_config: GenerationConfig,
     *,
@@ -107,7 +107,7 @@ def diagnose_dataset_answers(
 
 
 def _validate_inputs(
-    search_results: StudentSearchResults,
+    search_results: SearchResults,
     context_token_budget: int,
 ) -> None:
     """Reject ambiguous diagnostics before source or model work."""

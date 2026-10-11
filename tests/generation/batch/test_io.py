@@ -1,15 +1,15 @@
-"""Tests for assignment-compatible batch answer JSON boundaries."""
+"""Tests for batch answer JSON boundaries."""
 
 from pathlib import Path
 
 import pytest
 
-from src.generation import load_student_search_results, save_student_answers
+from src.generation import load_search_results, save_answers
 from src.models import (
     MinimalAnswer,
     MinimalSource,
-    StudentSearchResults,
-    StudentSearchResultsAndAnswer,
+    SearchResults,
+    SearchResultsAndAnswer,
 )
 
 
@@ -24,7 +24,7 @@ def _source() -> MinimalSource:
 def test_loader_preserves_assignment_search_result_order(
     tmp_path: Path,
 ) -> None:
-    """Valid retrieval JSON becomes the exact assignment input model."""
+    """Valid retrieval JSON becomes the exact batch input model."""
     input_path = tmp_path / "search-results.json"
     input_path.write_text(
         """
@@ -47,9 +47,9 @@ def test_loader_preserves_assignment_search_result_order(
         encoding="utf-8",
     )
 
-    results = load_student_search_results(input_path)
+    results = load_search_results(input_path)
 
-    assert isinstance(results, StudentSearchResults)
+    assert isinstance(results, SearchResults)
     assert [item.question_id for item in results.search_results] == [
         "q-2",
         "q-1",
@@ -64,14 +64,14 @@ def test_loader_reports_invalid_assignment_schema(tmp_path: Path) -> None:
 
     with pytest.raises(
         ValueError,
-        match="Student search results JSON is invalid",
+        match="Search results JSON is invalid",
     ):
-        load_student_search_results(input_path)
+        load_search_results(input_path)
 
 
 def test_saver_writes_assignment_answers_atomically(tmp_path: Path) -> None:
     """The complete answer file is formatted, valid, and fully replaced."""
-    results = StudentSearchResultsAndAnswer(
+    results = SearchResultsAndAnswer(
         search_results=[
             MinimalAnswer(
                 question_id="q-1",
@@ -84,9 +84,9 @@ def test_saver_writes_assignment_answers_atomically(tmp_path: Path) -> None:
     )
     output_path = tmp_path / "nested" / "answers.json"
 
-    save_student_answers(results, output_path)
+    save_answers(results, output_path)
 
-    restored = StudentSearchResultsAndAnswer.model_validate_json(
+    restored = SearchResultsAndAnswer.model_validate_json(
         output_path.read_text(encoding="utf-8")
     )
     assert restored == results

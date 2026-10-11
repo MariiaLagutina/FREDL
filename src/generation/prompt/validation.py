@@ -22,7 +22,7 @@ def validate_grounded_answer(
     *,
     citations_required: bool = True,
 ) -> None:
-    """Validate citations under strict or assignment-facing policy."""
+    """Validate citations under strict or batch policy."""
     if answer == INSUFFICIENT_CONTEXT_RESPONSE:
         return
 

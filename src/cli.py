@@ -1,4 +1,4 @@
-"""Assignment-compatible command functions for the public CLI."""
+"""Command functions for the local FREDL retrieval CLI."""
 
 from collections.abc import Iterable, Sequence
 from pathlib import Path
@@ -31,8 +31,8 @@ from src.generation import (
     answer_query,
     generate_dataset_answers,
     load_generation_backend,
-    load_student_search_results,
-    save_student_answers,
+    load_search_results,
+    save_answers,
 )
 from src.generation.cache import ValidatedAnswerCache
 from src.models import UnansweredQuestion
@@ -171,7 +171,7 @@ def answer(
 
 
 def answer_dataset(
-    student_search_results_path: str,
+    search_results_path: str,
     save_directory: str,
     context_token_budget: int = DEFAULT_CONTEXT_TOKEN_BUDGET,
     corpus_root: str = str(DEFAULT_CORPUS_ROOT),
@@ -184,9 +184,9 @@ def answer_dataset(
     """Generate and save answers for one persisted retrieval dataset."""
     try:
         root = Path(project_root)
-        input_path = _below_root(root, Path(student_search_results_path))
+        input_path = _below_root(root, Path(search_results_path))
         output_path = _below_root(root, Path(save_directory)) / input_path.name
-        search_results = load_student_search_results(input_path)
+        search_results = load_search_results(input_path)
         generation_config = GenerationConfig(
             model_name=model,
             device=DevicePreference(device),
@@ -212,14 +212,14 @@ def answer_dataset(
                 context_token_budget=context_token_budget,
                 progress=progress,
             )
-        save_student_answers(answers, output_path)
+        save_answers(answers, output_path)
     except (OSError, UnicodeError, ValueError, RuntimeError) as error:
         raise CliError(_error_message(error)) from None
     return str(output_path)
 
 
 def diagnose_answer_quality(
-    student_search_results_path: str,
+    search_results_path: str,
     output_path: str,
     context_token_budget: int = DEFAULT_CONTEXT_TOKEN_BUDGET,
     corpus_root: str = str(DEFAULT_CORPUS_ROOT),
@@ -232,9 +232,9 @@ def diagnose_answer_quality(
     """Generate and save review evidence without hiding failed cases."""
     try:
         root = Path(project_root)
-        input_path = _below_root(root, Path(student_search_results_path))
+        input_path = _below_root(root, Path(search_results_path))
         resolved_output = _below_root(root, Path(output_path))
-        search_results = load_student_search_results(input_path)
+        search_results = load_search_results(input_path)
         generation_config = GenerationConfig(
             model_name=model,
             device=DevicePreference(device),
@@ -730,18 +730,18 @@ def validate_sources(
 
 
 def evaluate(
-    student_search_results_path: str,
+    search_results_path: str,
     dataset_path: str,
     project_root: str = ".",
 ) -> None:
-    """Evaluate one assignment dataset against persisted search results."""
+    """Evaluate one evaluation dataset against persisted search results."""
     try:
         root = Path(project_root)
         report = evaluate_cases(
             RetrievalDatasetKind.DATASET,
             load_evaluation_cases(
                 _below_root(root, Path(dataset_path)),
-                _below_root(root, Path(student_search_results_path)),
+                _below_root(root, Path(search_results_path)),
             ),
         )
     except (OSError, UnicodeError, ValueError) as error:
@@ -888,7 +888,7 @@ def _current_corpus_fingerprint(
     project_root: Path,
     corpus_root: Path,
 ) -> str:
-    """Identify the currently discovered assignment corpus."""
+    """Identify the currently discovered configured corpus."""
     resolved_corpus = _below_root(project_root, corpus_root)
     manifest = discover_files(project_root, resolved_corpus)
     return fingerprint_corpus(project_root, manifest)

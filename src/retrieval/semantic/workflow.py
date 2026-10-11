@@ -223,7 +223,7 @@ def run_stored_semantic_retrieval(
 def _sources_from_hits(
     hits: Sequence[SemanticHit],
 ) -> tuple[MinimalSource, ...]:
-    """Convert semantic hits to the assignment source contract."""
+    """Convert semantic hits to the source contract."""
     return tuple(
         MinimalSource(
             file_path=hit.document.chunk.file_path,

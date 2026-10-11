@@ -7,12 +7,10 @@ __pycache__/
 # Operating-system metadata
 .DS_Store
 
-# Local evaluation tools and machine-specific files
+# Local tools and machine-specific files
 .local/
-.claude/
-moulinette
 
-# Assignment data, generated indices, and outputs
+# Private source material, generated indices, and outputs
 data/
 reports/*.json
 

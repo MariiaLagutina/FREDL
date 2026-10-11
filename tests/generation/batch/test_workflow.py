@@ -15,7 +15,7 @@ from src.generation import (
 from src.models import (
     MinimalSearchResults,
     MinimalSource,
-    StudentSearchResults,
+    SearchResults,
 )
 
 
@@ -27,8 +27,8 @@ def _source(path: str, start: int, end: int) -> MinimalSource:
     )
 
 
-def _search_results() -> StudentSearchResults:
-    return StudentSearchResults(
+def _search_results() -> SearchResults:
+    return SearchResults(
         search_results=[
             MinimalSearchResults(
                 question_id="q-2",
@@ -51,7 +51,7 @@ def _search_results() -> StudentSearchResults:
 
 
 def test_batch_generates_in_order_and_preserves_retrieval_contract() -> None:
-    """Prompt subsets do not alter assignment-facing retrieved sources."""
+    """Prompt subsets do not alter batch retrieved sources."""
     search_results = _search_results()
     first_context = ContextBuildResult(
         context="[Source 1] data/raw/second.md:0-20\nSecond evidence.",
@@ -148,8 +148,8 @@ def test_batch_generates_in_order_and_preserves_retrieval_contract() -> None:
 
 
 def test_empty_batch_preserves_k_without_generation() -> None:
-    """An empty valid input returns an empty assignment output."""
-    search_results = StudentSearchResults(search_results=[], k=5)
+    """An empty valid input returns an empty batch output."""
+    search_results = SearchResults(search_results=[], k=5)
 
     with patch(
         "src.generation.batch.workflow.generate_grounded_answer"
@@ -172,17 +172,17 @@ def test_empty_batch_preserves_k_without_generation() -> None:
     ("search_results", "token_budget", "message"),
     [
         (
-            StudentSearchResults(search_results=[], k=0),
+            SearchResults(search_results=[], k=0),
             100,
             "Search result k must be greater than zero",
         ),
         (
-            StudentSearchResults(search_results=[], k=5),
+            SearchResults(search_results=[], k=5),
             0,
             "Context token budget must be greater than zero",
         ),
         (
-            StudentSearchResults(
+            SearchResults(
                 search_results=[
                     MinimalSearchResults(
                         question_id="q-1",
@@ -203,7 +203,7 @@ def test_empty_batch_preserves_k_without_generation() -> None:
     ],
 )
 def test_invalid_batch_fails_before_context_or_model_work(
-    search_results: StudentSearchResults,
+    search_results: SearchResults,
     token_budget: int,
     message: str,
 ) -> None:
