@@ -72,10 +72,13 @@ def test_extract_pdf_page_returns_text_dimensions_and_provenance(
     assert page.image_count == 0
     assert page.drawing_operator_count == 0
     assert page.text.strip() == "Second page text"
-    assert any(
-        fragment.text.strip() == "Second page text"
+    text_fragment = next(
+        fragment
         for fragment in page.text_fragments
+        if fragment.text.strip() == "Second page text"
     )
+    assert text_fragment.page_x == 20
+    assert text_fragment.page_y == 50
     assert page.extractor.startswith("pypdf-")
 
 
