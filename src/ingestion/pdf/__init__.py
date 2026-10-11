@@ -1,5 +1,8 @@
 """PDF-specific ingestion utilities."""
 
+from src.ingestion.pdf.headings import (
+    match_pdf_headings, PdfHeadingMatch, PdfHeadingStatus,
+)
 from src.ingestion.pdf.assessment import (
     assess_pdf_page,
     PdfPageAssessment,
@@ -53,6 +56,9 @@ from src.ingestion.pdf.text_flow import (
 )
 
 __all__ = [
+    "match_pdf_headings",
+    "PdfHeadingMatch",
+    "PdfHeadingStatus",
     "BookCard",
     "PdfBookIdentity",
     "PdfBookPagePlan",
