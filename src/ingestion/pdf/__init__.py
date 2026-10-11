@@ -12,10 +12,12 @@ from src.ingestion.pdf.pages import (
     extract_pdf_pages,
     PdfPage,
 )
+from src.ingestion.pdf.planning import PdfBookPagePlan, plan_pdf_pages
 
 __all__ = [
     "BookCard",
     "PdfBookIdentity",
+    "PdfBookPagePlan",
     "PdfPage",
     "PdfPageAssessment",
     "PdfPageContentKind",
@@ -23,5 +25,6 @@ __all__ = [
     "build_book_card",
     "extract_pdf_page",
     "extract_pdf_pages",
+    "plan_pdf_pages",
     "read_pdf_identity",
 ]
