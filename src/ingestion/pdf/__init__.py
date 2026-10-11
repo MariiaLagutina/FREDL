@@ -6,6 +6,12 @@ from src.ingestion.pdf.assessment import (
     PdfPageContentKind,
 )
 from src.ingestion.pdf.book_card import BookCard, build_book_card
+from src.ingestion.pdf.chunks import (
+    make_pdf_chunk,
+    PdfChunk,
+    PdfChunkPageJoin,
+    PdfChunkPageSpan,
+)
 from src.ingestion.pdf.layout import (
     extract_pdf_text_layout,
     PdfTextFragment,
@@ -49,6 +55,9 @@ __all__ = [
     "BookCard",
     "PdfBookIdentity",
     "PdfBookPagePlan",
+    "PdfChunk",
+    "PdfChunkPageJoin",
+    "PdfChunkPageSpan",
     "PdfMarginLocation",
     "PdfMarginPattern",
     "PdfPage",
@@ -74,6 +83,7 @@ __all__ = [
     "extract_pdf_text_layout",
     "find_margin_fragment_indexes",
     "find_repeated_margin_patterns",
+    "make_pdf_chunk",
     "plan_pdf_pages",
     "prepare_pdf_reading_document",
     "read_pdf_identity",
