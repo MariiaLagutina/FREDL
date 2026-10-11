@@ -35,6 +35,10 @@ from src.ingestion.pdf.reading_flow import (
     PdfReadingFlow,
     PdfReadingPageSpan,
 )
+from src.ingestion.pdf.reading_document import (
+    PdfReadingDocument,
+    prepare_pdf_reading_document,
+)
 from src.ingestion.pdf.text_flow import (
     build_pdf_text_flows,
     PdfPageTextSpan,
@@ -55,6 +59,7 @@ __all__ = [
     "PdfPageTextSpan",
     "PdfReadingPage",
     "PdfReadingFlow",
+    "PdfReadingDocument",
     "PdfReadingPageSpan",
     "PdfTextFragment",
     "PdfTextFlow",
@@ -70,5 +75,6 @@ __all__ = [
     "find_margin_fragment_indexes",
     "find_repeated_margin_patterns",
     "plan_pdf_pages",
+    "prepare_pdf_reading_document",
     "read_pdf_identity",
 ]
