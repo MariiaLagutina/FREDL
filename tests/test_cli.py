@@ -1,4 +1,4 @@
-"""Tests for the assignment-compatible Python Fire CLI."""
+"""Tests for the Python Fire CLI."""
 
 import json
 from pathlib import Path
@@ -20,8 +20,8 @@ from src.models import (
     MinimalAnswer,
     MinimalSearchResults,
     MinimalSource,
-    StudentSearchResults,
-    StudentSearchResultsAndAnswer,
+    SearchResults,
+    SearchResultsAndAnswer,
 )
 from src.evaluation.retrieval import (
     RetrievalDatasetKind,
@@ -213,11 +213,11 @@ def test_answer_dataset_uses_assignment_paths_and_one_backend() -> None:
         first_character_index=0,
         last_character_index=20,
     )
-    search_results = StudentSearchResults(
+    search_results = SearchResults(
         search_results=[],
         k=5,
     )
-    answers = StudentSearchResultsAndAnswer(
+    answers = SearchResultsAndAnswer(
         search_results=[
             MinimalAnswer(
                 question_id="q-1",
@@ -232,7 +232,7 @@ def test_answer_dataset_uses_assignment_paths_and_one_backend() -> None:
 
     with (
         patch(
-            "src.cli.load_student_search_results",
+            "src.cli.load_search_results",
             return_value=search_results,
         ) as load_results,
         patch("src.cli.delayed_status") as status,
@@ -244,12 +244,12 @@ def test_answer_dataset_uses_assignment_paths_and_one_backend() -> None:
             "src.cli.generate_dataset_answers",
             return_value=answers,
         ) as generate_answers,
-        patch("src.cli.save_student_answers") as save_answers,
+        patch("src.cli.save_answers") as save_answers,
     ):
         main(
             [
                 "answer_dataset",
-                "--student_search_results_path",
+                "--search_results_path",
                 "data/output/search_results/Public/questions.json",
                 "--save_directory",
                 "data/output/search_results_and_answer/Public",
@@ -287,7 +287,7 @@ def test_answer_dataset_writes_valid_json_without_retrieval(
     source_path = tmp_path / "data" / "raw" / "guide.md"
     source_path.parent.mkdir(parents=True)
     source_path.write_text(source_text, encoding="utf-8")
-    search_results = StudentSearchResults(
+    search_results = SearchResults(
         search_results=[
             MinimalSearchResults(
                 question_id="q-1",
@@ -341,7 +341,7 @@ def test_answer_dataset_writes_valid_json_without_retrieval(
         main(
             [
                 "answer_dataset",
-                "--student_search_results_path",
+                "--search_results_path",
                 str(input_path),
                 "--save_directory",
                 str(output_directory),
@@ -352,7 +352,7 @@ def test_answer_dataset_writes_valid_json_without_retrieval(
         )
 
     output_path = output_directory / input_path.name
-    parsed = StudentSearchResultsAndAnswer.model_validate_json(
+    parsed = SearchResultsAndAnswer.model_validate_json(
         output_path.read_text(encoding="utf-8")
     )
     assert parsed.k == 1
@@ -371,7 +371,7 @@ def test_answer_dataset_writes_valid_json_without_retrieval(
     [
         (FileNotFoundError("results.json"), "File not found"),
         (
-            ValueError("Student search results JSON is invalid"),
+            ValueError("Search results JSON is invalid"),
             "JSON is invalid",
         ),
         (RuntimeError("CUDA was requested"), "CUDA was requested"),
@@ -383,12 +383,12 @@ def test_answer_dataset_reports_expected_failures_without_traceback(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Expected batch boundaries remain concise for terminal users."""
-    with patch("src.cli.load_student_search_results", side_effect=failure):
+    with patch("src.cli.load_search_results", side_effect=failure):
         with pytest.raises(SystemExit) as exit_info:
             main(
                 [
                     "answer_dataset",
-                    "--student_search_results_path",
+                    "--search_results_path",
                     "results.json",
                     "--save_directory",
                     "answers",
@@ -403,7 +403,7 @@ def test_answer_dataset_reports_expected_failures_without_traceback(
 
 def test_diagnose_answer_quality_saves_failures_and_summary() -> None:
     """The diagnostic command exposes report counts without failing a batch."""
-    search_results = StudentSearchResults(search_results=[], k=5)
+    search_results = SearchResults(search_results=[], k=5)
     backend = LoadedGenerationBackend(object(), object(), "cuda")
     report = AnswerQualityDiagnosticReport(
         model_name="Qwen/test",
@@ -417,7 +417,7 @@ def test_diagnose_answer_quality_saves_failures_and_summary() -> None:
 
     with (
         patch(
-            "src.cli.load_student_search_results",
+            "src.cli.load_search_results",
             return_value=search_results,
         ),
         patch("src.cli.delayed_status") as status,
@@ -434,7 +434,7 @@ def test_diagnose_answer_quality_saves_failures_and_summary() -> None:
         main(
             [
                 "diagnose_answer_quality",
-                "--student_search_results_path",
+                "--search_results_path",
                 "results/questions.json",
                 "--output_path",
                 "reports/quality.json",
@@ -1148,7 +1148,7 @@ def test_evaluate_command_uses_assignment_paths(
         main(
             [
                 "evaluate",
-                "--student_search_results_path",
+                "--search_results_path",
                 "results/questions.json",
                 "--dataset_path",
                 "datasets/questions.json",
@@ -1261,7 +1261,7 @@ def test_evaluate_command_reports_expected_failures_without_traceback(
             main(
                 [
                     "evaluate",
-                    "--student_search_results_path",
+                    "--search_results_path",
                     "results.json",
                     "--dataset_path",
                     "docs-ground-truth.json",

@@ -13,8 +13,8 @@ from src.models import (
     RagDataset,
     RetrievalResults,
     RetrievalResultsWithAnswers,
-    StudentSearchResults,
-    StudentSearchResultsAndAnswer,
+    SearchResults,
+    SearchResultsAndAnswer,
     UnansweredQuestion,
 )
 
@@ -79,7 +79,7 @@ def test_rag_dataset_parses_answered_and_unanswered_questions() -> None:
     assert isinstance(dataset.rag_questions[1], AnsweredQuestion)
 
 
-def test_student_search_results_round_trip() -> None:
+def test_search_results_round_trip() -> None:
     """Batch search output survives JSON serialization and validation."""
     result = RetrievalResults(
         search_results=[
@@ -99,7 +99,7 @@ def test_student_search_results_round_trip() -> None:
     assert restored == result
 
 
-def test_student_answers_round_trip() -> None:
+def test_answers_round_trip() -> None:
     """Batch answer output survives JSON serialization and validation."""
     result = RetrievalResultsWithAnswers(
         search_results=[
@@ -122,7 +122,7 @@ def test_student_answers_round_trip() -> None:
 
 def test_assignment_search_models_preserve_domain_json_contract() -> None:
     """Required class names serialize like the domain retrieval models."""
-    assignment_result = StudentSearchResults(
+    search_result = SearchResults(
         search_results=[
             MinimalSearchResults(
                 question_id="q1",
@@ -133,15 +133,15 @@ def test_assignment_search_models_preserve_domain_json_contract() -> None:
         k=5,
     )
     domain_result = RetrievalResults.model_validate(
-        assignment_result.model_dump()
+        search_result.model_dump()
     )
 
-    assert assignment_result.model_dump() == domain_result.model_dump()
+    assert search_result.model_dump() == domain_result.model_dump()
 
 
 def test_assignment_answer_models_preserve_domain_json_contract() -> None:
     """Required answer class names preserve the domain output structure."""
-    assignment_result = StudentSearchResultsAndAnswer(
+    search_result = SearchResultsAndAnswer(
         search_results=[
             MinimalAnswer(
                 question_id="q1",
@@ -153,7 +153,7 @@ def test_assignment_answer_models_preserve_domain_json_contract() -> None:
         k=5,
     )
     domain_result = RetrievalResultsWithAnswers.model_validate(
-        assignment_result.model_dump()
+        search_result.model_dump()
     )
 
-    assert assignment_result.model_dump() == domain_result.model_dump()
+    assert search_result.model_dump() == domain_result.model_dump()

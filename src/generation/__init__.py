@@ -17,8 +17,8 @@ from src.generation.backend import (
 from src.generation.batch import (
     BatchAnswerProgress,
     generate_dataset_answers,
-    load_student_search_results,
-    save_student_answers,
+    load_search_results,
+    save_answers,
 )
 from src.generation.context import (
     ContextBuildResult,
@@ -71,8 +71,8 @@ __all__ = [
     "generate_dataset_answers",
     "validate_grounded_answer",
     "load_generation_backend",
-    "load_student_search_results",
+    "load_search_results",
     "load_ranked_source_texts",
     "select_device",
-    "save_student_answers",
+    "save_answers",
 ]

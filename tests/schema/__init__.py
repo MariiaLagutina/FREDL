@@ -1,1 +1,1 @@
-"""Tests for assignment-facing data models."""
+"""Tests for batch data models."""

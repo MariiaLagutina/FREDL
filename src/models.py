@@ -62,22 +62,22 @@ class RetrievalResultsWithAnswers(BaseModel):
 
 
 class MinimalSearchResults(QuerySearchResult):
-    """Provide the assignment name for one query search result."""
+    """Provide the query name for one query search result."""
 
 
-class StudentSearchResults(BaseModel):
-    """Provide the assignment name for batch retrieval output."""
+class SearchResults(BaseModel):
+    """Provide the query name for batch retrieval output."""
 
     search_results: list[MinimalSearchResults]
     k: int
 
 
 class MinimalAnswer(QueryAnswer):
-    """Provide the assignment name for one answer-bearing result."""
+    """Provide the query name for one answer-bearing result."""
 
 
-class StudentSearchResultsAndAnswer(BaseModel):
-    """Provide the assignment name for batch answer output."""
+class SearchResultsAndAnswer(BaseModel):
+    """Provide the query name for batch answer output."""
 
     search_results: list[MinimalAnswer]
     k: int

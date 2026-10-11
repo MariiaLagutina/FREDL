@@ -200,7 +200,7 @@ def test_single_character_limit_makes_progress_across_crlf() -> None:
 def test_chunker_rejects_invalid_maximum_size(
     max_chunk_size: int,
 ) -> None:
-    """Chunk size stays within the Moulinette contract."""
+    """Chunk size stays within the configured contract."""
     with pytest.raises(
         ValueError,
         match="Maximum chunk size must be between 1 and 2000",

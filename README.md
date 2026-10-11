@@ -132,7 +132,7 @@ carrying forward.
 | --- | --- |
 | Product concept | Defined and being refined through use |
 | Manual prototype | Version 0.8 in founder-led self-testing |
-| Retrieval foundation | Implemented and measured on a supplied vLLM corpus |
+| Retrieval foundation | Implemented for code and text; PDF validation comes next |
 | Code and Markdown ingestion | Implemented |
 | PDF ingestion and page provenance | Planned next; not implemented |
 | Production frontend | Not implemented |
@@ -148,9 +148,9 @@ and revision as the evidence changes.
 
 ## Retrieval Foundation Available Today
 
-The existing Python system began as a 42 retrieval project and now provides a
-tested technical foundation for FREDL. It currently works with a supplied vLLM
-code and documentation corpus, not with a user's PDF library.
+The repository contains a tested retrieval foundation that FREDL can develop
+into its PDF search layer. It currently works with code, Markdown, and plain
+text. It does not yet ingest a user's PDF library.
 
 | Capability | Current implementation |
 | --- | --- |
@@ -160,29 +160,16 @@ code and documentation corpus, not with a user's PDF library.
 | Text ingestion | Structure-aware Markdown and plain-text chunking |
 | Optional semantic search | Pinned CPU MiniLM embeddings |
 | Optional hybrid search | Weighted Reciprocal Rank Fusion for documentation |
-| Answer generation | Local `Qwen/Qwen3-0.6B` with citation validation |
+| Answer generation | Replaceable local model backend with citation validation |
 | Interfaces | Python Fire CLI and local FastAPI server |
 | Persistence | Corpus, pipeline, schema, and checksum validation |
 
-Retrieval is evaluated separately from generation. The measured foundation
-keeps exact source text separate from ranking metadata, rejects stale or
-incompatible indexes, and treats an invalid generated citation as an error
-rather than presenting an unsupported answer.
-
-### Verified retrieval results
-
-| Measure | Result |
-| --- | ---: |
-| Full index, 20,096 documents | 29.4 s |
-| Retrieval normalized to 200 questions | 19.51–19.88 s |
-| Documentation Recall@5 / Recall@10 | 0.850000 / 0.900000 |
-| Code Recall@5 / Recall@10 | 0.787879 / 0.848485 |
-| Optional documentation hybrid Recall@5 / Recall@10 | 0.870000 / 0.910000 |
-| Incremental reindex after one changed file | 7.1 s |
-
-These results describe the existing vLLM evaluation corpus. They do not predict
-PDF retrieval quality. PDF extraction, page-level provenance, and evaluation on
-real book questions require their own evidence.
+Retrieval is evaluated separately from generation. The foundation keeps exact
+source text separate from ranking metadata, rejects stale or incompatible
+indexes, and treats an invalid generated citation as an error rather than
+presenting an unsupported answer. Its earlier benchmark results are not used as
+evidence for PDF quality. PDF extraction, page-level provenance, and evaluation
+on real book questions require their own measurements.
 
 ## Product Principles
 
@@ -244,13 +231,11 @@ The next work is deliberately narrower than the complete product vision.
 
 These are hypotheses and planned experiments, not release promises.
 
-## Running the Current Retrieval Foundation
+## Development
 
-The commands below run the existing vLLM retrieval system. They do not start a
-FREDL PDF application.
-
-Requirements: Python 3.10 or later, `uv`, the supplied vLLM corpus, and the
-question datasets.
+FREDL is currently a research repository rather than a finished application.
+The Python foundation can be installed and checked locally with Python 3.10 or
+later and `uv`.
 
 Install the locked environment:
 
@@ -258,85 +243,31 @@ Install the locked environment:
 make install
 ```
 
-Prepare the expected local data directories:
-
-```bash
-scripts/prepare_evaluation_inputs.sh
-```
-
-Place evaluator-provided files under `data/`:
-
-```text
-data/
-├── raw/
-│   └── vllm-*/
-└── datasets/
-    ├── AnsweredQuestions/
-    │   ├── dataset_docs_public.json
-    │   └── dataset_code_public.json
-    └── UnansweredQuestions/
-        ├── dataset_docs_public.json
-        └── dataset_code_public.json
-```
-
-Build the index and search one question:
-
-```bash
-uv run python -m src index --max_chunk_size 2000
-uv run python -m src search "How does prefix caching work?" --k 5
-```
-
-Generate a grounded answer with the local model:
-
-```bash
-uv run python -m src answer "How does prefix caching work?" --k 5 --device auto
-```
-
-Run the local HTTP API:
-
-```bash
-uv run uvicorn 'src.api:create_app' --factory --host 127.0.0.1 --port 8000
-```
-
-Datasets, indexes, models, reports, and generated outputs remain outside Git.
-
-### Development commands
-
 ```bash
 make run          # show the CLI
 make debug        # run the CLI through pdb
 make test         # run pytest
-make lint         # run assignment-compatible lint checks
+make lint         # run project lint and type checks
 make lint-strict  # run flake8 and strict mypy
 make clean        # remove local Python check caches
 ```
 
 ## Documentation
 
-The current technical documents describe the verified retrieval foundation.
-They will be reviewed and reframed as FREDL architecture develops.
-
-- [`docs/architecture.md`](docs/architecture.md) — current retrieval component
-  boundaries and data flows.
-- [`docs/decision-log.md`](docs/decision-log.md) — reconsidered technical
-  decisions and measured trade-offs.
-- [`docs/end-to-end-run-log.md`](docs/end-to-end-run-log.md) — reproduced
-  commands, timings, memory use, and retrieval scores.
-- [`docs/answer-quality-checklist.md`](docs/answer-quality-checklist.md) —
-  grounded-answer review criteria.
-- [`docs/bm25-tuning-log.md`](docs/bm25-tuning-log.md) — lexical, semantic, and
-  hybrid retrieval experiments.
+- [`docs/product-direction.md`](docs/product-direction.md) explains the learning
+  problem, the product loop, and the signals FREDL intends to test.
+- [`docs/technical-foundation.md`](docs/technical-foundation.md) records which
+  parts of the current retrieval code are reusable and what PDF support must
+  prove next.
 
 ## Verification
 
-The retrieval foundation was last verified with:
+The repository is checked with:
 
 ```text
-pytest: 579 passed
-flake8: passed
-mypy with assignment flags: passed for 239 source files
-mypy --strict: passed for 239 source files
-git diff --check: passed
+make test
+make lint
+make lint-strict
 ```
 
 Expected third-party deprecation warnings currently come from Starlette's

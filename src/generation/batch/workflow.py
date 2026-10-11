@@ -1,4 +1,4 @@
-"""Generate assignment answers from already persisted retrieval results."""
+"""Generate batch answers from already persisted retrieval results."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -8,8 +8,8 @@ from src.generation.context import HuggingFaceTokenCounter, build_context
 from src.generation.prompt import generate_grounded_answer
 from src.models import (
     MinimalAnswer,
-    StudentSearchResults,
-    StudentSearchResultsAndAnswer,
+    SearchResults,
+    SearchResultsAndAnswer,
 )
 
 
@@ -19,13 +19,13 @@ BatchAnswerProgress = Callable[[int, int], None]
 def generate_dataset_answers(
     project_root: Path,
     corpus_root: Path,
-    search_results: StudentSearchResults,
+    search_results: SearchResults,
     backend: LoadedGenerationBackend,
     generation_config: GenerationConfig,
     *,
     context_token_budget: int,
     progress: BatchAnswerProgress | None = None,
-) -> StudentSearchResultsAndAnswer:
+) -> SearchResultsAndAnswer:
     """Generate answers in input order without repeating retrieval."""
     _validate_batch_input(search_results, context_token_budget)
     token_counter = HuggingFaceTokenCounter(backend.tokenizer)
@@ -61,14 +61,14 @@ def generate_dataset_answers(
         if progress is not None:
             progress(position, total)
 
-    return StudentSearchResultsAndAnswer(
+    return SearchResultsAndAnswer(
         search_results=answers,
         k=search_results.k,
     )
 
 
 def _validate_batch_input(
-    search_results: StudentSearchResults,
+    search_results: SearchResults,
     context_token_budget: int,
 ) -> None:
     """Reject ambiguous batch values before source or model work."""

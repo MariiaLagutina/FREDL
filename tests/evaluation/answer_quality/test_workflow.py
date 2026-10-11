@@ -16,7 +16,7 @@ from src.generation import (
 from src.models import (
     MinimalSearchResults,
     MinimalSource,
-    StudentSearchResults,
+    SearchResults,
 )
 
 
@@ -34,14 +34,14 @@ class FakeTokenizer:
         return list(range(len(text.split())))
 
 
-def _search_results() -> StudentSearchResults:
+def _search_results() -> SearchResults:
     source_text = "The cache uses LRU."
     source = MinimalSource(
         file_path="data/raw/cache.md",
         first_character_index=0,
         last_character_index=len(source_text),
     )
-    return StudentSearchResults(
+    return SearchResults(
         search_results=[
             MinimalSearchResults(
                 question_id="bad",

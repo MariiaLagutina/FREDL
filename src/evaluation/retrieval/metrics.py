@@ -1,4 +1,4 @@
-"""Calculate source-aware retrieval metrics using Moulinette overlap."""
+"""Calculate source-aware retrieval metrics using source-range overlap."""
 
 from collections.abc import Sequence
 from typing import TypeAlias
@@ -11,7 +11,7 @@ from src.ingestion import Chunk
 from src.models import MinimalSource
 
 
-MOULINETTE_IOU_THRESHOLD = 0.05
+SOURCE_IOU_THRESHOLD = 0.05
 RetrievedSource: TypeAlias = Chunk | MinimalSource
 
 
@@ -44,8 +44,8 @@ def sources_match(
     retrieved: RetrievedSource,
     reference: MinimalSource,
 ) -> bool:
-    """Apply exact path equality and the Moulinette IoU threshold."""
-    return source_iou(retrieved, reference) >= MOULINETTE_IOU_THRESHOLD
+    """Apply exact path equality and the configured IoU threshold."""
+    return source_iou(retrieved, reference) >= SOURCE_IOU_THRESHOLD
 
 
 def evaluate_query(

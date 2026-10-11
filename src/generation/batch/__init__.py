@@ -1,8 +1,8 @@
 """Batch answer-generation boundaries."""
 
 from src.generation.batch.io import (
-    load_student_search_results,
-    save_student_answers,
+    load_search_results,
+    save_answers,
 )
 from src.generation.batch.workflow import (
     BatchAnswerProgress,
@@ -12,6 +12,6 @@ from src.generation.batch.workflow import (
 __all__ = [
     "BatchAnswerProgress",
     "generate_dataset_answers",
-    "load_student_search_results",
-    "save_student_answers",
+    "load_search_results",
+    "save_answers",
 ]

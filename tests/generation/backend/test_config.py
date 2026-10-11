@@ -11,7 +11,7 @@ from src.generation import (
 
 
 def test_generation_defaults_match_mandatory_qwen_model() -> None:
-    """The assignment checkpoint is the stable production default."""
+    """The configured checkpoint is the stable production default."""
     config = GenerationConfig()
 
     assert config.model_name == "Qwen/Qwen3-0.6B"
