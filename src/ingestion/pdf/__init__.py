@@ -28,6 +28,13 @@ from src.ingestion.pdf.reading_text import (
     build_pdf_reading_pages,
     PdfReadingPage,
 )
+from src.ingestion.pdf.reading_flow import (
+    build_pdf_reading_flows,
+    PdfPageJoin,
+    PdfPageJoinKind,
+    PdfReadingFlow,
+    PdfReadingPageSpan,
+)
 from src.ingestion.pdf.text_flow import (
     build_pdf_text_flows,
     PdfPageTextSpan,
@@ -43,8 +50,12 @@ __all__ = [
     "PdfPage",
     "PdfPageAssessment",
     "PdfPageContentKind",
+    "PdfPageJoin",
+    "PdfPageJoinKind",
     "PdfPageTextSpan",
     "PdfReadingPage",
+    "PdfReadingFlow",
+    "PdfReadingPageSpan",
     "PdfTextFragment",
     "PdfTextFlow",
     "PdfTextLayout",
@@ -52,6 +63,7 @@ __all__ = [
     "build_book_card",
     "build_pdf_text_flows",
     "build_pdf_reading_pages",
+    "build_pdf_reading_flows",
     "extract_pdf_page",
     "extract_pdf_pages",
     "extract_pdf_text_layout",
