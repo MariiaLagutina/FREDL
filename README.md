@@ -256,6 +256,8 @@ make clean        # remove local Python check caches
 
 - [`docs/product-direction.md`](docs/product-direction.md) explains the learning
   problem, the product loop, and the signals FREDL intends to test.
+- [`docs/product-decisions.md`](docs/product-decisions.md) records accepted
+  product decisions, their evidence, and the conditions for revisiting them.
 - [`docs/technical-foundation.md`](docs/technical-foundation.md) records which
   parts of the current retrieval code are reusable and what PDF support must
   prove next.

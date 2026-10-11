@@ -7,6 +7,8 @@ import pypdf
 from pypdf import PageObject, PdfReader
 from pypdf.generic import ContentStream
 
+from src.ingestion.pdf.layout import PdfTextFragment, extract_pdf_text_layout
+
 
 DRAWING_OPERATORS: frozenset[bytes] = frozenset(
     {
@@ -41,6 +43,7 @@ class PdfPage:
     image_count: int
     drawing_operator_count: int
     text: str
+    text_fragments: tuple[PdfTextFragment, ...]
     extractor: str
 
 
@@ -85,7 +88,7 @@ def _extract_page(
     page: PageObject,
 ) -> PdfPage:
     """Convert one already-open PDF page into observable data."""
-    text = page.extract_text() or ""
+    text_layout = extract_pdf_text_layout(page)
     drawing_operator_count = _count_drawing_operators(page, reader)
 
     return PdfPage(
@@ -95,7 +98,8 @@ def _extract_page(
         height_points=float(page.mediabox.height),
         image_count=len(page.images),
         drawing_operator_count=drawing_operator_count,
-        text=text,
+        text=text_layout.raw_text,
+        text_fragments=text_layout.fragments,
         extractor=f"pypdf-{pypdf.__version__}",
     )
 
