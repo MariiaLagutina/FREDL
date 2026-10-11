@@ -39,6 +39,7 @@ class _MarginCandidate:
     page_number: int
     y_ratio: float
     font_size: float
+    fragment_indexes: tuple[int, ...]
 
 
 def find_repeated_margin_patterns(
@@ -99,15 +100,45 @@ def find_repeated_margin_patterns(
     )
 
 
+def find_margin_fragment_indexes(
+    page: PdfPage,
+    patterns: tuple[PdfMarginPattern, ...],
+    *,
+    edge_ratio: float = 0.08,
+) -> tuple[int, ...]:
+    """Locate fragments matched by confirmed patterns on one page."""
+    matching_indexes: set[int] = set()
+    pattern_keys = {
+        (
+            pattern.location,
+            pattern.signature,
+            pattern.y_ratio,
+            pattern.font_size,
+        )
+        for pattern in patterns
+        if page.page_number in pattern.page_numbers
+    }
+    for candidate in _page_margin_candidates(page, edge_ratio):
+        candidate_key = (
+            candidate.location,
+            candidate.signature,
+            candidate.y_ratio,
+            candidate.font_size,
+        )
+        if candidate_key in pattern_keys:
+            matching_indexes.update(candidate.fragment_indexes)
+    return tuple(sorted(matching_indexes))
+
+
 def _page_margin_candidates(
     page: PdfPage,
     edge_ratio: float,
 ) -> tuple[_MarginCandidate, ...]:
     line_fragments: dict[
         tuple[PdfMarginLocation, float, float],
-        list[PdfTextFragment],
+        list[tuple[int, PdfTextFragment]],
     ] = defaultdict(list)
-    for fragment in page.text_fragments:
+    for fragment_index, fragment in enumerate(page.text_fragments):
         location = _margin_location(
             fragment.page_y,
             page.height_points,
@@ -117,13 +148,21 @@ def _page_margin_candidates(
             continue
         y_ratio = round(fragment.page_y / page.height_points, 3)
         font_size = round(fragment.font_size, 1)
-        line_fragments[(location, y_ratio, font_size)].append(fragment)
+        line_fragments[(location, y_ratio, font_size)].append(
+            (fragment_index, fragment)
+        )
 
     candidates = []
-    for (location, y_ratio, font_size), fragments in line_fragments.items():
+    for (location, y_ratio, font_size), indexed_fragments in (
+        line_fragments.items()
+    ):
+        ordered_fragments = sorted(
+            indexed_fragments,
+            key=lambda item: item[1].page_x,
+        )
         line = " ".join(
             fragment.text.strip()
-            for fragment in sorted(fragments, key=lambda item: item.page_x)
+            for _, fragment in ordered_fragments
         )
         normalized_line = _normalize_margin_text(line)
         if not normalized_line:
@@ -135,6 +174,10 @@ def _page_margin_candidates(
                 page_number=page.page_number,
                 y_ratio=y_ratio,
                 font_size=font_size,
+                fragment_indexes=tuple(
+                    fragment_index
+                    for fragment_index, _ in ordered_fragments
+                ),
             )
         )
     return tuple(candidates)
