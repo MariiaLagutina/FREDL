@@ -13,6 +13,10 @@ from src.evaluation.pdf.models import (
     PdfGoldenEvidenceRole,
     PdfGoldenModality,
 )
+from src.evaluation.pdf.review import (
+    render_pdf_evidence_review,
+    write_pdf_evidence_review,
+)
 
 __all__ = [
     "PdfGoldenAnswerability",
@@ -24,4 +28,6 @@ __all__ = [
     "PdfEvidenceCandidates",
     "find_pdf_evidence_candidates",
     "load_pdf_golden_dataset",
+    "render_pdf_evidence_review",
+    "write_pdf_evidence_review",
 ]
