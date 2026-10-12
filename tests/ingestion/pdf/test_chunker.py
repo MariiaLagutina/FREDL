@@ -193,6 +193,60 @@ def test_section_path_continues_across_empty_page_and_flows() -> None:
     )
 
 
+def test_balances_short_tail_inside_section() -> None:
+    text = "word " * 12
+    document = _document(text)
+    intervals = _section_intervals(
+        document,
+        (("word", ("Chapter", "Section"), 1, 0, 4),),
+    )
+
+    chunks = chunk_pdf_reading_document(
+        document,
+        section_intervals=intervals,
+        max_chunk_size=50,
+        min_chunk_size=20,
+    )
+
+    assert len(chunks) == 2
+    assert all(len(chunk.text) >= 20 for chunk in chunks)
+    assert "".join(chunk.text for chunk in chunks) == text.rstrip()
+    assert all(
+        chunk.section_path == ("Chapter", "Section")
+        for chunk in chunks
+    )
+
+
+def test_keeps_short_section_separate_from_next_section() -> None:
+    text = "First short. Second section is long enough to stand alone."
+    document = _document(text)
+    second_start = text.index("Second")
+    intervals = _section_intervals(
+        document,
+        (
+            ("First", ("Chapter", "First"), 1, 0, 5),
+            (
+                "Second",
+                ("Chapter", "Second"),
+                1,
+                second_start,
+                second_start + len("Second"),
+            ),
+        ),
+    )
+
+    chunks = chunk_pdf_reading_document(
+        document,
+        section_intervals=intervals,
+        max_chunk_size=50,
+        min_chunk_size=20,
+    )
+
+    assert chunks[0].text == "First short. "
+    assert chunks[0].section_path == ("Chapter", "First")
+    assert chunks[1].section_path == ("Chapter", "Second")
+
+
 @pytest.mark.parametrize(
     ("maximum", "minimum"),
     [(0, 0), (100, 0), (100, 101)],

@@ -65,7 +65,12 @@ def _chunk_flow_range(
     chunks = []
     start = section_range.start
     while start < section_range.end:
-        limit = min(start + max_chunk_size, section_range.end)
+        limit = _chunk_limit(
+            start,
+            section_range.end,
+            max_chunk_size,
+            min_chunk_size,
+        )
         if limit == section_range.end:
             end = limit
         else:
@@ -86,6 +91,23 @@ def _chunk_flow_range(
         )
         start = end
     return chunks
+
+
+def _chunk_limit(
+    start: int,
+    section_end: int,
+    max_chunk_size: int,
+    min_chunk_size: int,
+) -> int:
+    limit = min(start + max_chunk_size, section_end)
+    short_tail_size = section_end - limit
+    remaining_size = section_end - start
+    if (
+        0 < short_tail_size < min_chunk_size
+        and remaining_size >= 2 * min_chunk_size
+    ):
+        return section_end - min_chunk_size
+    return limit
 
 
 def _flow_section_ranges(
