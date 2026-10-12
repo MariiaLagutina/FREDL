@@ -39,8 +39,10 @@ from src.ingestion.pdf.reading_text import (
     PdfReadingPage,
 )
 from src.ingestion.pdf.sections import (
+    build_pdf_section_intervals,
     map_pdf_section_boundaries,
     PdfSectionBoundary,
+    PdfSectionInterval,
 )
 from src.ingestion.pdf.reading_flow import (
     build_pdf_reading_flows,
@@ -84,12 +86,14 @@ __all__ = [
     "PdfReadingDocument",
     "PdfReadingPageSpan",
     "PdfSectionBoundary",
+    "PdfSectionInterval",
     "PdfTextFragment",
     "PdfTextFlow",
     "PdfTextLayout",
     "assess_pdf_page",
     "build_book_card",
     "build_pdf_text_flows",
+    "build_pdf_section_intervals",
     "chunk_pdf_reading_document",
     "build_pdf_reading_pages",
     "build_pdf_reading_flows",
