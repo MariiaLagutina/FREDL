@@ -16,6 +16,10 @@ from src.ingestion.pdf.chunks import (
     PdfChunkPageSpan,
 )
 from src.ingestion.pdf.chunker import chunk_pdf_reading_document
+from src.ingestion.pdf.index_records import (
+    build_pdf_index_records,
+    PdfIndexRecord,
+)
 from src.ingestion.pdf.layout import (
     extract_pdf_text_layout,
     PdfTextFragment,
@@ -73,6 +77,7 @@ __all__ = [
     "PdfChunk",
     "PdfChunkPageJoin",
     "PdfChunkPageSpan",
+    "PdfIndexRecord",
     "PdfMarginLocation",
     "PdfMarginPattern",
     "PdfPage",
@@ -93,6 +98,7 @@ __all__ = [
     "assess_pdf_page",
     "build_book_card",
     "build_pdf_text_flows",
+    "build_pdf_index_records",
     "build_pdf_section_intervals",
     "chunk_pdf_reading_document",
     "build_pdf_reading_pages",
