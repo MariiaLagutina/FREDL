@@ -1,5 +1,20 @@
 """Golden evaluation data for local PDF retrieval."""
 
+from src.evaluation.pdf.answerability import (
+    apply_pdf_comparison_guard,
+    build_pdf_answerability_messages,
+    build_pdf_comparison_messages,
+    evaluate_pdf_answerability,
+    parse_pdf_answerability_decision,
+    parse_pdf_comparison_decision,
+    PDF_ANSWERABILITY_PROMPT_VERSION,
+    PdfAnswerabilityCaseScore,
+    PdfAnswerabilityDecision,
+    PdfAnswerabilityEvaluation,
+    PdfAnswerabilityResult,
+    PdfComparisonDecision,
+    find_pdf_comparison_subjects,
+)
 from src.evaluation.pdf.bm25_baseline import (
     PdfBm25Baseline,
     PdfBm25Hit,
@@ -46,6 +61,12 @@ from src.evaluation.pdf.review import (
 )
 
 __all__ = [
+    "PDF_ANSWERABILITY_PROMPT_VERSION",
+    "PdfAnswerabilityCaseScore",
+    "PdfAnswerabilityDecision",
+    "PdfAnswerabilityEvaluation",
+    "PdfAnswerabilityResult",
+    "PdfComparisonDecision",
     "PdfBm25Baseline",
     "PdfBm25Hit",
     "PdfGoldenAnswerability",
@@ -66,12 +87,19 @@ __all__ = [
     "PdfRetrievalEvaluation",
     "PdfRetrievalResult",
     "PdfEvidenceCandidates",
+    "apply_pdf_comparison_guard",
+    "build_pdf_answerability_messages",
+    "build_pdf_comparison_messages",
+    "evaluate_pdf_answerability",
     "evaluate_pdf_retrieval",
     "find_pdf_neighbor_context",
+    "find_pdf_comparison_subjects",
     "find_pdf_evidence_candidates",
     "fingerprint_pdf_records",
     "load_pdf_golden_dataset",
     "load_pdf_judgment_set",
+    "parse_pdf_answerability_decision",
+    "parse_pdf_comparison_decision",
     "render_pdf_evidence_review",
     "write_pdf_evidence_review",
 ]
