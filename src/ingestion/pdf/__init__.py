@@ -38,6 +38,10 @@ from src.ingestion.pdf.reading_text import (
     build_pdf_reading_pages,
     PdfReadingPage,
 )
+from src.ingestion.pdf.sections import (
+    map_pdf_section_boundaries,
+    PdfSectionBoundary,
+)
 from src.ingestion.pdf.reading_flow import (
     build_pdf_reading_flows,
     PdfPageJoin,
@@ -79,6 +83,7 @@ __all__ = [
     "PdfReadingFlow",
     "PdfReadingDocument",
     "PdfReadingPageSpan",
+    "PdfSectionBoundary",
     "PdfTextFragment",
     "PdfTextFlow",
     "PdfTextLayout",
@@ -94,6 +99,7 @@ __all__ = [
     "find_margin_fragment_indexes",
     "find_repeated_margin_patterns",
     "make_pdf_chunk",
+    "map_pdf_section_boundaries",
     "plan_pdf_pages",
     "prepare_pdf_reading_document",
     "read_pdf_identity",
