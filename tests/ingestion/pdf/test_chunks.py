@@ -67,6 +67,20 @@ def test_chunk_identifier_is_stable_for_the_same_source_range() -> None:
     assert first.chunk_id.startswith("pdf:")
 
 
+def test_chunk_preserves_verified_section_path() -> None:
+    flow = build_pdf_reading_flows((_page(1, "Section text."),))[0]
+
+    chunk = make_pdf_chunk(
+        flow,
+        0,
+        0,
+        len(flow.text),
+        section_path=("Chapter 1", "Section"),
+    )
+
+    assert chunk.section_path == ("Chapter 1", "Section")
+
+
 @pytest.mark.parametrize(
     ("start", "end", "message"),
     [

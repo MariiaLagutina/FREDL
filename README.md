@@ -9,9 +9,10 @@ after the idea was used in practice.
 
 > [!IMPORTANT]
 > FREDL is at an early research and development stage. A manual prototype under
-> founder-led testing and a verified retrieval foundation exist today. PDF
-> ingestion, the production frontend, and the learning-memory system described
-> below are active plans, not finished product features.
+> founder-led testing, a verified retrieval foundation, and a local PDF
+> ingestion pipeline exist today. The PDF pipeline is being evaluated on the
+> founder's private technical library; broader PDF support, the production
+> frontend, and the learning-memory system are not finished product features.
 
 ## Why FREDL
 
@@ -132,9 +133,11 @@ carrying forward.
 | --- | --- |
 | Product concept | Defined and being refined through use |
 | Manual prototype | Version 0.8 in founder-led self-testing |
-| Retrieval foundation | Implemented for code and text; PDF validation comes next |
+| Retrieval foundation | Implemented for code, text, and local PDF index records |
 | Code and Markdown ingestion | Implemented |
-| PDF ingestion and page provenance | Planned next; not implemented |
+| PDF ingestion and page provenance | Implemented for the active text-based technical PDF; broader document classes remain unverified |
+| PDF section-aware chunking | Implemented with verified headings, bounded chunks, and exact physical-page provenance |
+| PDF retrieval evaluation | Golden questions and relevance evidence are the next active step |
 | Production frontend | Not implemented |
 | Learning-memory storage | Designed conceptually; not implemented |
 | Adaptive resurfacing | Research hypothesis; not implemented |
@@ -146,11 +149,13 @@ memory, and product systems that the project requires. Its portfolio value
 comes from that documented work: real decisions, implementation, measurement,
 and revision as the evidence changes.
 
-## Retrieval Foundation Available Today
+## Retrieval and PDF Foundation Available Today
 
-The repository contains a tested retrieval foundation that FREDL can develop
-into its PDF search layer. It currently works with code, Markdown, and plain
-text. It does not yet ingest a user's PDF library.
+The repository contains a tested retrieval foundation for code, Markdown,
+plain text, and local PDFs. PDF files remain in a user-controlled library
+outside the repository. The current pipeline prepares exact, index-neutral PDF
+records locally; it does not upload a book or silently send its text to an
+external model.
 
 | Capability | Current implementation |
 | --- | --- |
@@ -158,6 +163,12 @@ text. It does not yet ingest a user's PDF library.
 | Exact evidence | Project-relative paths and character ranges |
 | Code ingestion | AST-aware Python chunking |
 | Text ingestion | Structure-aware Markdown and plain-text chunking |
+| PDF extraction | Physical pages, positioned text, font metadata, and observable page classification |
+| PDF reading text | Repeated-margin removal and cross-page word reconstruction while preserving raw extraction |
+| PDF structure | Embedded-outline matching and verified section intervals |
+| PDF chunking | Section-aware bounded chunks with balanced tails and stable identifiers |
+| PDF provenance | Reading-flow ranges plus exact source ranges on every contributing physical page |
+| PDF index records | Index-neutral local records with text and structural metadata kept separate |
 | Optional semantic search | Pinned CPU MiniLM embeddings |
 | Optional hybrid search | Weighted Reciprocal Rank Fusion for documentation |
 | Answer generation | Replaceable local model backend with citation validation |
@@ -168,8 +179,11 @@ Retrieval is evaluated separately from generation. The foundation keeps exact
 source text separate from ranking metadata, rejects stale or incompatible
 indexes, and treats an invalid generated citation as an error rather than
 presenting an unsupported answer. Its earlier benchmark results are not used as
-evidence for PDF quality. PDF extraction, page-level provenance, and evaluation
-on real book questions require their own measurements.
+evidence for PDF quality. The active PDF work has verified deterministic text
+preparation, section boundaries, chunk provenance, and index-record creation on
+one private technical book. Retrieval quality still requires golden questions,
+passage-level relevance labels, and separate lexical, semantic, and hybrid
+measurements.
 
 ## Product Principles
 
@@ -194,13 +208,17 @@ on real book questions require their own measurements.
 
 The next work is deliberately narrower than the complete product vision.
 
-### 1. PDF ingestion and provenance
+### 1. Evaluate retrieval on trustworthy PDF evidence
 
-- extract useful text from technical PDFs;
-- preserve page identity and stable source coordinates;
-- separate retrieval chunks from reader-facing passages;
-- build an evaluation set from real questions about the founder's books;
+- build a golden evaluation set from real questions about the founder's books;
+- mark required, supporting, and irrelevant passages against stable PDF source
+  coordinates;
+- verify that retrieved chunks return the reader to the correct physical page;
 - measure lexical, semantic, and hybrid retrieval instead of assuming a winner.
+- expose extraction and retrieval failures instead of hiding them.
+
+Support for columns, tables, formulas, code-heavy layouts, and scanned pages
+will be expanded only after representative examples are added and evaluated.
 
 ### 2. First production user flow
 
@@ -264,7 +282,7 @@ make clean        # remove local Python check caches
 
 ## Verification
 
-The repository is checked with:
+The current repository contains **670 automated tests**. It is checked with:
 
 ```text
 make test

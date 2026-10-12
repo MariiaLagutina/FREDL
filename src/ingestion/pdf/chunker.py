@@ -1,5 +1,6 @@
 """Split reconstructed PDF reading flows at observable text boundaries."""
 
+from dataclasses import dataclass
 import re
 
 from src.ingestion.pdf.chunks import make_pdf_chunk, PdfChunk
@@ -8,6 +9,7 @@ from src.ingestion.pdf.reading_flow import (
     PdfPageJoinKind,
     PdfReadingFlow,
 )
+from src.ingestion.pdf.sections import PdfSectionInterval
 
 
 DEFAULT_MAX_CHUNK_SIZE = 1600
@@ -17,38 +19,59 @@ LINE_BOUNDARY = re.compile(r"\r\n|\r|\n")
 WORD_BOUNDARY = re.compile(r"\s+")
 
 
+@dataclass(frozen=True, slots=True)
+class _FlowSectionRange:
+    start: int
+    end: int
+    section_path: tuple[str, ...]
+
+
 def chunk_pdf_reading_document(
     document: PdfReadingDocument,
     *,
+    section_intervals: tuple[PdfSectionInterval, ...] = (),
     max_chunk_size: int = DEFAULT_MAX_CHUNK_SIZE,
     min_chunk_size: int = DEFAULT_MIN_CHUNK_SIZE,
 ) -> tuple[PdfChunk, ...]:
     """Create bounded PDF chunks while preferring readable boundaries."""
     _validate_chunk_sizes(max_chunk_size, min_chunk_size)
+    _validate_section_intervals(document, section_intervals)
     chunks = []
     for flow_index, flow in enumerate(document.reading_flows):
-        chunks.extend(
-            _chunk_flow(
-                flow,
-                flow_index,
-                max_chunk_size,
-                min_chunk_size,
+        for section_range in _flow_section_ranges(
+            flow_index,
+            flow,
+            section_intervals,
+        ):
+            chunks.extend(
+                _chunk_flow_range(
+                    flow,
+                    flow_index,
+                    section_range,
+                    max_chunk_size,
+                    min_chunk_size,
+                )
             )
-        )
     return tuple(chunks)
 
 
-def _chunk_flow(
+def _chunk_flow_range(
     flow: PdfReadingFlow,
     flow_index: int,
+    section_range: _FlowSectionRange,
     max_chunk_size: int,
     min_chunk_size: int,
 ) -> list[PdfChunk]:
     chunks = []
-    start = 0
-    while start < len(flow.text):
-        limit = min(start + max_chunk_size, len(flow.text))
-        if limit == len(flow.text):
+    start = section_range.start
+    while start < section_range.end:
+        limit = _chunk_limit(
+            start,
+            section_range.end,
+            max_chunk_size,
+            min_chunk_size,
+        )
+        if limit == section_range.end:
             end = limit
         else:
             end = _select_boundary(
@@ -57,9 +80,108 @@ def _chunk_flow(
                 limit,
                 min(start + min_chunk_size, limit),
             )
-        chunks.append(make_pdf_chunk(flow, flow_index, start, end))
+        chunks.append(
+            make_pdf_chunk(
+                flow,
+                flow_index,
+                start,
+                end,
+                section_path=section_range.section_path,
+            )
+        )
         start = end
     return chunks
+
+
+def _chunk_limit(
+    start: int,
+    section_end: int,
+    max_chunk_size: int,
+    min_chunk_size: int,
+) -> int:
+    limit = min(start + max_chunk_size, section_end)
+    short_tail_size = section_end - limit
+    remaining_size = section_end - start
+    if (
+        0 < short_tail_size < min_chunk_size
+        and remaining_size >= 2 * min_chunk_size
+    ):
+        return section_end - min_chunk_size
+    return limit
+
+
+def _flow_section_ranges(
+    flow_index: int,
+    flow: PdfReadingFlow,
+    intervals: tuple[PdfSectionInterval, ...],
+) -> tuple[_FlowSectionRange, ...]:
+    cut_points = {0, len(flow.text)}
+    cut_points.update(
+        interval.start_flow_offset
+        for interval in intervals
+        if interval.start_flow_index == flow_index
+    )
+    ordered_points = sorted(cut_points)
+    return tuple(
+        _FlowSectionRange(
+            start=start,
+            end=end,
+            section_path=_section_path_at(intervals, flow_index, start),
+        )
+        for start, end in zip(
+            ordered_points,
+            ordered_points[1:],
+        )
+        if start < end
+    )
+
+
+def _section_path_at(
+    intervals: tuple[PdfSectionInterval, ...],
+    flow_index: int,
+    flow_offset: int,
+) -> tuple[str, ...]:
+    coordinate = (flow_index, flow_offset)
+    for interval in intervals:
+        start = (interval.start_flow_index, interval.start_flow_offset)
+        end = (interval.end_flow_index, interval.end_flow_offset)
+        if start <= coordinate < end:
+            return interval.section_path
+    return ()
+
+
+def _validate_section_intervals(
+    document: PdfReadingDocument,
+    intervals: tuple[PdfSectionInterval, ...],
+) -> None:
+    previous_end: tuple[int, int] | None = None
+    for interval in intervals:
+        if interval.book_path != document.book_path:
+            message = "PDF section interval must match its reading document"
+            raise ValueError(message)
+        start = (interval.start_flow_index, interval.start_flow_offset)
+        end = (interval.end_flow_index, interval.end_flow_offset)
+        if not start < end:
+            message = "PDF section interval must have a positive range"
+            raise ValueError(message)
+        if not (
+            0 <= interval.start_flow_index < len(document.reading_flows)
+            and 0 <= interval.end_flow_index < len(document.reading_flows)
+        ):
+            message = "PDF section interval flow index is outside the document"
+            raise ValueError(message)
+        start_flow = document.reading_flows[interval.start_flow_index]
+        end_flow = document.reading_flows[interval.end_flow_index]
+        if not (
+            0 <= interval.start_flow_offset < len(start_flow.text)
+            and 0 <= interval.end_flow_offset <= len(end_flow.text)
+        ):
+            message = "PDF section interval offset is outside its reading flow"
+            raise ValueError(message)
+        if previous_end is not None and start < previous_end:
+            message = "PDF section intervals must not overlap"
+            raise ValueError(message)
+        previous_end = end
 
 
 def _select_boundary(

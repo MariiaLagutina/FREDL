@@ -16,6 +16,10 @@ from src.ingestion.pdf.chunks import (
     PdfChunkPageSpan,
 )
 from src.ingestion.pdf.chunker import chunk_pdf_reading_document
+from src.ingestion.pdf.index_records import (
+    build_pdf_index_records,
+    PdfIndexRecord,
+)
 from src.ingestion.pdf.layout import (
     extract_pdf_text_layout,
     PdfTextFragment,
@@ -37,6 +41,12 @@ from src.ingestion.pdf.planning import PdfBookPagePlan, plan_pdf_pages
 from src.ingestion.pdf.reading_text import (
     build_pdf_reading_pages,
     PdfReadingPage,
+)
+from src.ingestion.pdf.sections import (
+    build_pdf_section_intervals,
+    map_pdf_section_boundaries,
+    PdfSectionBoundary,
+    PdfSectionInterval,
 )
 from src.ingestion.pdf.reading_flow import (
     build_pdf_reading_flows,
@@ -67,6 +77,7 @@ __all__ = [
     "PdfChunk",
     "PdfChunkPageJoin",
     "PdfChunkPageSpan",
+    "PdfIndexRecord",
     "PdfMarginLocation",
     "PdfMarginPattern",
     "PdfPage",
@@ -79,12 +90,16 @@ __all__ = [
     "PdfReadingFlow",
     "PdfReadingDocument",
     "PdfReadingPageSpan",
+    "PdfSectionBoundary",
+    "PdfSectionInterval",
     "PdfTextFragment",
     "PdfTextFlow",
     "PdfTextLayout",
     "assess_pdf_page",
     "build_book_card",
     "build_pdf_text_flows",
+    "build_pdf_index_records",
+    "build_pdf_section_intervals",
     "chunk_pdf_reading_document",
     "build_pdf_reading_pages",
     "build_pdf_reading_flows",
@@ -94,6 +109,7 @@ __all__ = [
     "find_margin_fragment_indexes",
     "find_repeated_margin_patterns",
     "make_pdf_chunk",
+    "map_pdf_section_boundaries",
     "plan_pdf_pages",
     "prepare_pdf_reading_document",
     "read_pdf_identity",

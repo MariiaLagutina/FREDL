@@ -42,6 +42,7 @@ class PdfChunk:
     text: str
     page_spans: tuple[PdfChunkPageSpan, ...]
     page_joins: tuple[PdfChunkPageJoin, ...]
+    section_path: tuple[str, ...] = ()
 
     @property
     def first_page_number(self) -> int:
@@ -59,6 +60,8 @@ def make_pdf_chunk(
     flow_index: int,
     start: int,
     end: int,
+    *,
+    section_path: tuple[str, ...] = (),
 ) -> PdfChunk:
     """Create one chunk from a half-open reading-flow range."""
     if flow_index < 0:
@@ -75,6 +78,12 @@ def make_pdf_chunk(
     if not text.strip():
         message = "PDF chunk must contain non-whitespace text"
         raise ValueError(message)
+    if not isinstance(section_path, tuple) or any(
+        not isinstance(title, str) or not title.strip()
+        for title in section_path
+    ):
+        message = "PDF chunk section path must contain non-empty titles"
+        raise ValueError(message)
 
     page_spans = _chunk_page_spans(flow, start, end)
     if not page_spans:
@@ -90,6 +99,7 @@ def make_pdf_chunk(
         text=text,
         page_spans=page_spans,
         page_joins=_chunk_page_joins(flow, start, end),
+        section_path=section_path,
     )
 
 
