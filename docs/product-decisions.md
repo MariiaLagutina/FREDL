@@ -92,12 +92,24 @@ passages mentioned React but did not discuss Vue or provide a comparison. The
 model treated topic overlap as evidence for a relationship the book did not
 state.
 
+Qwen3-4B, quantized to Q4_K_M and served locally through llama.cpp, was then
+tested against the same frozen cases, retrieved context, and prompt. Its own
+binary decision classified all 16 cases correctly, including the React/Vue
+hard negative. It also classified all 17 cases of a second golden-set version
+correctly, including a new hard negative that Qwen3-1.7B accepted.
+
 ### Decision
 
 - Keep retrieval ranking separate from answerability. A high similarity score
   does not prove that a passage answers the question.
-- Use Qwen3-1.7B as the current local experimental answerability model. It is
-  an evaluated baseline, not a production guarantee.
+- Use Qwen3-4B Q4_K_M as the current local experimental answerability model.
+  It is an evaluated baseline, not a production guarantee. Qwen3-1.7B remains
+  the previous baseline for comparison.
+- Keep the llama.cpp runtime outside FREDL dependencies during this
+  experiment. Adding a model runtime or adapter remains a separate decision.
+- Run the answerability baseline with thinking disabled. Use thinking mode
+  only as a diagnostic to inspect why the model reached a decision on a
+  doubtful case, not as the evaluated configuration.
 - Treat both complete and partial source support as answerable. A partial
   answer must preserve its limitation instead of becoming a full claim.
 - Return `not found` when passages contain only related terms without the
@@ -123,8 +135,53 @@ negative example did not change the remaining React/Vue error. The model still
 treated two parallel framework examples as evidence for a comparative claim.
 Further prompt tuning on this single case was rejected as golden-set overfit.
 
-The model remains insufficiently validated for automatic production refusal
-because the dataset contains only four negative cases from one book.
+With Qwen3-4B Q4_K_M, prompt `pdf-answerability-v1`, temperature 0, thinking
+disabled, and a 16K context, the experiment reached 100% accuracy, 100%
+answerable acceptance, and 100% not-found rejection, with no false refusals or
+false acceptances. The decision was recorded separately for the model, the
+deterministic comparison-subject guard, and the comparison verifier. The
+model's own decision was already correct for every case; the guard and the
+verifier did not change any result. Two consecutive runs produced identical
+context and decisions. All 16 cases took about 42 seconds on a 6 GB GPU.
+
+A second golden-set version keeps the 16 original cases unchanged and adds one
+hard negative: it asks what a Dockerfile for the book's Express backend should
+contain. Docker, containers, Express, and production deployment all occur in
+the book, but only for agent sandboxes, backend scaffolding, and general
+deployment practice. The label was fixed before any model run. On this
+17-case version with five unsupported questions, Qwen3-4B Q4_K_M again reached
+100% accuracy with no false refusals or false acceptances, reproduced in two
+runs. Qwen3-1.7B, given the identical context, accepted the new hard negative
+in two of two runs.
+
+The first formulation of the new case was withdrawn because of a labelling
+error. It asked how much AI speeds up senior, mid-level, and junior
+developers and was labelled unsupported. A diagnostic run with thinking
+enabled exposed a passage the pre-run review had missed: a junior example in
+which an endpoint taking a day drops to about an hour. The thinking run itself
+still answered `NOT_FOUND` because it misread that example as not tied to a
+level, so the reasoning was useful for review, not as a decision. The case
+would have been partially answerable, so the model without thinking had
+accepted it correctly. The case was replaced before it was used as evidence,
+and the withdrawal is recorded with the private evaluation data. Labels are
+now reviewed by reading the relevant sections in full rather than by
+searching for figure patterns alone.
+
+On the replacement case, thinking mode also returned `NOT_FOUND`, and its
+reasoning found no Dockerfile content in any retrieved passage. Thinking
+generated about 340 tokens for this decision instead of a single label, and
+its reasoning length varied between runs at temperature 0 in an earlier
+diagnostic. The model reached the same decision without thinking, which
+supports keeping thinking disabled in the baseline.
+
+The 1.7B and 4B results differ in both model size and runtime: the 1.7B model
+ran through Transformers, and the 4B model ran quantized through llama.cpp.
+The comparison therefore shows a better configuration, not an isolated
+effect of model size.
+
+Neither model is validated for automatic production refusal because the
+dataset contains only five negative cases from one book. A perfect score on
+this set is not evidence of general reliability.
 
 ### Consequences
 
@@ -142,4 +199,5 @@ Revisit the model choice or decision rule after the evaluation includes more
 books, more unsupported relationships, tables and figures, or when a different
 local model materially improves not-found rejection without increasing false
 refusals. A larger model should be tested only against the same frozen cases
-and reported with both error types.
+and reported with both error types. Revisit the runtime boundary before any
+production answerability stage depends on llama.cpp.
