@@ -9,10 +9,10 @@ after the idea was used in practice.
 
 > [!IMPORTANT]
 > FREDL is at an early research and development stage. A manual prototype under
-> founder-led testing, a verified retrieval foundation, and a local PDF
-> ingestion pipeline exist today. The PDF pipeline is being evaluated on the
-> founder's private technical library; broader PDF support, the production
-> frontend, and the learning-memory system are not finished product features.
+> founder-led testing, a verified retrieval foundation, a local PDF ingestion
+> pipeline, and a first PDF evaluation exist today. The evaluation covers one
+> private technical book; broader PDF support, the production frontend, and the
+> learning-memory system are not finished product features.
 
 ## Why FREDL
 
@@ -137,7 +137,9 @@ carrying forward.
 | Code and Markdown ingestion | Implemented |
 | PDF ingestion and page provenance | Implemented for the active text-based technical PDF; broader document classes remain unverified |
 | PDF section-aware chunking | Implemented with verified headings, bounded chunks, and exact physical-page provenance |
-| PDF retrieval evaluation | Golden questions and relevance evidence are the next active step |
+| PDF retrieval evaluation | First version complete on one private book: golden questions, passage relevance labels, and lexical, semantic, and hybrid baselines |
+| Answerability check | Experimental; evaluated with a local model, not yet part of a reading flow |
+| Multi-book PDF evaluation | Next active step |
 | Production frontend | Not implemented |
 | Learning-memory storage | Designed conceptually; not implemented |
 | Adaptive resurfacing | Research hypothesis; not implemented |
@@ -170,7 +172,9 @@ external model.
 | PDF provenance | Reading-flow ranges plus exact source ranges on every contributing physical page |
 | PDF index records | Index-neutral local records with text and structural metadata kept separate |
 | Optional semantic search | Pinned CPU MiniLM embeddings |
-| Optional hybrid search | Weighted Reciprocal Rank Fusion for documentation |
+| Optional hybrid search | Weighted Reciprocal Rank Fusion for documentation and PDF records |
+| PDF evaluation | Validated private golden sets, versioned relevance judgments, evidence-unit coverage, and adjacent same-section context |
+| Answerability experiment | Binary `ANSWERABLE` / `NOT_FOUND` decision with false refusals and false acceptances reported separately |
 | Answer generation | Replaceable local model backend with citation validation |
 | Interfaces | Python Fire CLI and local FastAPI server |
 | Persistence | Corpus, pipeline, schema, and checksum validation |
@@ -179,11 +183,30 @@ Retrieval is evaluated separately from generation. The foundation keeps exact
 source text separate from ranking metadata, rejects stale or incompatible
 indexes, and treats an invalid generated citation as an error rather than
 presenting an unsupported answer. Its earlier benchmark results are not used as
-evidence for PDF quality. The active PDF work has verified deterministic text
-preparation, section boundaries, chunk provenance, and index-record creation on
-one private technical book. Retrieval quality still requires golden questions,
-passage-level relevance labels, and separate lexical, semantic, and hybrid
-measurements.
+evidence for PDF quality.
+
+### First PDF evaluation
+
+The first PDF evaluation uses one private technical book and 17 real
+questions: 10 completely answerable, two partially answerable, and five hard
+negatives whose terms appear in the book without supporting the requested
+answer. Questions, labels, and book text stay outside the repository.
+
+- Retrieval alone cannot refuse. On the first 16 questions, BM25 and MiniLM
+  each found 60.4% of required passages in the top five on average;
+  equal-weight hybrid fusion found 77.1%. With adjacent same-section context,
+  hybrid retrieval covered every labelled evidence item for the answerable
+  questions. No similarity score separated answerable questions from hard
+  negatives.
+- A separate answerability check therefore decides whether retrieved passages
+  actually support an answer. A local Qwen3-4B model (Q4 quantization, run
+  through llama.cpp outside FREDL's dependencies) classified all 17 cases
+  correctly. Qwen3-1.7B, given the same context, accepted two of the five
+  hard negatives as answerable.
+- These results come from one book and five negatives. They select an
+  experimental baseline; they do not establish general reliability. The
+  reasoning and limits are recorded in
+  [PD-002](docs/product-decisions.md#pd-002-require-direct-evidence-before-treating-retrieval-as-an-answer).
 
 ## Product Principles
 
@@ -208,14 +231,17 @@ measurements.
 
 The next work is deliberately narrower than the complete product vision.
 
-### 1. Evaluate retrieval on trustworthy PDF evidence
+### 1. Test the PDF pipeline on a wider library
 
-- build a golden evaluation set from real questions about the founder's books;
-- mark required, supporting, and irrelevant passages against stable PDF source
-  coordinates;
-- verify that retrieved chunks return the reader to the correct physical page;
-- measure lexical, semantic, and hybrid retrieval instead of assuming a winner.
-- expose extraction and retrieval failures instead of hiding them.
+The first single-book evaluation is complete. The next step widens the
+evidence before the pipeline becomes a product feature:
+
+- add several more books with different layouts to the private library;
+- run extraction, outline matching, chunking, and retrieval on them and expose
+  the failures instead of hiding them;
+- fix the code paths those books reveal;
+- build the next golden set from questions across several books, so retrieval
+  and answerability are measured on more than one source.
 
 Support for columns, tables, formulas, code-heavy layouts, and scanned pages
 will be expanded only after representative examples are added and evaluated.
@@ -282,7 +308,7 @@ make clean        # remove local Python check caches
 
 ## Verification
 
-The current repository contains **670 automated tests**. It is checked with:
+The current repository contains **725 automated tests**. It is checked with:
 
 ```text
 make test
