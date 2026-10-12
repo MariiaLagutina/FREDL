@@ -3,9 +3,16 @@
 import pytest
 
 from src.ingestion.pdf.chunker import chunk_pdf_reading_document
+from src.ingestion.pdf.headings import PdfHeadingMatch, PdfHeadingStatus
+from src.ingestion.pdf.outline import PdfOutlineEntry
 from src.ingestion.pdf.reading_document import PdfReadingDocument
 from src.ingestion.pdf.reading_flow import build_pdf_reading_flows
 from src.ingestion.pdf.reading_text import PdfReadingPage
+from src.ingestion.pdf.sections import (
+    build_pdf_section_intervals,
+    map_pdf_section_boundaries,
+    PdfSectionInterval,
+)
 
 
 def _document(*page_texts: str) -> PdfReadingDocument:
@@ -25,6 +32,32 @@ def _document(*page_texts: str) -> PdfReadingDocument:
         margin_patterns=(),
         reading_pages=reading_pages,
         reading_flows=build_pdf_reading_flows(reading_pages),
+    )
+
+
+def _section_intervals(
+    document: PdfReadingDocument,
+    headings: tuple[
+        tuple[str, tuple[str, ...], int, int, int],
+        ...,
+    ],
+) -> tuple[PdfSectionInterval, ...]:
+    matches = tuple(
+        PdfHeadingMatch(
+            entry=PdfOutlineEntry(title, section_path, page_number),
+            status=PdfHeadingStatus.MATCHED,
+            source_start=start,
+            source_end=end,
+        )
+        for title, section_path, page_number, start, end in headings
+    )
+    boundaries = map_pdf_section_boundaries(
+        matches,
+        document.reading_flows,
+    )
+    return build_pdf_section_intervals(
+        boundaries,
+        document.reading_flows,
     )
 
 
@@ -96,6 +129,67 @@ def test_chunk_ids_remain_stable_for_repeated_runs() -> None:
 
     assert tuple(chunk.chunk_id for chunk in first) == tuple(
         chunk.chunk_id for chunk in second
+    )
+
+
+def test_section_starts_force_chunk_boundaries_and_assign_paths() -> None:
+    text = "Front matter. Heading\nShort section. Next\nOther."
+    document = _document(text)
+    intervals = _section_intervals(
+        document,
+        (
+            (
+                "Heading",
+                ("Chapter", "Heading"),
+                1,
+                text.index("Heading"),
+                text.index("Heading") + len("Heading"),
+            ),
+            (
+                "Next",
+                ("Chapter", "Next"),
+                1,
+                text.index("Next"),
+                text.index("Next") + len("Next"),
+            ),
+        ),
+    )
+
+    chunks = chunk_pdf_reading_document(
+        document,
+        section_intervals=intervals,
+        max_chunk_size=100,
+        min_chunk_size=50,
+    )
+
+    assert tuple(chunk.text for chunk in chunks) == (
+        "Front matter. ",
+        "Heading\nShort section. ",
+        "Next\nOther.",
+    )
+    assert tuple(chunk.section_path for chunk in chunks) == (
+        (),
+        ("Chapter", "Heading"),
+        ("Chapter", "Next"),
+    )
+
+
+def test_section_path_continues_across_empty_page_and_flows() -> None:
+    document = _document("Heading and text.", "", "Continued text.")
+    intervals = _section_intervals(
+        document,
+        (("Heading", ("Chapter", "Heading"), 1, 0, 7),),
+    )
+
+    chunks = chunk_pdf_reading_document(
+        document,
+        section_intervals=intervals,
+    )
+
+    assert len(chunks) == 2
+    assert all(
+        chunk.section_path == ("Chapter", "Heading")
+        for chunk in chunks
     )
 
 
