@@ -1,7 +1,10 @@
 """PDF-specific ingestion utilities."""
 
 from src.ingestion.pdf.headings import (
-    match_pdf_headings, PdfHeadingMatch, PdfHeadingStatus,
+    match_pdf_headings,
+    PdfHeadingMatch,
+    PdfHeadingPageSource,
+    PdfHeadingStatus,
 )
 from src.ingestion.pdf.assessment import (
     assess_pdf_page,
@@ -38,6 +41,13 @@ from src.ingestion.pdf.pages import (
     PdfPage,
 )
 from src.ingestion.pdf.planning import PdfBookPagePlan, plan_pdf_pages
+from src.ingestion.pdf.reliability import (
+    assess_pdf_reliability,
+    PdfExtractionSupport,
+    PdfReliabilityReport,
+    PdfStructureFinding,
+    PdfStructureKind,
+)
 from src.ingestion.pdf.reading_text import (
     build_pdf_reading_pages,
     PdfReadingPage,
@@ -68,6 +78,7 @@ from src.ingestion.pdf.text_flow import (
 __all__ = [
     "match_pdf_headings",
     "PdfHeadingMatch",
+    "PdfHeadingPageSource",
     "PdfHeadingStatus",
     "BookCard",
     "PdfBookIdentity",
@@ -81,6 +92,10 @@ __all__ = [
     "PdfMarginLocation",
     "PdfMarginPattern",
     "PdfPage",
+    "PdfExtractionSupport",
+    "PdfReliabilityReport",
+    "PdfStructureFinding",
+    "PdfStructureKind",
     "PdfPageAssessment",
     "PdfPageContentKind",
     "PdfPageJoin",
@@ -96,6 +111,7 @@ __all__ = [
     "PdfTextFlow",
     "PdfTextLayout",
     "assess_pdf_page",
+    "assess_pdf_reliability",
     "build_book_card",
     "build_pdf_text_flows",
     "build_pdf_index_records",

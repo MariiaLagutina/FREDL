@@ -1,6 +1,6 @@
 """Locate outline title candidates without guessing semantic boundaries."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 import re
 import statistics
@@ -20,6 +20,21 @@ class PdfHeadingStatus(str, Enum):
     NOT_FOUND = "not_found"
     AMBIGUOUS = "ambiguous"
     PAGE_UNAVAILABLE = "page_unavailable"
+
+
+class PdfHeadingPageSource(str, Enum):
+    """Explain which evidence selected the page of a matched heading.
+
+    DESTINATION uses the outline destination page. FOLLOWING_PAGE uses the
+    next page after the destination was shown to lie below all page text.
+    TEXT_SEARCH is used only when the outline has no destination: the title
+    was found as a display-font heading whose position agrees with the
+    outline order of every other located heading.
+    """
+
+    DESTINATION = "destination"
+    FOLLOWING_PAGE = "following_page"
+    TEXT_SEARCH = "text_search"
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +57,7 @@ class PdfHeadingMatch:
     # The offsets cover the first part of a heading that is completed by
     # the first lines of the next physical page.
     continues_on_next_page: bool = False
+    page_source: PdfHeadingPageSource = PdfHeadingPageSource.DESTINATION
 
     @property
     def heading_page_number(self) -> int | None:
@@ -116,7 +132,211 @@ def match_pdf_headings(
                 or result
             )
         results.append(result)
+    if physical_pages:
+        _search_headings_without_destination(
+            results, pages, physical_by_number, body_size,
+        )
     return tuple(results)
+
+
+def _search_headings_without_destination(
+    results: list[PdfHeadingMatch],
+    pages: tuple[PdfReadingPage, ...],
+    physical_by_number: dict[int, PdfPage],
+    body_size: float | None,
+) -> None:
+    """Locate outline entries that have no destination, in place.
+
+    A candidate is a complete-line title opening with a display-font
+    fragment. The outline order never creates a candidate; it only chooses
+    among verified candidates. A single candidate is accepted when its
+    position agrees with every other located heading. Repeated titles are
+    accepted only when exactly one candidate lies between the nearest
+    located headings before and after them and that choice agrees with all
+    choices made in the same round. Everything else stays unresolved with
+    no page.
+    """
+    searchable = [
+        index for index, result in enumerate(results)
+        if result.status is PdfHeadingStatus.PAGE_UNAVAILABLE
+        and result.entry.page_number is None
+    ]
+    if not searchable:
+        return
+    compact_pages = tuple(
+        (page, _compact(page.reading_text)) for page in pages
+    )
+    candidates = {
+        index: _display_heading_candidates(
+            results[index].entry, compact_pages, physical_by_number,
+            body_size,
+        )
+        for index in searchable
+    }
+    located: dict[int, tuple[int, int]] = {
+        index: _match_position(result)
+        for index, result in enumerate(results)
+        if result.status is PdfHeadingStatus.MATCHED
+    }
+    unique = {
+        index: options[0]
+        for index, options in candidates.items()
+        if len(options) == 1
+    }
+    accepted = {
+        index: match
+        for index, match in unique.items()
+        if _agrees_with_order(
+            index,
+            _match_position(match),
+            located
+            | {
+                other: _match_position(other_match)
+                for other, other_match in unique.items()
+                if other != index
+            },
+        )
+    }
+    located.update(
+        (index, _match_position(match)) for index, match in accepted.items()
+    )
+    pending = {
+        index: options
+        for index, options in candidates.items()
+        if len(options) > 1
+    }
+    while True:
+        # Every round proposes against the same located set, so a choice
+        # never depends on processing order. Proposals that disagree with
+        # each other are all rejected and stay unresolved.
+        proposals = {}
+        for index, options in pending.items():
+            between = [
+                option for option in options
+                if _agrees_with_order(index, _match_position(option), located)
+            ]
+            if len(between) == 1:
+                proposals[index] = between[0]
+        consistent = {
+            index: match
+            for index, match in proposals.items()
+            if _agrees_with_order(
+                index,
+                _match_position(match),
+                {
+                    other: _match_position(other_match)
+                    for other, other_match in proposals.items()
+                    if other != index
+                },
+            )
+        }
+        if not consistent:
+            break
+        for index, match in consistent.items():
+            accepted[index] = match
+            located[index] = _match_position(match)
+            del pending[index]
+
+    for index in searchable:
+        if index in accepted:
+            results[index] = accepted[index]
+        elif candidates[index]:
+            results[index] = PdfHeadingMatch(
+                results[index].entry, PdfHeadingStatus.AMBIGUOUS,
+            )
+        else:
+            results[index] = PdfHeadingMatch(
+                results[index].entry, PdfHeadingStatus.NOT_FOUND,
+            )
+
+
+def _display_heading_candidates(
+    entry: PdfOutlineEntry,
+    compact_pages: tuple[tuple[PdfReadingPage, str], ...],
+    physical_by_number: dict[int, PdfPage],
+    body_size: float | None,
+) -> tuple[PdfHeadingMatch, ...]:
+    """Return every page where the title is a display-font heading."""
+    # A necessary condition only: every accepted heading contains its
+    # title core once whitespace is ignored.
+    core = _compact(re.sub(
+        r"^(?:(?:Chapter|Part) \S+|[0-9]+)\.\s+", "", entry.title,
+    ))
+    candidates = []
+    for page, compact_text in compact_pages:
+        physical = physical_by_number.get(page.page_number)
+        if physical is None or core not in compact_text:
+            continue
+        match = _match_on_page(
+            replace(entry, page_number=page.page_number),
+            page,
+            physical,
+            body_size,
+        )
+        if (
+            match.status is not PdfHeadingStatus.MATCHED
+            or match.source_start is None
+            or match.source_end is None
+            or not _opens_with_display_fragment(
+                physical,
+                page.reading_text[match.source_start:match.source_end],
+                body_size,
+            )
+        ):
+            continue
+        candidates.append(replace(
+            match,
+            entry=entry,
+            page_source=PdfHeadingPageSource.TEXT_SEARCH,
+        ))
+    return tuple(candidates)
+
+
+def _compact(text: str) -> str:
+    """Normalize text for a whitespace-insensitive containment check."""
+    return "".join(unicodedata.normalize("NFKC", text).casefold().split())
+
+
+def _opens_with_display_fragment(
+    page: PdfPage,
+    heading: str,
+    body_size: float | None,
+) -> bool:
+    """Require the heading text to begin with a display-font fragment."""
+    if body_size is None:
+        return False
+    normalized_heading = " ".join(heading.split()).casefold()
+    for fragment in page.text_fragments:
+        normalized = " ".join(fragment.text.split()).casefold()
+        if (
+            len(normalized) >= 3
+            and fragment.font_size > body_size
+            and normalized_heading.startswith(normalized)
+        ):
+            return True
+    return False
+
+
+def _match_position(match: PdfHeadingMatch) -> tuple[int, int]:
+    """Return a matched heading's physical page and page offset."""
+    page_number = match.heading_page_number
+    if page_number is None or match.source_start is None:
+        raise ValueError("Located PDF heading must have exact coordinates")
+    return page_number, match.source_start
+
+
+def _agrees_with_order(
+    index: int,
+    position: tuple[int, int],
+    located: dict[int, tuple[int, int]],
+) -> bool:
+    """Require a position strictly between earlier and later outline items."""
+    return all(
+        (other < index and other_position < position)
+        or (other > index and other_position > position)
+        for other, other_position in located.items()
+        if other != index
+    )
 
 
 def _match_on_page(
@@ -299,7 +519,7 @@ def _match_displaced_heading(
         )
     ):
         return None
-    return match
+    return replace(match, page_source=PdfHeadingPageSource.FOLLOWING_PAGE)
 
 
 def _match_page_split_heading(

@@ -8,7 +8,11 @@ from src.ingestion.pdf.reading_flow import PdfReadingFlow
 
 
 UNRESOLVED_HEADING_STATUSES: frozenset[PdfHeadingStatus] = frozenset(
-    {PdfHeadingStatus.NOT_FOUND, PdfHeadingStatus.AMBIGUOUS}
+    {
+        PdfHeadingStatus.NOT_FOUND,
+        PdfHeadingStatus.AMBIGUOUS,
+        PdfHeadingStatus.PAGE_UNAVAILABLE,
+    }
 )
 
 
@@ -165,20 +169,60 @@ def _unresolved_boundary(
 ) -> PdfSectionBoundary | None:
     """Close the previous section where an unverified heading may start.
 
-    The exact heading position is unknown, so the boundary is placed at
-    the start of its destination text page, or right after the previous
-    verified heading when that heading is on the same page.
+    With a destination page, the boundary is placed at the start of that
+    text page, or right after the previous verified heading when that
+    heading is on the same page. Without a usable destination the heading
+    may start anywhere after the previous verified heading, so the boundary
+    follows that heading directly.
     """
     destination = match.entry.page_number
-    if destination is None:
-        return None
-    page_number = next(
-        (number for number in sorted(page_locations) if number >= destination),
-        None,
+    page_number = (
+        next(
+            (
+                number for number in sorted(page_locations)
+                if number >= destination
+            ),
+            None,
+        )
+        if destination is not None
+        else None
     )
     if page_number is None:
+        position = _position_after(last_verified, flows)
+    else:
+        position = _destination_position(
+            page_locations[page_number], page_number, flows, last_verified,
+        )
+    if position is None:
         return None
-    location = page_locations[page_number]
+    flow_index, flow_offset, boundary_page, source_offset = position
+    verified_path = _common_prefix(
+        last_verified.section_path if last_verified else (),
+        match.entry.section_path,
+    )
+    return PdfSectionBoundary(
+        book_path=flows[flow_index].book_path,
+        title=match.entry.title,
+        section_path=verified_path,
+        page_number=boundary_page,
+        page_source_start=source_offset,
+        page_source_end=source_offset,
+        flow_index=flow_index,
+        flow_start=flow_offset,
+        flow_end=flow_offset,
+        resolution=PdfSectionResolution.UNRESOLVED,
+        outline_hint=match.entry.section_path,
+        unresolved_reason=match.status,
+    )
+
+
+def _destination_position(
+    location: "_FlowPageLocation",
+    page_number: int,
+    flows: tuple[PdfReadingFlow, ...],
+    last_verified: PdfSectionBoundary | None,
+) -> tuple[int, int, int, int] | None:
+    """Return the start of a destination page, after any earlier heading."""
     if last_verified is not None and (
         last_verified.flow_index > location.flow_index
     ):
@@ -197,23 +241,36 @@ def _unresolved_boundary(
         # The previous verified heading ends on a later page; the order of
         # the outline and the pages disagree, so no boundary is invented.
         return None
-    verified_path = _common_prefix(
-        last_verified.section_path if last_verified else (),
-        match.entry.section_path,
+    return location.flow_index, flow_offset, page_number, source_offset
+
+
+def _position_after(
+    last_verified: PdfSectionBoundary | None,
+    flows: tuple[PdfReadingFlow, ...],
+) -> tuple[int, int, int, int] | None:
+    """Return the first reading position after the last verified heading."""
+    if last_verified is None:
+        return None
+    flow_index = last_verified.flow_index
+    flow_offset = last_verified.flow_end
+    if flow_offset >= len(flows[flow_index].text):
+        if flow_index + 1 >= len(flows):
+            return None
+        flow_index, flow_offset = flow_index + 1, 0
+    for span in flows[flow_index].page_spans:
+        if span.flow_start <= flow_offset < span.flow_end:
+            source_offset = span.source_start + flow_offset - span.flow_start
+            return flow_index, flow_offset, span.page_number, source_offset
+    # The offset is a page-join space; the next page starts the position.
+    following = next(
+        span for span in flows[flow_index].page_spans
+        if span.flow_start > flow_offset
     )
-    return PdfSectionBoundary(
-        book_path=flows[location.flow_index].book_path,
-        title=match.entry.title,
-        section_path=verified_path,
-        page_number=page_number,
-        page_source_start=source_offset,
-        page_source_end=source_offset,
-        flow_index=location.flow_index,
-        flow_start=flow_offset,
-        flow_end=flow_offset,
-        resolution=PdfSectionResolution.UNRESOLVED,
-        outline_hint=match.entry.section_path,
-        unresolved_reason=match.status,
+    return (
+        flow_index,
+        following.flow_start,
+        following.page_number,
+        following.source_start,
     )
 
 

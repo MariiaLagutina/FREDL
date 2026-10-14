@@ -1,9 +1,13 @@
 """Preserve positioned PDF text fragments for later layout analysis."""
 
 from dataclasses import dataclass
+from typing import cast
 
 from pypdf import PageObject
-from pypdf.generic import DictionaryObject
+from pypdf.generic import ArrayObject, DictionaryObject
+
+
+MIN_UNIFORM_GLYPHS = 10
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,6 +25,9 @@ class PdfTextFragment:
     font_name: str | None = None
     font_weight: float | None = None
     font_flags: int | None = None
+    # Shared glyph advance in em when every declared glyph width is equal,
+    # which identifies a monospaced font independently of its name.
+    uniform_advance: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +57,7 @@ def extract_pdf_text_layout(page: PageObject) -> PdfTextLayout:
             text_matrix,
         )
         font_name, font_weight, font_flags = _font_metadata(font_dictionary)
+        uniform_advance = _uniform_advance(font_dictionary)
         fragments.append(
             PdfTextFragment(
                 text=text,
@@ -63,6 +71,7 @@ def extract_pdf_text_layout(page: PageObject) -> PdfTextLayout:
                 font_name=font_name,
                 font_weight=font_weight,
                 font_flags=font_flags,
+                uniform_advance=uniform_advance,
             )
         )
 
@@ -120,3 +129,56 @@ def _font_metadata(
         float(weight) if weight is not None else None,
         int(flags) if flags is not None else None,
     )
+
+
+def _uniform_advance(font: object) -> float | None:
+    """Return the em advance shared by every declared glyph, if any.
+
+    Simple fonts declare /Widths; Type 0 fonts declare /W on a descendant,
+    either as `first [w1 w2 ...]` or `first last w`. Zero widths belong to
+    unused codes and are ignored. Missing widths remain unknown.
+    """
+    if not isinstance(font, DictionaryObject):
+        return None
+    widths: list[float] = []
+    simple_widths = font.get("/Widths")
+    if simple_widths is not None:
+        widths.extend(float(width) for width in simple_widths.get_object())
+    descendants = font.get("/DescendantFonts")
+    if descendants is not None:
+        descendants = descendants.get_object()
+        if descendants:
+            descendant = descendants[0].get_object()
+            widths.extend(_cid_widths(descendant.get("/W")))
+    declared = [round(width, 3) for width in widths if width]
+    # A subset with a handful of glyphs is not evidence of a fixed pitch.
+    if len(declared) < MIN_UNIFORM_GLYPHS or len(set(declared)) != 1:
+        return None
+    return declared[0] / 1000
+
+
+def _cid_widths(declaration: object) -> list[float]:
+    """Flatten a Type 0 /W width declaration into its width values."""
+    if declaration is None:
+        return []
+    resolved = cast(DictionaryObject, declaration).get_object()
+    if not isinstance(resolved, ArrayObject):
+        return []
+    items = list(resolved)
+    widths: list[float] = []
+    index = 0
+    while index < len(items):
+        following = items[index + 1].get_object() if index + 1 < len(
+            items
+        ) else None
+        if isinstance(following, list):
+            widths.extend(float(width) for width in following)
+            index += 2
+        else:
+            if index + 2 >= len(items):
+                break
+            first = int(cast(float, items[index]))
+            last = int(cast(float, following))
+            widths.extend([float(items[index + 2])] * (last - first + 1))
+            index += 3
+    return widths

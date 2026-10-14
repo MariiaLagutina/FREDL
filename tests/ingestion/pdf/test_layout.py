@@ -6,11 +6,16 @@ from pypdf.generic import (
     ArrayObject,
     DecodedStreamObject,
     DictionaryObject,
+    FloatObject,
     NameObject,
     NumberObject,
 )
 
-from src.ingestion.pdf.layout import _font_metadata, extract_pdf_text_layout
+from src.ingestion.pdf.layout import (
+    _font_metadata,
+    _uniform_advance,
+    extract_pdf_text_layout,
+)
 
 
 def test_extraction_preserves_font_facts_and_text() -> None:
@@ -75,3 +80,56 @@ def test_font_name_does_not_invent_weight() -> None:
     })
 
     assert _font_metadata(font) == ("/Helvetica-Bold", None, None)
+
+
+def _widths(*values: float) -> ArrayObject:
+    return ArrayObject(FloatObject(value) for value in values)
+
+
+@pytest.mark.parametrize(
+    ("font", "expected"),
+    [
+        (DictionaryObject({NameObject("/Widths"): _widths(*[600] * 12)}),
+         0.6),
+        (DictionaryObject({NameObject("/Widths"): _widths(*[0, 500] * 12)}),
+         0.5),
+        (DictionaryObject({NameObject("/Widths"): _widths(*[600] * 11, 500)}),
+         None),
+        (DictionaryObject({NameObject("/Widths"): _widths(*[600] * 3)}),
+         None),
+        (DictionaryObject(), None),
+        (None, None),
+    ],
+)
+def test_uniform_advance_requires_equal_declared_widths(
+    font: object,
+    expected: float | None,
+) -> None:
+    assert _uniform_advance(font) == expected
+
+
+@pytest.mark.parametrize(
+    ("declaration", "expected"),
+    [
+        (ArrayObject([NumberObject(0), NumberObject(94),
+                      FloatObject(600.09766)]), 0.6001),
+        (ArrayObject([NumberObject(3), _widths(*[500] * 10)]), 0.5),
+        (ArrayObject([NumberObject(3), _widths(*[500] * 9, 278)]), None),
+    ],
+)
+def test_uniform_advance_reads_type0_width_ranges(
+    declaration: ArrayObject,
+    expected: float | None,
+) -> None:
+    font = DictionaryObject({
+        NameObject("/DescendantFonts"): ArrayObject([
+            DictionaryObject({NameObject("/W"): declaration}),
+        ]),
+    })
+
+    advance = _uniform_advance(font)
+
+    if expected is None:
+        assert advance is None
+    else:
+        assert advance == pytest.approx(expected, abs=1e-4)

@@ -1,6 +1,10 @@
 """Verify heading conventions accepted only with layout evidence."""
 
-from src.ingestion.pdf.headings import match_pdf_headings, PdfHeadingStatus
+from src.ingestion.pdf.headings import (
+    match_pdf_headings,
+    PdfHeadingPageSource,
+    PdfHeadingStatus,
+)
 from src.ingestion.pdf.layout import PdfTextFragment
 from src.ingestion.pdf.outline import PdfOutlineEntry
 from src.ingestion.pdf.pages import PdfPage
@@ -303,3 +307,18 @@ def test_marker_in_body_font_stays_outside_heading() -> None:
 
     assert status is PdfHeadingStatus.MATCHED
     assert text == "Deployment"
+
+
+def test_displaced_heading_records_its_page_source() -> None:
+    pages = (_destination_page(420), _next_page_with_heading(), _body_page(99))
+    entry = PdfOutlineEntry(
+        "Scope of This Guide", ("Scope of This Guide",), 30, 400.0,
+    )
+
+    match = match_pdf_headings(
+        (entry,),
+        tuple(reading for reading, _ in pages),
+        physical_pages=tuple(physical for _, physical in pages),
+    )[0]
+
+    assert match.page_source is PdfHeadingPageSource.FOLLOWING_PAGE

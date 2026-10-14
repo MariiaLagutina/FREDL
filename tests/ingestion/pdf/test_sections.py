@@ -309,3 +309,25 @@ def test_rejects_section_boundary_outside_flow() -> None:
 
     with pytest.raises(ValueError, match="outside its reading flow"):
         build_pdf_section_intervals((invalid,), (flow,))
+
+
+def test_entry_without_destination_closes_section_after_its_heading(
+) -> None:
+    pages = (_page(1, "Verified\nBody text."), _page(2, "More text."))
+    flow = build_pdf_reading_flows(pages)[0]
+    matches = (
+        _entry_match(("Chapter", "Verified"), 1, (0, 8)),
+        PdfHeadingMatch(
+            PdfOutlineEntry("Lost", ("Chapter", "Lost"), None),
+            PdfHeadingStatus.PAGE_UNAVAILABLE,
+        ),
+    )
+
+    boundaries = map_pdf_section_boundaries(matches, (flow,))
+
+    assert boundaries[1].resolution is PdfSectionResolution.UNRESOLVED
+    assert boundaries[1].flow_start == 8
+    assert boundaries[1].section_path == ("Chapter",)
+    assert boundaries[1].unresolved_reason is (
+        PdfHeadingStatus.PAGE_UNAVAILABLE
+    )
