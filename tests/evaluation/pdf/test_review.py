@@ -1,5 +1,6 @@
 """Tests for private PDF evidence review reports."""
 
+from dataclasses import replace
 import json
 from pathlib import Path
 
@@ -9,7 +10,9 @@ from src.evaluation.pdf import (
     write_pdf_evidence_review,
 )
 from src.ingestion.pdf.chunks import PdfChunkPageSpan
+from src.ingestion.pdf.headings import PdfHeadingStatus
 from src.ingestion.pdf.index_records import PdfIndexRecord
+from src.ingestion.pdf.sections import PdfSectionResolution
 
 
 def _dataset() -> PdfGoldenDataset:
@@ -95,3 +98,28 @@ def test_writes_review_to_explicit_local_path(tmp_path: Path) -> None:
     assert path.read_text(encoding="utf-8").startswith(
         "# PDF evidence review: review-v1"
     )
+
+
+def test_labels_unresolved_section_as_unverified_hint() -> None:
+    record = replace(
+        _record(),
+        section_path=("Chapter 3",),
+        section_resolution=PdfSectionResolution.UNRESOLVED,
+        section_hint=("Chapter 3", "Caching"),
+        unresolved_reason=PdfHeadingStatus.NOT_FOUND,
+    )
+
+    report = render_pdf_evidence_review(_dataset(), (record,))
+
+    assert (
+        "- Section: Chapter 3 (unverified outline hint: "
+        "Chapter 3 > Caching; heading not_found)"
+    ) in report
+
+
+def test_labels_text_without_section_evidence() -> None:
+    record = replace(_record(), section_path=())
+
+    report = render_pdf_evidence_review(_dataset(), (record,))
+
+    assert "- Section: No verified section" in report

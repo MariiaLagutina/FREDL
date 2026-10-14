@@ -3,10 +3,12 @@
 from dataclasses import dataclass
 import hashlib
 
+from src.ingestion.pdf.headings import PdfHeadingStatus
 from src.ingestion.pdf.reading_flow import (
     PdfPageJoinKind,
     PdfReadingFlow,
 )
+from src.ingestion.pdf.sections import PdfSectionResolution
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +45,11 @@ class PdfChunk:
     page_spans: tuple[PdfChunkPageSpan, ...]
     page_joins: tuple[PdfChunkPageJoin, ...]
     section_path: tuple[str, ...] = ()
+    # section_path is verified evidence only. An unverified outline path is
+    # kept in section_hint and must never be shown as the chunk's section.
+    section_resolution: PdfSectionResolution = PdfSectionResolution.NONE
+    section_hint: tuple[str, ...] = ()
+    unresolved_reason: PdfHeadingStatus | None = None
 
     @property
     def first_page_number(self) -> int:
@@ -62,8 +69,15 @@ def make_pdf_chunk(
     end: int,
     *,
     section_path: tuple[str, ...] = (),
+    section_resolution: PdfSectionResolution | None = None,
+    section_hint: tuple[str, ...] = (),
+    unresolved_reason: PdfHeadingStatus | None = None,
 ) -> PdfChunk:
-    """Create one chunk from a half-open reading-flow range."""
+    """Create one chunk from a half-open reading-flow range.
+
+    Without an explicit resolution, a non-empty section path is treated as
+    verified and an empty one as having no section evidence.
+    """
     if flow_index < 0:
         message = "PDF flow index must not be negative"
         raise ValueError(message)
@@ -100,6 +114,14 @@ def make_pdf_chunk(
         page_spans=page_spans,
         page_joins=_chunk_page_joins(flow, start, end),
         section_path=section_path,
+        section_resolution=(
+            section_resolution
+            if section_resolution is not None
+            else PdfSectionResolution.VERIFIED if section_path
+            else PdfSectionResolution.NONE
+        ),
+        section_hint=section_hint,
+        unresolved_reason=unresolved_reason,
     )
 
 

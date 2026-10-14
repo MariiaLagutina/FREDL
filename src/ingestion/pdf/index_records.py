@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from typing import Literal
 
 from src.ingestion.pdf.chunks import PdfChunk, PdfChunkPageSpan
+from src.ingestion.pdf.headings import PdfHeadingStatus
+from src.ingestion.pdf.sections import PdfSectionResolution
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,6 +22,9 @@ class PdfIndexRecord:
     flow_end: int
     page_spans: tuple[PdfChunkPageSpan, ...]
     source_type: Literal["pdf"] = "pdf"
+    section_resolution: PdfSectionResolution = PdfSectionResolution.NONE
+    section_hint: tuple[str, ...] = ()
+    unresolved_reason: PdfHeadingStatus | None = None
 
     @property
     def first_page_number(self) -> int:
@@ -47,6 +52,9 @@ def build_pdf_index_records(
             flow_start=chunk.flow_start,
             flow_end=chunk.flow_end,
             page_spans=chunk.page_spans,
+            section_resolution=chunk.section_resolution,
+            section_hint=chunk.section_hint,
+            unresolved_reason=chunk.unresolved_reason,
         )
         for chunk in chunks
     )

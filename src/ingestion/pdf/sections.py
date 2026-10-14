@@ -1,14 +1,39 @@
 """Map verified PDF headings into continuous reading-flow coordinates."""
 
 from dataclasses import dataclass
+from enum import Enum
 
 from src.ingestion.pdf.headings import PdfHeadingMatch, PdfHeadingStatus
 from src.ingestion.pdf.reading_flow import PdfReadingFlow
 
 
+UNRESOLVED_HEADING_STATUSES: frozenset[PdfHeadingStatus] = frozenset(
+    {PdfHeadingStatus.NOT_FOUND, PdfHeadingStatus.AMBIGUOUS}
+)
+
+
+class PdfSectionResolution(str, Enum):
+    """Describe the evidence behind a span's section attribution.
+
+    VERIFIED spans start at a heading confirmed on the page. UNRESOLVED
+    spans follow an outline heading that could not be confirmed; only the
+    ancestors shared with the last verified heading remain verified.
+    NONE spans have no section evidence, such as text before every heading.
+    """
+
+    VERIFIED = "verified"
+    UNRESOLVED = "unresolved"
+    NONE = "none"
+
+
 @dataclass(frozen=True, slots=True)
 class PdfSectionBoundary:
-    """Locate one verified section heading in page and flow coordinates."""
+    """Locate one section start in page and flow coordinates.
+
+    section_path is always verified. For an unresolved boundary it holds
+    only the verified ancestors, the outline path is kept separately as an
+    unverified hint, and the boundary has no heading text of its own.
+    """
 
     book_path: str
     title: str
@@ -19,11 +44,14 @@ class PdfSectionBoundary:
     flow_index: int
     flow_start: int
     flow_end: int
+    resolution: PdfSectionResolution = PdfSectionResolution.VERIFIED
+    outline_hint: tuple[str, ...] = ()
+    unresolved_reason: PdfHeadingStatus | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class PdfSectionInterval:
-    """Describe content from one verified heading to the next."""
+    """Describe content from one section start to the next."""
 
     book_path: str
     title: str
@@ -34,6 +62,9 @@ class PdfSectionInterval:
     heading_end_flow_offset: int
     end_flow_index: int
     end_flow_offset: int
+    resolution: PdfSectionResolution = PdfSectionResolution.VERIFIED
+    outline_hint: tuple[str, ...] = ()
+    unresolved_reason: PdfHeadingStatus | None = None
 
     @property
     def spans_multiple_flows(self) -> bool:
@@ -54,22 +85,35 @@ def map_pdf_section_boundaries(
     matches: tuple[PdfHeadingMatch, ...],
     flows: tuple[PdfReadingFlow, ...],
 ) -> tuple[PdfSectionBoundary, ...]:
-    """Translate verified page ranges into reading-flow ranges."""
+    """Translate heading evidence into ordered reading-flow boundaries.
+
+    Matches must be in outline order. A heading that could not be verified
+    on a known page ends the previous verified section at that page instead
+    of letting the previous section path continue across it.
+    """
     page_locations = _index_flow_pages(flows)
     boundaries = []
+    last_verified: PdfSectionBoundary | None = None
 
     for match in matches:
+        if match.status in UNRESOLVED_HEADING_STATUSES:
+            unresolved = _unresolved_boundary(
+                match, flows, page_locations, last_verified,
+            )
+            if unresolved is not None:
+                boundaries.append(unresolved)
+            continue
         if match.status is not PdfHeadingStatus.MATCHED:
             continue
+        page_number = match.heading_page_number
         if (
-            match.entry.page_number is None
+            page_number is None
             or match.source_start is None
             or match.source_end is None
         ):
             message = "Matched PDF heading must contain exact page coordinates"
             raise ValueError(message)
 
-        page_number = match.entry.page_number
         location = page_locations.get(page_number)
         if location is None:
             message = "Matched PDF heading page must belong to a reading flow"
@@ -84,37 +128,141 @@ def map_pdf_section_boundaries(
 
         relative_start = match.source_start - location.source_start
         relative_end = match.source_end - location.source_start
-        boundaries.append(
-            PdfSectionBoundary(
-                book_path=flows[location.flow_index].book_path,
-                title=match.entry.title,
-                section_path=match.entry.section_path,
-                page_number=page_number,
-                page_source_start=match.source_start,
-                page_source_end=match.source_end,
-                flow_index=location.flow_index,
-                flow_start=location.flow_start + relative_start,
-                flow_end=location.flow_start + relative_end,
-            )
+        last_verified = PdfSectionBoundary(
+            book_path=flows[location.flow_index].book_path,
+            title=match.entry.title,
+            section_path=match.entry.section_path,
+            page_number=page_number,
+            page_source_start=match.source_start,
+            page_source_end=match.source_end,
+            flow_index=location.flow_index,
+            flow_start=location.flow_start + relative_start,
+            flow_end=location.flow_start + relative_end,
         )
+        boundaries.append(last_verified)
 
-    return tuple(
-        sorted(
-            boundaries,
-            key=lambda boundary: (
-                boundary.flow_index,
-                boundary.flow_start,
-                boundary.flow_end,
-            ),
-        )
+    return _without_superseded_unresolved(
+        tuple(
+            sorted(
+                boundaries,
+                key=lambda boundary: (
+                    boundary.flow_index,
+                    boundary.flow_start,
+                    boundary.resolution
+                    is not PdfSectionResolution.VERIFIED,
+                    boundary.flow_end,
+                ),
+            )
+        ),
     )
+
+
+def _unresolved_boundary(
+    match: PdfHeadingMatch,
+    flows: tuple[PdfReadingFlow, ...],
+    page_locations: dict[int, "_FlowPageLocation"],
+    last_verified: PdfSectionBoundary | None,
+) -> PdfSectionBoundary | None:
+    """Close the previous section where an unverified heading may start.
+
+    The exact heading position is unknown, so the boundary is placed at
+    the start of its destination text page, or right after the previous
+    verified heading when that heading is on the same page.
+    """
+    destination = match.entry.page_number
+    if destination is None:
+        return None
+    page_number = next(
+        (number for number in sorted(page_locations) if number >= destination),
+        None,
+    )
+    if page_number is None:
+        return None
+    location = page_locations[page_number]
+    if last_verified is not None and (
+        last_verified.flow_index > location.flow_index
+    ):
+        return None
+    flow_offset = location.flow_start
+    if (
+        last_verified is not None
+        and last_verified.flow_index == location.flow_index
+        and last_verified.flow_end > flow_offset
+    ):
+        flow_offset = last_verified.flow_end
+    if flow_offset >= len(flows[location.flow_index].text):
+        return None
+    source_offset = location.source_start + flow_offset - location.flow_start
+    if source_offset > location.source_end:
+        # The previous verified heading ends on a later page; the order of
+        # the outline and the pages disagree, so no boundary is invented.
+        return None
+    verified_path = _common_prefix(
+        last_verified.section_path if last_verified else (),
+        match.entry.section_path,
+    )
+    return PdfSectionBoundary(
+        book_path=flows[location.flow_index].book_path,
+        title=match.entry.title,
+        section_path=verified_path,
+        page_number=page_number,
+        page_source_start=source_offset,
+        page_source_end=source_offset,
+        flow_index=location.flow_index,
+        flow_start=flow_offset,
+        flow_end=flow_offset,
+        resolution=PdfSectionResolution.UNRESOLVED,
+        outline_hint=match.entry.section_path,
+        unresolved_reason=match.status,
+    )
+
+
+def _common_prefix(
+    first: tuple[str, ...],
+    second: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Return outline ancestors shared by two section paths.
+
+    The outline lists sections depth-first in reading order, so text
+    between a verified heading and a later unverified sibling still lies
+    inside every ancestor the two paths share.
+    """
+    prefix = []
+    for left, right in zip(first, second):
+        if left != right:
+            break
+        prefix.append(left)
+    return tuple(prefix)
+
+
+def _without_superseded_unresolved(
+    boundaries: tuple[PdfSectionBoundary, ...],
+) -> tuple[PdfSectionBoundary, ...]:
+    """Drop unresolved boundaries that coincide with stronger evidence.
+
+    Verified boundaries sort first at a shared position. An unresolved
+    boundary is also dropped when it would precede the
+    verified boundary it was derived after, which only happens when the
+    outline order disagrees with page order.
+    """
+    kept: list[PdfSectionBoundary] = []
+    for boundary in boundaries:
+        if boundary.resolution is PdfSectionResolution.UNRESOLVED and kept:
+            previous = kept[-1]
+            if previous.flow_index == boundary.flow_index and (
+                previous.flow_start == boundary.flow_start
+                or previous.flow_end > boundary.flow_start
+            ):
+                continue
+        kept.append(boundary)
+    return tuple(kept)
 
 
 def build_pdf_section_intervals(
     boundaries: tuple[PdfSectionBoundary, ...],
     flows: tuple[PdfReadingFlow, ...],
 ) -> tuple[PdfSectionInterval, ...]:
-    """Build half-open section ranges from verified heading boundaries."""
+    """Build half-open section ranges from section boundaries."""
     if not boundaries:
         return ()
     if not flows:
@@ -159,6 +307,9 @@ def build_pdf_section_intervals(
                 heading_end_flow_offset=boundary.flow_end,
                 end_flow_index=end_flow_index,
                 end_flow_offset=end_flow_offset,
+                resolution=boundary.resolution,
+                outline_hint=boundary.outline_hint,
+                unresolved_reason=boundary.unresolved_reason,
             )
         )
     return tuple(intervals)
@@ -178,10 +329,16 @@ def _validate_section_boundaries(
             message = "PDF section boundary flow index is outside the document"
             raise ValueError(message)
         flow = flows[boundary.flow_index]
+        # Only an unresolved boundary lacks verified heading text.
+        heading_length_valid = (
+            boundary.flow_start < boundary.flow_end
+            if boundary.resolution is PdfSectionResolution.VERIFIED
+            else boundary.flow_start == boundary.flow_end
+        )
         if not (
-            0 <= boundary.flow_start
-            < boundary.flow_end
-            <= len(flow.text)
+            0 <= boundary.flow_start < len(flow.text)
+            and boundary.flow_end <= len(flow.text)
+            and heading_length_valid
         ):
             message = "PDF section boundary range is outside its reading flow"
             raise ValueError(message)

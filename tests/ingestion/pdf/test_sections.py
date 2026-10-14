@@ -11,6 +11,7 @@ from src.ingestion.pdf.reading_text import PdfReadingPage
 from src.ingestion.pdf.sections import (
     build_pdf_section_intervals,
     map_pdf_section_boundaries,
+    PdfSectionResolution,
 )
 
 
@@ -77,15 +78,143 @@ def test_returns_boundaries_in_source_order() -> None:
     )
 
 
-def test_ignores_unverified_and_non_content_entries() -> None:
+def test_ignores_non_content_and_unavailable_entries() -> None:
     page = _page(1, "Heading")
     flow = build_pdf_reading_flows((page,))[0]
     matches = (
-        _match("Missing", 1, None, None, PdfHeadingStatus.NOT_FOUND),
         _match("Cover", 1, None, None, PdfHeadingStatus.NON_CONTENT),
+        PdfHeadingMatch(
+            PdfOutlineEntry("Lost", ("Lost",), None),
+            PdfHeadingStatus.PAGE_UNAVAILABLE,
+        ),
     )
 
     assert map_pdf_section_boundaries(matches, (flow,)) == ()
+
+
+def _entry_match(
+    path: tuple[str, ...],
+    page_number: int,
+    span: tuple[int, int] | None,
+    status: PdfHeadingStatus = PdfHeadingStatus.MATCHED,
+) -> PdfHeadingMatch:
+    entry = PdfOutlineEntry(path[-1], path, page_number)
+    if span is None:
+        return PdfHeadingMatch(entry, status)
+    return PdfHeadingMatch(entry, status, span[0], span[1])
+
+
+def test_unmatched_chapter_closes_the_previous_verified_section() -> None:
+    pages = (
+        _page(1, "Summary\nEnd of chapter one."),
+        _page(2, "Chapter Two\nOpening of chapter two."),
+    )
+    flow = build_pdf_reading_flows(pages)[0]
+    matches = (
+        _entry_match(("One", "Summary"), 1, (0, 7)),
+        _entry_match(("Two",), 2, None, PdfHeadingStatus.NOT_FOUND),
+    )
+
+    intervals = build_pdf_section_intervals(
+        map_pdf_section_boundaries(matches, (flow,)), (flow,),
+    )
+
+    verified, unresolved = intervals
+    second_page = flow.page_spans[1]
+    assert verified.section_path == ("One", "Summary")
+    assert verified.resolution is PdfSectionResolution.VERIFIED
+    assert verified.end_flow_offset == second_page.flow_start
+    assert unresolved.resolution is PdfSectionResolution.UNRESOLVED
+    assert unresolved.section_path == ()
+    assert unresolved.outline_hint == ("Two",)
+    assert unresolved.unresolved_reason is PdfHeadingStatus.NOT_FOUND
+    assert unresolved.start_flow_offset == second_page.flow_start
+    assert unresolved.heading_end_flow_offset == second_page.flow_start
+
+
+def test_unmatched_sibling_keeps_only_shared_verified_ancestors() -> None:
+    pages = (
+        _page(1, "Tokenizers\nText about tokenizers."),
+        _page(2, "Caching text."),
+    )
+    flow = build_pdf_reading_flows(pages)[0]
+    matches = (
+        _entry_match(("Chapter 3", "Indexing", "Tokenizers"), 1, (0, 10)),
+        _entry_match(
+            ("Chapter 3", "Caching"), 2, None, PdfHeadingStatus.AMBIGUOUS,
+        ),
+    )
+
+    boundaries = map_pdf_section_boundaries(matches, (flow,))
+
+    assert boundaries[1].section_path == ("Chapter 3",)
+    assert boundaries[1].outline_hint == ("Chapter 3", "Caching")
+    assert boundaries[1].unresolved_reason is PdfHeadingStatus.AMBIGUOUS
+
+
+def test_unmatched_heading_on_same_page_starts_after_verified_heading(
+) -> None:
+    page = _page(1, "First\nBody text with a hidden second heading.")
+    flow = build_pdf_reading_flows((page,))[0]
+    matches = (
+        _entry_match(("First",), 1, (0, 5)),
+        _entry_match(("Second",), 1, None, PdfHeadingStatus.NOT_FOUND),
+    )
+
+    boundaries = map_pdf_section_boundaries(matches, (flow,))
+
+    assert tuple(b.resolution for b in boundaries) == (
+        PdfSectionResolution.VERIFIED,
+        PdfSectionResolution.UNRESOLVED,
+    )
+    assert boundaries[1].flow_start == 5
+    assert flow.text[boundaries[0].flow_start:boundaries[0].flow_end] == (
+        "First"
+    )
+
+
+def test_verified_heading_supersedes_unresolved_at_same_position() -> None:
+    pages = (_page(1, "Intro text."), _page(2, "Next\nBody."))
+    flow = build_pdf_reading_flows(pages)[0]
+    matches = (
+        _entry_match(("Missing",), 2, None, PdfHeadingStatus.NOT_FOUND),
+        _entry_match(("Next",), 2, (0, 4)),
+    )
+
+    boundaries = map_pdf_section_boundaries(matches, (flow,))
+
+    assert len(boundaries) == 1
+    assert boundaries[0].section_path == ("Next",)
+
+
+def test_no_unresolved_boundary_against_page_order() -> None:
+    pages = (_page(1, "Early text."), _page(2, "Late\nBody."))
+    flow = build_pdf_reading_flows(pages)[0]
+    matches = (
+        _entry_match(("Late",), 2, (0, 4)),
+        _entry_match(("Earlier",), 1, None, PdfHeadingStatus.NOT_FOUND),
+    )
+
+    boundaries = map_pdf_section_boundaries(matches, (flow,))
+
+    assert tuple(b.section_path for b in boundaries) == (("Late",),)
+
+
+def test_displaced_heading_uses_its_verified_page() -> None:
+    pages = (_page(30, "Previous text."), _page(31, "Heading\nBody."))
+    flow = build_pdf_reading_flows(pages)[0]
+    match = PdfHeadingMatch(
+        PdfOutlineEntry("Heading", ("Heading",), 30),
+        PdfHeadingStatus.MATCHED,
+        0,
+        7,
+        page_number=31,
+    )
+
+    boundary = map_pdf_section_boundaries((match,), (flow,))[0]
+
+    assert boundary.page_number == 31
+    assert flow.text[boundary.flow_start:boundary.flow_end] == "Heading"
 
 
 def test_rejects_heading_outside_page_text() -> None:

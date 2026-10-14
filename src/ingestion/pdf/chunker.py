@@ -9,7 +9,10 @@ from src.ingestion.pdf.reading_flow import (
     PdfPageJoinKind,
     PdfReadingFlow,
 )
-from src.ingestion.pdf.sections import PdfSectionInterval
+from src.ingestion.pdf.sections import (
+    PdfSectionInterval,
+    PdfSectionResolution,
+)
 
 
 DEFAULT_MAX_CHUNK_SIZE = 1600
@@ -23,7 +26,7 @@ WORD_BOUNDARY = re.compile(r"\s+")
 class _FlowSectionRange:
     start: int
     end: int
-    section_path: tuple[str, ...]
+    interval: PdfSectionInterval | None
 
 
 def chunk_pdf_reading_document(
@@ -80,13 +83,22 @@ def _chunk_flow_range(
                 limit,
                 min(start + min_chunk_size, limit),
             )
+        interval = section_range.interval
         chunks.append(
             make_pdf_chunk(
                 flow,
                 flow_index,
                 start,
                 end,
-                section_path=section_range.section_path,
+                section_path=interval.section_path if interval else (),
+                section_resolution=(
+                    interval.resolution if interval
+                    else PdfSectionResolution.NONE
+                ),
+                section_hint=interval.outline_hint if interval else (),
+                unresolved_reason=(
+                    interval.unresolved_reason if interval else None
+                ),
             )
         )
         start = end
@@ -126,7 +138,7 @@ def _flow_section_ranges(
         _FlowSectionRange(
             start=start,
             end=end,
-            section_path=_section_path_at(intervals, flow_index, start),
+            interval=_interval_at(intervals, flow_index, start),
         )
         for start, end in zip(
             ordered_points,
@@ -136,18 +148,18 @@ def _flow_section_ranges(
     )
 
 
-def _section_path_at(
+def _interval_at(
     intervals: tuple[PdfSectionInterval, ...],
     flow_index: int,
     flow_offset: int,
-) -> tuple[str, ...]:
+) -> PdfSectionInterval | None:
     coordinate = (flow_index, flow_offset)
     for interval in intervals:
         start = (interval.start_flow_index, interval.start_flow_offset)
         end = (interval.end_flow_index, interval.end_flow_offset)
         if start <= coordinate < end:
-            return interval.section_path
-    return ()
+            return interval
+    return None
 
 
 def _validate_section_intervals(

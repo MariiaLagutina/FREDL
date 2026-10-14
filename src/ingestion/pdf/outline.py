@@ -15,11 +15,16 @@ PdfOutlineItem: TypeAlias = Destination | list["PdfOutlineItem"]
 
 @dataclass(frozen=True, slots=True)
 class PdfOutlineEntry:
-    """Preserve a bookmark's hierarchy and optional physical destination."""
+    """Preserve a bookmark's hierarchy and optional physical destination.
+
+    destination_top is the declared vertical scroll target in PDF points,
+    when the destination type provides one.
+    """
 
     title: str
     section_path: tuple[str, ...]
     page_number: int | None
+    destination_top: float | None = None
 
 
 def read_pdf_outline(
@@ -52,7 +57,13 @@ def read_pdf_outline(
                 and 0 <= page_index < len(reader.pages)
                 else None
             )
-            entries.append(PdfOutlineEntry(title, section_path, page_number))
+            top = item.top if page_number is not None else None
+            entries.append(PdfOutlineEntry(
+                title,
+                section_path,
+                page_number,
+                float(top) if top is not None else None,
+            ))
             previous_path = section_path
 
     visit(cast(list[PdfOutlineItem], reader.outline), ())

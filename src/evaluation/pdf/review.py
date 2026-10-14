@@ -9,6 +9,7 @@ from src.evaluation.pdf.models import (
     PdfGoldenDataset,
 )
 from src.ingestion.pdf.index_records import PdfIndexRecord
+from src.ingestion.pdf.sections import PdfSectionResolution
 
 
 def render_pdf_evidence_review(
@@ -91,7 +92,7 @@ def _render_record(record: PdfIndexRecord) -> list[str]:
         span.page_number for span in record.page_spans
     ))
     page_label = ", ".join(map(str, pages))
-    section = " > ".join(record.section_path) or "Front matter"
+    section = _section_label(record)
     text_lines = record.text.splitlines() or [record.text]
     return [
         f"#### {record.record_id}",
@@ -105,3 +106,17 @@ def _render_record(record: PdfIndexRecord) -> list[str]:
         *(f"    {line}" for line in text_lines),
         "",
     ]
+
+
+def _section_label(record: PdfIndexRecord) -> str:
+    """Show only verified sections as sections; label hints as unverified."""
+    verified = " > ".join(record.section_path) or "No verified section"
+    if record.section_resolution is not PdfSectionResolution.UNRESOLVED:
+        return verified
+    reason = (
+        record.unresolved_reason.value
+        if record.unresolved_reason
+        else "unknown"
+    )
+    hint = " > ".join(record.section_hint)
+    return f"{verified} (unverified outline hint: {hint}; heading {reason})"
