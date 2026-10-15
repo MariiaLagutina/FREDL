@@ -33,8 +33,10 @@ from src.evaluation.pdf.cli import (
     pdf_snapshot_records,
 )
 from src.evaluation.pdf.multibook_cli import (
+    pdf_collect_judgments,
     pdf_freeze_multibook_golden,
     pdf_import_multibook_golden,
+    pdf_prepare_judgment_pilot,
 )
 
 
@@ -51,12 +53,14 @@ def main(argv: Sequence[str] | None = None) -> None:
                 "evaluate_all": evaluate_all,
                 "index": index,
                 "index_semantic": index_semantic,
+                "pdf_collect_judgments": pdf_collect_judgments,
                 "pdf_compare_runs": pdf_compare_runs,
                 "pdf_evaluate_answerability": pdf_evaluate_answerability,
                 "pdf_evaluate_retrieval": pdf_evaluate_retrieval,
                 "pdf_freeze_multibook_golden": pdf_freeze_multibook_golden,
                 "pdf_import_multibook_golden": pdf_import_multibook_golden,
                 "pdf_migrate_judgments": pdf_migrate_judgments,
+                "pdf_prepare_judgment_pilot": pdf_prepare_judgment_pilot,
                 "pdf_run_answerability": pdf_run_answerability,
                 "pdf_run_retrieval": pdf_run_retrieval,
                 "pdf_snapshot_records": pdf_snapshot_records,
