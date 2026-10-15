@@ -1,5 +1,16 @@
 # Product Direction
 
+FREDL is an AI-assisted learning system for technical, scientific, and
+educational materials. It is not a general-purpose PDF reader or a
+fiction-reading application. Its first intended user is its developer, who is
+studying programming and AI engineering. Supporting learning across other
+disciplines is a longer-term ambition that requires future validation.
+
+Source-grounded explanations, verifiable book/page provenance, and the ability
+to inspect original sources are core product requirements. Personal learning
+memory and broader multimodal document support remain future product work;
+the current PDF utilities do not implement the complete learning flow.
+
 ## The problem FREDL is exploring
 
 People who learn from technical and scientific books often collect more PDFs
@@ -108,3 +119,7 @@ or the usefulness of the full learning loop. New evaluation baselines remain
 pending; the implemented utilities and their limits are described in
 [Technical Foundation](technical-foundation.md).
 
+A private Task 6 package now contains 22 human-approved candidate questions.
+This approves their evaluation intent, not the system's answers. The Golden Set
+is not frozen, and the multi-book evaluation contract, record-level judgments
+and new baselines remain incomplete.

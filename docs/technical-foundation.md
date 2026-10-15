@@ -7,6 +7,11 @@ retrieval, grounded generation, persistence, validation, and a local API.
 It supports Python, Markdown, plain text, and text-based PDFs. It does not yet
 provide the production learning interface.
 
+The general `index` and API indexing path still use the text/code pipeline;
+recognizing a PDF during file discovery does not connect it to that pipeline.
+The separate PDF utilities prepare and evaluate PDF records. There is no
+production PDF reader or complete library-to-learning-memory flow.
+
 Reusable components include:
 
 - structure-aware text chunking;
@@ -93,7 +98,8 @@ repeated boilerplate. Three reversible policies are available:
 - P0 (`all_records`): search all original records;
 - P1 (`exclude_navigation`): exclude confidently identified navigation;
 - P2 (`exclude_navigation_and_boilerplate`): apply P1 and mask confirmed
-  boilerplate in searchable text, preserving offsets and line breaks.
+  boilerplate in searchable text, preserving offsets and CR/LF separators;
+  exclude a record if its masked searchable text is empty.
 
 P2 is the current experimental default, as recorded in
 [PD-003](product-decisions.md#pd-003-keep-navigation-and-repeated-boilerplate-out-of-experimental-search).
@@ -101,10 +107,16 @@ Original records remain unchanged. Uncertain content and unsectioned front
 matter stay eligible. Classification heuristics were checked on four books;
 they are not a universal content classifier.
 
-Neighbor context requires the same known `section_interval_id` and touching
-reading-flow ranges. Equal section paths or hints are insufficient because
-different intervals can share them. A record without an interval identity
+Neighbor context requires the same known `section_interval_id`, the same
+reading flow and touching ranges. Equal section paths or hints are insufficient
+because different intervals can share them. A record without an interval identity
 receives no neighbor context.
+
+The evaluation CLI supplies only corpus-eligible records to context expansion;
+it cannot jump across a gap left by an excluded record. These workflows operate
+on one book per run. Identities depend on the canonical library-relative book
+path: renaming a book changes identity and requires explicit compatibility and
+judgment review rather than silent reuse.
 
 ## Retrieval evaluation for FREDL
 
@@ -154,8 +166,8 @@ evidence page does not prove that a record contains the required evidence.
 Answerability is evaluated separately, with false refusals and false acceptances
 reported independently of retrieval metrics.
 
-The first evaluation covers one book and 17 questions, five of them hard
-negatives. Its results and limits are recorded in
+The historical first evaluation covers one book and 17 questions, five of them
+hard negatives. Its results and limits are recorded in
 [PD-002](product-decisions.md#pd-002-require-direct-evidence-before-treating-retrieval-as-an-answer).
 
 ### Evaluation contract and reproducibility
@@ -180,6 +192,26 @@ not run identity. Matching fingerprints alone do not prove identical execution.
 The `python -m src pdf_*` commands support record snapshots, judgment migration,
 retrieval and answerability runs, evaluation, and retrieval-run comparison.
 These are local evaluation utilities, not the product learning flow.
+Exact interfaces and output behavior are documented in
+[PDF evaluation and CLI](pdf-evaluation.md).
+
+### Multi-book candidate review
+
+Task 6 has 22 human-approved candidates in a private review package, with source
+evidence and review history kept outside Git. Candidate acceptance is separate
+from original-PDF support, extracted-text support, retrieval coverage and
+generated-answer correctness. Only the four pinned books are admissible answer
+evidence; the pinned BI Early Release edition is approved for this corpus and
+is not interchangeable with a later edition.
+
+The package is not a frozen or executable multi-book Golden Set. The current
+golden schema and run manifests require one book; source support is
+`complete`, `partial` or `not_found`, and model output is binary. Multi-book
+OR-of-AND evidence combinations, ambiguity, lost mathematical or visual
+structure, and source-incomplete cases have no implemented evaluation mapping.
+No record-level judgments or new baselines have been created for these 22
+candidates. Four-book technical validation and candidate review do not measure
+cross-book answerability quality.
 
 ### Not yet measured
 
@@ -213,6 +245,13 @@ served locally by llama.cpp outside FREDL's dependencies. The evaluation client
 accepts only loopback server addresses. Historical results do not establish a
 new baseline for the current contract or a production guarantee.
 
+The runner does not start or inspect llama.cpp. The operator must serve the
+declared model and accurately record runtime settings; hashing a local model
+file does not verify which weights the server loaded. The binary protocol
+counts partial support as answerable and does not independently classify
+ambiguity or extraction limitations. A model's familiar explanation cannot
+replace missing source evidence.
+
 ## Privacy and model boundary
 
 PDFs are supplied by the user and should remain under the user's control. The
@@ -226,10 +265,11 @@ memory.
 ## Next implementation slice
 
 Four-book technical validation and the evaluation-contract utilities are
-implemented, with the limits above. New baselines remain pending; expanding the
-golden set across books is separate future work requiring reviewed questions
-and labels. Neither the diagnostic probes nor the completed migration establish
-improved retrieval quality or answerability.
+implemented, with the limits above. The multi-book candidate review is complete,
+but Golden Set freezing, a versioned multi-book contract, record judgments and
+evaluation execution remain separate work requiring approval. New baselines
+remain pending. Neither the diagnostic probes, completed migration nor candidate
+acceptance establish improved retrieval quality or answerability.
 
 The rest of the milestone remains intentionally small:
 
