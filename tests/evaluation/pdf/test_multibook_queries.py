@@ -18,7 +18,7 @@ from tests.evaluation.pdf import (
     multibook_contract_helpers as contract_fixtures,
 )
 from tests.evaluation.pdf.multibook_contract_helpers import _manifest
-from tests.evaluation.pdf.test_multibook_judgments import _golden
+from tests.evaluation.pdf.multibook_golden_helpers import _golden
 
 
 corpus = contract_fixtures.corpus

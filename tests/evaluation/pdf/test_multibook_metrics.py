@@ -208,7 +208,7 @@ def test_evidence_at_rank11_is_not_unrestricted_mrr(
     from src.evaluation.pdf.multibook_runs import (
         PdfMultibookRankedHit, build_pdf_multibook_run,
     )
-    from tests.evaluation.pdf.test_multibook_judgments import _records
+    from tests.evaluation.pdf.multibook_golden_helpers import _records
     _, corpus, _, _ = pool_inputs
     inputs = []
     for book in corpus.books:

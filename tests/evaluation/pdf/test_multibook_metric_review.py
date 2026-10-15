@@ -25,7 +25,7 @@ from tests.evaluation.pdf.multibook_metric_helpers import (
     collect, fill, score, worksheet,
 )
 from tests.evaluation.pdf.multibook_pool_helpers import PoolInputs, build_pool
-from tests.evaluation.pdf.test_multibook_judgments import _records
+from tests.evaluation.pdf.multibook_golden_helpers import _records
 
 
 corpus = contracts.corpus

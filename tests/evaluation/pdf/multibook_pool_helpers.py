@@ -2,11 +2,15 @@
 
 from hashlib import sha256
 import json
+from pathlib import Path
 from typing import Any
 
 import pytest
 
-from src.evaluation.pdf.library import PdfLibraryCorpus
+from src.evaluation.pdf.library import (
+    load_pdf_library_corpus,
+    PdfLibraryCorpus,
+)
 from src.evaluation.pdf.manifest import PdfRetrieverKind
 from src.evaluation.pdf.multibook_golden import PdfMultibookGolden
 from src.evaluation.pdf.multibook_pool_models import (
@@ -14,7 +18,9 @@ from src.evaluation.pdf.multibook_pool_models import (
 )
 from src.evaluation.pdf.multibook_runner import run_pdf_multibook_retrieval
 from src.evaluation.pdf.multibook_queries import PdfQueryMode
+from src.ingestion.pdf.reading_document import prepare_pdf_reading_document
 from src.ingestion.pdf.reading_text import PdfReadingPage
+from src.ingestion.pdf.retrieval_corpus import PdfRetrievalPolicy
 from tests.evaluation.pdf.multibook_contract_helpers import ENV, HASH
 from tests.evaluation.pdf.multibook_runner_helpers import FakeEncoder, _queries
 
@@ -93,3 +99,27 @@ def build_pool(
 @pytest.fixture()
 def pool_inputs(corpus: PdfLibraryCorpus) -> PoolInputs:
     return synthetic_inputs(corpus)
+
+
+@pytest.fixture()
+def package_inputs(pdf_inputs: tuple[Path, Path]) -> tuple[Path, Path, Path]:
+    root, golden_path = pdf_inputs
+    golden = PdfMultibookGolden.model_validate_json(golden_path.read_bytes())
+    pages = {book: prepare_pdf_reading_document(root, book).reading_pages
+             for book in golden.library.book_paths}
+    golden = pin_page_hashes(golden, pages)
+    raw = golden.model_dump_json().encode()
+    golden_path.write_bytes(raw)
+    corpus = load_pdf_library_corpus(root, golden.library.book_paths,
+                                     PdfRetrievalPolicy.ALL_RECORDS)
+    entries = []
+    for item in saved_runs(golden, corpus, sha256(raw).hexdigest()):
+        run = item.run
+        kind = run.manifest.retrieval.retriever.value
+        source = golden_path.parent / f'{kind}.json'
+        source.write_text(run.model_dump_json(), encoding='utf-8')
+        entries.append({'retriever': kind, 'path': source.name,
+                        'sha256': sha256(source.read_bytes()).hexdigest()})
+    manifest = golden_path.parent / 'runs.json'
+    manifest.write_text(json.dumps({'runs': entries}))
+    return root, golden_path, manifest

@@ -18,13 +18,13 @@ from src.evaluation.pdf.multibook_metric_models import (
 )
 from src.evaluation.pdf.multibook_pool_cli import pdf_pool_multibook_judgments
 from src.evaluation.pdf.multibook_pool_models import PdfRetrievalJudgmentPool
-from tests.evaluation.pdf import test_multibook_pool_cli as pooling_tests
+from tests.evaluation.pdf import multibook_pool_helpers as pool_helpers
 from tests.evaluation.pdf import multibook_runner_helpers as runner
 from tests.evaluation.pdf.multibook_metric_helpers import fill
 
 
 pdf_inputs = runner.pdf_inputs
-package_inputs = pooling_tests.package_inputs
+package_inputs = pool_helpers.package_inputs
 forbid_real_model_loading = runner.forbid_real_model_loading
 
 

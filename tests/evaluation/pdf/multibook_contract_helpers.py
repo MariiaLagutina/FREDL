@@ -37,7 +37,7 @@ from src.retrieval.bm25 import BM25Parameters
 from src.retrieval.hybrid import RRFParameters
 from src.retrieval.semantic.config import SemanticEncoderConfig
 
-from tests.evaluation.pdf.test_multibook_judgments import (
+from tests.evaluation.pdf.multibook_golden_helpers import (
     _golden,
     _library,
     _records,

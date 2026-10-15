@@ -9,46 +9,17 @@ import pytest
 
 from src.__main__ import main
 from src.cli import CliError
-from src.evaluation.pdf.library import load_pdf_library_corpus
-from src.evaluation.pdf.multibook_golden import PdfMultibookGolden
 from src.evaluation.pdf.multibook_pool_cli import (
     load_pdf_pooling_runs, pdf_pool_multibook_judgments,
 )
 from src.evaluation.pdf.multibook_pool_models import PdfRetrievalJudgmentPool
-from src.ingestion.pdf.reading_document import prepare_pdf_reading_document
-from src.ingestion.pdf.retrieval_corpus import PdfRetrievalPolicy
+from tests.evaluation.pdf import multibook_pool_helpers as pool_helpers
 from tests.evaluation.pdf import multibook_runner_helpers as runner
-from tests.evaluation.pdf.multibook_pool_helpers import (
-    pin_page_hashes, saved_runs,
-)
 
 
 pdf_inputs = runner.pdf_inputs
+package_inputs = pool_helpers.package_inputs
 forbid_real_model_loading = runner.forbid_real_model_loading
-
-
-@pytest.fixture()
-def package_inputs(pdf_inputs: tuple[Path, Path]) -> tuple[Path, Path, Path]:
-    root, golden_path = pdf_inputs
-    golden = PdfMultibookGolden.model_validate_json(golden_path.read_bytes())
-    pages = {book: prepare_pdf_reading_document(root, book).reading_pages
-             for book in golden.library.book_paths}
-    golden = pin_page_hashes(golden, pages)
-    raw = golden.model_dump_json().encode()
-    golden_path.write_bytes(raw)
-    corpus = load_pdf_library_corpus(root, golden.library.book_paths,
-                                     PdfRetrievalPolicy.ALL_RECORDS)
-    entries = []
-    for item in saved_runs(golden, corpus, sha256(raw).hexdigest()):
-        run = item.run
-        kind = run.manifest.retrieval.retriever.value
-        source = golden_path.parent / f'{kind}.json'
-        source.write_text(run.model_dump_json(), encoding='utf-8')
-        entries.append({'retriever': kind, 'path': source.name,
-                        'sha256': sha256(source.read_bytes()).hexdigest()})
-    manifest = golden_path.parent / 'runs.json'
-    manifest.write_text(json.dumps({'runs': entries}))
-    return root, golden_path, manifest
 
 
 def test_public_command_writes_complete_package_with_blank_tasks(

@@ -237,7 +237,7 @@ def test_large_corpus_uses_exact_top_depth_and_cutoff_context(
     )
     from src.evaluation.pdf.multibook_import import anchor_records
     from src.evaluation.pdf.multibook_pooling import query_pool_units
-    from tests.evaluation.pdf.test_multibook_judgments import _records
+    from tests.evaluation.pdf.multibook_golden_helpers import _records
     inputs = []
     for book in corpus.books:
         records = book.records

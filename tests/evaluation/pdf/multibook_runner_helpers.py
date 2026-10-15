@@ -20,8 +20,8 @@ from src.evaluation.pdf.multibook_runs import PdfMultibookRetrievalRun
 from src.ingestion.pdf.retrieval_corpus import PdfRetrievalPolicy
 
 from tests.evaluation.pdf.multibook_contract_helpers import ENV, HASH
-from tests.evaluation.pdf.test_multibook_import import _write_pdf
-from tests.evaluation.pdf.test_multibook_judgments import _golden
+from tests.evaluation.pdf.multibook_package_helpers import _write_pdf
+from tests.evaluation.pdf.multibook_golden_helpers import _golden
 
 
 class FakeEncoder:

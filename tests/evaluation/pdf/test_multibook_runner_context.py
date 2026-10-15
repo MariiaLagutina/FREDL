@@ -22,7 +22,7 @@ from tests.evaluation.pdf import (
     multibook_runner_helpers as runner_fixtures,
 )
 from tests.evaluation.pdf.multibook_runner_helpers import _run
-from tests.evaluation.pdf.test_multibook_judgments import _records
+from tests.evaluation.pdf.multibook_golden_helpers import _records
 
 
 corpus = contract_fixtures.corpus
