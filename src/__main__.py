@@ -39,6 +39,9 @@ from src.evaluation.pdf.multibook_cli import (
     pdf_migrate_judgment_pilot,
     pdf_prepare_judgment_pilot,
 )
+from src.evaluation.pdf.multibook_retrieval_cli import (
+    pdf_run_multibook_retrieval,
+)
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -64,6 +67,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 "pdf_migrate_judgments": pdf_migrate_judgments,
                 "pdf_prepare_judgment_pilot": pdf_prepare_judgment_pilot,
                 "pdf_run_answerability": pdf_run_answerability,
+                "pdf_run_multibook_retrieval": pdf_run_multibook_retrieval,
                 "pdf_run_retrieval": pdf_run_retrieval,
                 "pdf_snapshot_records": pdf_snapshot_records,
                 "search": search,

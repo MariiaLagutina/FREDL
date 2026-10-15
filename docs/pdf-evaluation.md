@@ -3,14 +3,14 @@
 ## Implemented boundary
 
 These are local experimental utilities, not the production learning flow.
-Each executable golden dataset, record snapshot and retrieval run belongs to
-one book. BM25, pinned CPU MiniLM and hybrid retrieval can be evaluated with
-human record judgments; answerability has separate runs and metrics.
+The historical golden datasets, record snapshots and evaluation commands each
+belong to one book. BM25, pinned CPU MiniLM and hybrid retrieval can be evaluated
+with human record judgments; answerability has separate runs and metrics.
 
 A separate [multi-book golden contract](#multi-book-golden-contract) with human
-relevance judgments is implemented and tested. It has no retrieval runner or
-metrics yet: no command searches the combined library or scores a multi-book
-run.
+relevance judgments is implemented and tested. A global multi-book retrieval
+runner now searches the pinned eligible library. Multi-book retrieval pooling
+and metrics are not implemented yet; no private baseline has been measured.
 
 The general `index` and API indexing path use text/code ingestion and do not
 dispatch to the PDF pipeline. For PDFs, use the `pdf_*` commands below. They
@@ -35,6 +35,7 @@ uv run python -m src pdf_run_retrieval --help
 | `pdf_snapshot_records` | `library_root book_path output` | Extract one book and save canonical records with legacy and v2 fingerprints. |
 | `pdf_migrate_judgments` | `source_judgments source_snapshot source_dataset target_dataset library_root output_dir` | Check historical labels, map records, and produce a migration report and review queue. |
 | `pdf_run_retrieval` | `library_root dataset retriever output` | Save rankings, neighbor context and a compatibility manifest. |
+| `pdf_run_multibook_retrieval` | `library_root golden retriever output` | Search the entire pinned library globally; save full rankings, top-5/top-10 context provenance and a versioned manifest. |
 | `pdf_evaluate_retrieval` | `run dataset judgments library_root output` | Validate current inputs and corpus eligibility, then score the stored run. |
 | `pdf_compare_runs` | `first second` | Compare stored retrieval manifests and report identity differences and environment warnings. |
 | `pdf_run_answerability` | `retrieval_run dataset library_root model_file output` | Validate a stored retrieval run and classify its passages through an already-running loopback server. |
@@ -88,6 +89,40 @@ Snapshot and run writers require new output files. Report and migration writes
 accept an existing file only when its contents are identical; different contents
 are not overwritten. Prepare parent output directories first (migration creates
 its output directory). Use separate output names for distinct runs.
+
+## Global multi-book retrieval
+
+`pdf_run_multibook_retrieval library_root golden retriever output` accepts
+`bm25`, `minilm` or `hybrid`, `--query_mode=original|clarified|all` (default
+`all`), and `--policy` (default P2, `exclude_navigation_and_boilerplate`).
+It uses exactly the books pinned in Golden Set v2, checking PDF hashes and
+record-set fingerprints before encoding. It neither discovers other books nor
+uses evidence anchors, outcomes or reference notes as query text.
+
+Each baseline builds one global index from all eligible records and aligned
+searchable text. BM25 statistics and semantic rankings cover the combined
+corpus; Hybrid fuses the global rankings with the existing RRF parameters.
+There are no book quotas. MiniLM uses its pinned CPU configuration with
+`local_files_only=True`; a missing local model fails without a download.
+
+The version 1 run stores complete available rankings and scores, Hybrid source
+ranks, and direct context with ranked-parent identities separately at 5 and 10.
+Context stays within a book, flow and known section interval, requires touching
+eligible records, and does not expand recursively. BM25's empty ranking records
+zero lexical matches; it is not an unsupported-answer decision. Original
+ambiguous questions and clarified variants remain separate queries.
+
+Outputs require an existing directory and a new filename. The command validates
+the complete run, writes a same-directory temporary file, flushes it, and
+publishes it with an exclusive hard link. Existing files and symlinks are not
+replaced; failed writes/publication clean up the temporary file. The filesystem
+must support hard links. Configuration identity, shared comparison identity and
+results fingerprint are distinct from the SHA256 of the exact UTF-8 output
+bytes, returned in the command summary.
+
+This runner is covered by synthetic tests with fake encoders and generated
+PDFs. It does not compute multi-book relevance metrics, collect judgments or
+establish cross-book retrieval quality. Private runs require separate approval.
 
 ## Compatibility and metrics
 
@@ -201,9 +236,9 @@ A schema change alters the golden content fingerprint, so a pool must be
 regenerated. `pdf_migrate_judgment_pilot` checks the labels file hash and the
 library fingerprint, regenerates the pool, and requires the same entries in the
 same order with the same sources. It then moves the labels unchanged by
-question, unit and record. If any check fails, nothing is written. None of the
-multi-book commands runs retrieval or a model, and none assigns a relevance
-label.
+question, unit and record. If any check fails, nothing is written. The import,
+freeze and judgment preparation/collection/migration commands do not run
+retrieval or models and do not assign relevance labels automatically.
 
 ## Current review state and unmeasured work
 
@@ -219,9 +254,9 @@ Completed private work:
   using anchor-based pools only, and its labels moved unchanged from the
   version 1 draft to version 2.
 
-Planned and not yet implemented: a runner that searches the combined library,
-a command that pools its top-10 results (the pooling function itself exists and
-is tested), multi-book retrieval metrics with per-book and cross-book slices,
+Planned and not yet implemented: a command that pools global top-10 results
+(the pooling function itself exists and is tested), multi-book retrieval
+metrics with per-book and cross-book slices,
 an answerability context policy that labels each passage with its book and
 physical page, and public aggregate reporting.
 
@@ -230,15 +265,16 @@ manifest contracts, with synthetic compatibility tests. Query identities keep
 the original question separate from each approved clarified interpretation.
 Configuration/comparison identities are distinct from results fingerprints;
 validation checks pinned inputs, ranking rules and direct neighbor provenance.
-These contracts do not execute retrieval, pooling or metrics. The three planned
-multi-book retrieval commands are not implemented yet.
+These contracts do not execute retrieval, pooling or metrics. B0 Slice 2 adds
+the [global retrieval runner](#global-multi-book-retrieval); pooling and
+evaluation commands remain future work.
 
 The approved future primary metric is Best Evidence Recall (`BER@5`), with
 `BER@10` diagnostic: the greatest supplied-unit coverage of any sufficient set.
 Localization, sufficient-set success and `MRR@10_localization` /
-`MRR@10_supply` remain separate. These metrics are not implemented in Slice 1.
+`MRR@10_supply` remain separate. These metrics are not implemented yet.
 
-Not yet performed: retrieval runs over the library, full human labelling,
+Not yet performed on the private library: retrieval runs, full human labelling,
 freezing the Golden Set or its judgments, and any multi-book retrieval or
 answerability measurement.
 
