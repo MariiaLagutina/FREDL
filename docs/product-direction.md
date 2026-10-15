@@ -7,9 +7,12 @@ studying programming and AI engineering. Supporting learning across other
 disciplines is a longer-term ambition that requires future validation.
 
 Source-grounded explanations, verifiable book/page provenance, and the ability
-to inspect original sources are core product requirements. Personal learning
-memory and broader multimodal document support remain future product work;
-the current PDF utilities do not implement the complete learning flow.
+to inspect original sources are core product requirements; how the original
+page is shown when extracted text falls short is recorded in
+[PD-004](product-decisions.md#pd-004-show-the-original-pdf-page-when-extracted-text-cannot-carry-the-evidence).
+Personal learning memory and broader multimodal document support remain future
+product work; the current PDF utilities do not implement the complete learning
+flow.
 
 ## The problem FREDL is exploring
 

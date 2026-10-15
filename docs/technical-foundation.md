@@ -85,6 +85,12 @@ Figures and image-only or vector-only content are unsupported without OCR or
 visual interpretation. Multi-column reading order and complex structures are
 not generally supported. Books with no embedded outline remain unverified.
 
+When extracted text cannot carry a formula, table, figure or diagram, the
+planned response is to open or preview the original PDF page rather than
+reconstruct its content, as recorded in
+[PD-004](product-decisions.md#pd-004-show-the-original-pdf-page-when-extracted-text-cannot-carry-the-evidence).
+No PDF viewer, renderer or page navigation is implemented.
+
 The mapping from retrieval chunks to passages in a production reading interface
 also remains unimplemented. Successful text extraction does not establish
 faithful support for every structure on a page.
