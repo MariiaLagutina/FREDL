@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from src.evaluation.pdf.library import (
+from src.evaluation.pdf.multibook.library import (
     PdfLibraryBookInput,
     PdfLibraryCorpus,
     build_pdf_library_corpus,
@@ -22,7 +22,7 @@ from tests.evaluation.pdf.multibook.retrieval import (
     runner_helpers as runner_fixtures,
 )
 from tests.evaluation.pdf.multibook.retrieval.runner_helpers import _run
-from tests.evaluation.pdf.multibook_golden_helpers import _records
+from tests.evaluation.pdf.multibook.curation.golden_helpers import _records
 
 
 corpus = contract_fixtures.corpus

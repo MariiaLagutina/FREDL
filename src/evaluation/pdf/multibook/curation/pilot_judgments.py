@@ -22,8 +22,8 @@ from pydantic import (
 )
 
 from src.evaluation.pdf.judgments import PdfRecordRelevance
-from src.evaluation.pdf.library import PdfLibraryCorpus
-from src.evaluation.pdf.multibook_golden import (
+from src.evaluation.pdf.multibook.library import PdfLibraryCorpus
+from src.evaluation.pdf.multibook.curation.golden import (
     PdfMultibookCase,
     PdfMultibookGolden,
 )

@@ -7,21 +7,21 @@ from typing import Any
 import pytest
 
 from src.cli import CliError
-from src.evaluation.pdf.library import (
+from src.evaluation.pdf.multibook.library import (
     build_pdf_library_corpus,
     load_pdf_library_corpus,
     PdfLibraryBookInput,
 )
-from src.evaluation.pdf.multibook_cli import (
+from src.evaluation.pdf.multibook.curation.cli import (
     pdf_freeze_multibook_golden,
     pdf_import_multibook_golden,
 )
-from src.evaluation.pdf.multibook_golden import (
+from src.evaluation.pdf.multibook.curation.golden import (
     load_pdf_multibook_golden,
     PdfExpectedOutcome,
     PdfLimitationReason,
 )
-from src.evaluation.pdf.multibook_import import (
+from src.evaluation.pdf.multibook.curation.importer import (
     freeze_pdf_multibook_golden,
     import_pdf_multibook_candidates,
     load_pdf_review_package,
@@ -36,7 +36,7 @@ from src.ingestion.pdf.index_records import PdfIndexRecord
 from src.ingestion.pdf.reading_document import prepare_pdf_reading_document
 from src.ingestion.pdf.reading_text import PdfReadingPage
 from src.ingestion.pdf.retrieval_corpus import PdfRetrievalPolicy
-from tests.evaluation.pdf.multibook_package_helpers import (
+from tests.evaluation.pdf.multibook.curation.package_helpers import (
     _as_v1,
     _decisions,
     _interpretations,
@@ -342,8 +342,8 @@ def test_version_1_decision_files_still_load() -> None:
 def test_v1_to_v2_preservation_detects_any_changed_value(
     tmp_path: Path,
 ) -> None:
-    from src.evaluation.pdf.multibook_golden import PdfGoldenLineage
-    from src.evaluation.pdf.multibook_import import (
+    from src.evaluation.pdf.multibook.curation.golden import PdfGoldenLineage
+    from src.evaluation.pdf.multibook.curation.importer import (
         require_v1_to_v2_preserved,
     )
 

@@ -24,20 +24,24 @@ P0/P1/P2 corpus policies, section-interval context and fingerprint layers.
 ## Code layout
 
 Historical single-book evaluation modules stay directly under
-`src/evaluation/pdf/`. Multi-book modules are being organized by
-responsibility under `src/evaluation/pdf/multibook/`. Global retrieval over
-the pinned library is in `multibook/retrieval/`, pooling of saved runs into
-blind review packages is in `multibook/pooling/`, and human judgment collection
-and multi-book retrieval metrics are in `multibook/scoring/`. The library corpus
-and golden-set curation modules, including the pilot pooling in `pooling.py`,
-remain directly under `src/evaluation/pdf/` for now.
+`src/evaluation/pdf/`. Multi-book modules are organized by responsibility under
+`src/evaluation/pdf/multibook/`:
 
-Tests mirror production responsibilities under
-`tests/evaluation/pdf/multibook/`. Tests that run several responsibilities
-together, such as retrieval, pooling and scoring through the CLI, live in
-`tests/evaluation/pdf/multibook/integration/`. Moving a module changes its
-import path only; command names, arguments, artifacts and fingerprints stay the
-same.
+- `library.py`: the library corpus that pins several books and applies the
+  corpus policy to each one;
+- `curation/`: the golden-set schema, its read-only version 1, candidate
+  import, the judgment pilot with its pooling, and their commands;
+- `retrieval/`: query plans, run manifests and global retrieval over the
+  pinned library;
+- `pooling/`: pooling of saved runs into blind review packages;
+- `scoring/`: human judgment collection and multi-book retrieval metrics.
+
+Tests mirror these responsibilities under `tests/evaluation/pdf/multibook/`, in
+`curation/`, `retrieval/`, `pooling/` and `scoring/`. Tests that run several
+responsibilities together, such as retrieval, pooling and scoring through the
+CLI, live in `tests/evaluation/pdf/multibook/integration/`. Moving a module
+changed its import path only; command names, arguments, artifacts and
+fingerprints stay the same.
 
 ## Commands
 

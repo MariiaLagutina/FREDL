@@ -7,12 +7,12 @@ from typing import Any
 
 import pytest
 
-from src.evaluation.pdf.library import (
+from src.evaluation.pdf.multibook.library import (
     load_pdf_library_corpus,
     PdfLibraryCorpus,
 )
 from src.evaluation.pdf.manifest import PdfRetrieverKind
-from src.evaluation.pdf.multibook_golden import PdfMultibookGolden
+from src.evaluation.pdf.multibook.curation.golden import PdfMultibookGolden
 from src.evaluation.pdf.multibook.pooling.models import (
     PdfPoolingRun, PdfRetrievalJudgmentPool,
 )

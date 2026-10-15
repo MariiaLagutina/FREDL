@@ -12,7 +12,7 @@ import pytest
 
 from src.__main__ import main
 from src.cli import CliError
-from src.evaluation.pdf.library import PdfLibraryCorpus
+from src.evaluation.pdf.multibook.library import PdfLibraryCorpus
 from src.evaluation.pdf.multibook.retrieval.cli import (
     pdf_run_multibook_retrieval,
     write_pdf_multibook_run,

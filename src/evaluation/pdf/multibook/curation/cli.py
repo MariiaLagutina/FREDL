@@ -10,20 +10,20 @@ from hashlib import sha256
 from pathlib import Path
 
 from src.evaluation.pdf.cli import _user_errors, _write_new
-from src.evaluation.pdf.library import (
+from src.evaluation.pdf.multibook.library import (
     load_pdf_library_corpus,
     PdfLibraryCorpus,
     require_library_matches_manifest,
 )
-from src.evaluation.pdf.multibook_golden import (
+from src.evaluation.pdf.multibook.curation.golden import (
     load_pdf_multibook_golden,
     PdfGoldenLineage,
     PdfMultibookGolden,
 )
-from src.evaluation.pdf.multibook_golden_v1 import (
+from src.evaluation.pdf.multibook.curation.golden_v1 import (
     load_pdf_multibook_golden_v1,
 )
-from src.evaluation.pdf.multibook_import import (
+from src.evaluation.pdf.multibook.curation.importer import (
     freeze_pdf_multibook_golden,
     import_pdf_multibook_candidates,
     load_pdf_import_decisions,
@@ -33,12 +33,12 @@ from src.evaluation.pdf.multibook_import import (
     verify_pdf_multibook_golden,
     write_pdf_multibook_golden,
 )
-from src.evaluation.pdf.multibook_judgments import (
+from src.evaluation.pdf.multibook.curation.pilot_judgments import (
     judgment_counts,
     load_pdf_judgment_pool,
     validate_multibook_judgments,
 )
-from src.evaluation.pdf.pooling import (
+from src.evaluation.pdf.multibook.curation.pilot_pooling import (
     anchor_pool_entries,
     build_judgment_pool,
     carry_over_worksheet,

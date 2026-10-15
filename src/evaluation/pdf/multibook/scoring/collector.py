@@ -7,8 +7,8 @@ import io
 import json
 
 from src.evaluation.pdf.judgments import PdfRecordRelevance
-from src.evaluation.pdf.library import PdfLibraryCorpus
-from src.evaluation.pdf.multibook_golden import PdfMultibookGolden
+from src.evaluation.pdf.multibook.library import PdfLibraryCorpus
+from src.evaluation.pdf.multibook.curation.golden import PdfMultibookGolden
 from src.evaluation.pdf.multibook.scoring.judgment_models import (
     PdfCollectedJudgment, PdfCollectedJudgments, PdfWorksheetSubmission,
     PdfWorksheetSource,

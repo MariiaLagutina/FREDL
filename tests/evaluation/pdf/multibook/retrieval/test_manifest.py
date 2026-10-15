@@ -6,7 +6,7 @@ from typing import Any
 from pydantic import ValidationError
 import pytest
 
-from src.evaluation.pdf.library import (
+from src.evaluation.pdf.multibook.library import (
     PdfLibraryBookInput,
     PdfLibraryCorpus,
     build_pdf_library_corpus,
@@ -33,7 +33,7 @@ from tests.evaluation.pdf.multibook.retrieval.contract_helpers import (
     _manifest,
     _run,
 )
-from tests.evaluation.pdf.multibook_golden_helpers import _golden
+from tests.evaluation.pdf.multibook.curation.golden_helpers import _golden
 
 
 corpus = contract_fixtures.corpus

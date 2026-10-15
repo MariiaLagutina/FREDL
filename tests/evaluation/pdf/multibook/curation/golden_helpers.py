@@ -3,12 +3,12 @@
 import json
 from typing import Any
 
-from src.evaluation.pdf.library import (
+from src.evaluation.pdf.multibook.library import (
     build_pdf_library_corpus,
     PdfLibraryBookInput,
     PdfLibraryCorpus,
 )
-from src.evaluation.pdf.multibook_golden import PdfMultibookGolden
+from src.evaluation.pdf.multibook.curation.golden import PdfMultibookGolden
 from src.ingestion.pdf.chunks import PdfChunkPageSpan
 from src.ingestion.pdf.index_records import PdfIndexRecord
 from src.ingestion.pdf.retrieval_corpus import PdfRetrievalPolicy

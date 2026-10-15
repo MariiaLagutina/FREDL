@@ -8,12 +8,12 @@ import tempfile
 from pypdf.errors import PyPdfError
 
 from src.cli import CliError
-from src.evaluation.pdf.library import (
+from src.evaluation.pdf.multibook.library import (
     load_pdf_library_corpus,
     sha256_file,
 )
 from src.evaluation.pdf.manifest import PdfRetrieverKind
-from src.evaluation.pdf.multibook_golden import PdfMultibookGolden
+from src.evaluation.pdf.multibook.curation.golden import PdfMultibookGolden
 from src.evaluation.pdf.multibook.retrieval.queries import (
     build_pdf_multibook_query_plan,
     PdfQueryMode,

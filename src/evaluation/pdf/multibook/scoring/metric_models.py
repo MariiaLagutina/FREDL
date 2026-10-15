@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 from pydantic import Field
 
 from src.evaluation.pdf.manifest import PdfRetrieverKind
-from src.evaluation.pdf.multibook_golden import (
+from src.evaluation.pdf.multibook.curation.golden import (
     PdfExpectedBehavior, PdfExpectedOutcome,
 )
 from src.evaluation.pdf.multibook.pooling.models import PoolModel, SHA256

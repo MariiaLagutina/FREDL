@@ -3,15 +3,15 @@
 from collections.abc import Mapping, Sequence
 from typing import Literal
 
-from src.evaluation.pdf.library import PdfLibraryCorpus
+from src.evaluation.pdf.multibook.library import PdfLibraryCorpus
 from src.evaluation.pdf.manifest import PdfRetrieverKind
-from src.evaluation.pdf.multibook_golden import (
+from src.evaluation.pdf.multibook.curation.golden import (
     PdfEvidenceLocator, PdfMultibookGolden,
 )
-from src.evaluation.pdf.multibook_import import (
+from src.evaluation.pdf.multibook.curation.importer import (
     anchor_records, verify_pdf_multibook_golden,
 )
-from src.evaluation.pdf.multibook_judgments import pool_units
+from src.evaluation.pdf.multibook.curation.pilot_judgments import pool_units
 from src.evaluation.pdf.multibook.pooling.models import (
     PdfCandidateOrigin, PdfPoolCandidate, PdfPoolingRun,
     PdfPoolRunIdentity, PdfRetrievalJudgmentPool, PdfRetrievalJudgmentTask,

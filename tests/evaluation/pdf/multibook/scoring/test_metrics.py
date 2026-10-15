@@ -208,14 +208,14 @@ def test_evidence_at_rank11_is_not_unrestricted_mrr(
     pool_inputs: PoolInputs,
 ) -> None:
     from dataclasses import replace
-    from src.evaluation.pdf.library import (
+    from src.evaluation.pdf.multibook.library import (
         PdfLibraryBookInput, build_pdf_library_corpus,
     )
     from src.evaluation.pdf.multibook.retrieval.runner import _neighbor_context
     from src.evaluation.pdf.multibook.retrieval.runs import (
         PdfMultibookRankedHit, build_pdf_multibook_run,
     )
-    from tests.evaluation.pdf.multibook_golden_helpers import _records
+    from tests.evaluation.pdf.multibook.curation.golden_helpers import _records
     _, corpus, _, _ = pool_inputs
     inputs = []
     for book in corpus.books:

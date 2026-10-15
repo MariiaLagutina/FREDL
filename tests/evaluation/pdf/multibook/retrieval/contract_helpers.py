@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from src.evaluation.pdf.library import (
+from src.evaluation.pdf.multibook.library import (
     PdfLibraryBookInput,
     PdfLibraryCorpus,
     build_pdf_library_corpus,
@@ -39,7 +39,7 @@ from src.retrieval.bm25 import BM25Parameters
 from src.retrieval.hybrid import RRFParameters
 from src.retrieval.semantic.config import SemanticEncoderConfig
 
-from tests.evaluation.pdf.multibook_golden_helpers import (
+from tests.evaluation.pdf.multibook.curation.golden_helpers import (
     _golden,
     _library,
     _records,

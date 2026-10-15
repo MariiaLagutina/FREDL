@@ -8,9 +8,9 @@ from pydantic import (
     BaseModel, ConfigDict, Field, field_validator, model_validator,
 )
 
-from src.evaluation.pdf.library import PdfLibraryCorpus
+from src.evaluation.pdf.multibook.library import PdfLibraryCorpus
 from src.evaluation.pdf.manifest import PdfRetrieverKind
-from src.evaluation.pdf.multibook_golden import PdfMultibookGolden
+from src.evaluation.pdf.multibook.curation.golden import PdfMultibookGolden
 from src.evaluation.pdf.multibook.retrieval.manifest import (
     PdfMultibookRetrievalConfiguration,
     PdfMultibookRetrievalManifest,

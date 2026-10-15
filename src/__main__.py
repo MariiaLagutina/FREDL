@@ -32,7 +32,7 @@ from src.evaluation.pdf.cli import (
     pdf_run_retrieval,
     pdf_snapshot_records,
 )
-from src.evaluation.pdf.multibook_cli import (
+from src.evaluation.pdf.multibook.curation.cli import (
     pdf_collect_judgments,
     pdf_freeze_multibook_golden,
     pdf_import_multibook_golden,

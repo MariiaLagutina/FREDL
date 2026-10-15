@@ -7,7 +7,7 @@ from pydantic import (
     BaseModel, ConfigDict, Field, field_validator, model_validator,
 )
 
-from src.evaluation.pdf.multibook_golden import (
+from src.evaluation.pdf.multibook.curation.golden import (
     PdfExpectedBehavior,
     PdfMultibookGolden,
 )

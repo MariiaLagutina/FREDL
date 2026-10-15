@@ -8,7 +8,7 @@ import torch
 from torch import Tensor
 
 from src.evaluation.pdf.bm25_baseline import PdfBm25Baseline
-from src.evaluation.pdf.library import (
+from src.evaluation.pdf.multibook.library import (
     PdfLibraryBookInput,
     PdfLibraryCorpus,
     build_pdf_library_corpus,
@@ -25,7 +25,7 @@ from tests.evaluation.pdf.multibook.retrieval.runner_helpers import (
     FakeEncoder,
     _run,
 )
-from tests.evaluation.pdf.multibook_golden_helpers import _records
+from tests.evaluation.pdf.multibook.curation.golden_helpers import _records
 
 
 corpus = contract_fixtures.corpus

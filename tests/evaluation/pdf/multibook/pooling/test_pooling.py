@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from src.evaluation.pdf.library import PdfLibraryCorpus
+from src.evaluation.pdf.multibook.library import PdfLibraryCorpus
 from src.evaluation.pdf.multibook.pooling.models import (
     PdfCandidateOrigin, PdfPoolingInputs, PdfRetrievalJudgmentPool,
 )
@@ -239,12 +239,12 @@ def test_pool_tracks_exact_run_query_selection(
 def test_large_corpus_uses_exact_top_depth_and_cutoff_context(
     corpus: PdfLibraryCorpus, depth: int,
 ) -> None:
-    from src.evaluation.pdf.library import (
+    from src.evaluation.pdf.multibook.library import (
         PdfLibraryBookInput, build_pdf_library_corpus,
     )
-    from src.evaluation.pdf.multibook_import import anchor_records
+    from src.evaluation.pdf.multibook.curation.importer import anchor_records
     from src.evaluation.pdf.multibook.pooling.builder import query_pool_units
-    from tests.evaluation.pdf.multibook_golden_helpers import _records
+    from tests.evaluation.pdf.multibook.curation.golden_helpers import _records
     inputs = []
     for book in corpus.books:
         records = book.records
@@ -314,7 +314,7 @@ def test_individually_valid_runs_must_share_pooling_protocol(
     from src.evaluation.pdf.multibook.retrieval.runs import (
         build_pdf_multibook_run,
     )
-    from src.evaluation.pdf.library import (
+    from src.evaluation.pdf.multibook.library import (
         PdfLibraryBookInput, build_pdf_library_corpus,
     )
     from src.ingestion.pdf.retrieval_corpus import PdfRetrievalPolicy

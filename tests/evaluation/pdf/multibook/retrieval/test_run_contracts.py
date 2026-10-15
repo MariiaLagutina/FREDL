@@ -7,7 +7,7 @@ from typing import Any
 from pydantic import ValidationError
 import pytest
 
-from src.evaluation.pdf.library import (
+from src.evaluation.pdf.multibook.library import (
     PdfLibraryBookInput,
     PdfLibraryCorpus,
     build_pdf_library_corpus,

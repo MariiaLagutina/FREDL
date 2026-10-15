@@ -8,7 +8,7 @@ from src.evaluation.pdf.hybrid_baseline import (
     PDF_HYBRID_PARAMETERS,
     PdfHybridBaseline,
 )
-from src.evaluation.pdf.library import PdfLibraryCorpus
+from src.evaluation.pdf.multibook.library import PdfLibraryCorpus
 from src.evaluation.pdf.manifest import (
     bm25_configuration,
     current_pdf_run_environment,
@@ -18,7 +18,7 @@ from src.evaluation.pdf.manifest import (
     semantic_configuration,
 )
 from src.evaluation.pdf.minilm_baseline import PdfMiniLmBaseline
-from src.evaluation.pdf.multibook_golden import PdfMultibookGolden
+from src.evaluation.pdf.multibook.curation.golden import PdfMultibookGolden
 from src.evaluation.pdf.multibook.retrieval.manifest import (
     build_pdf_multibook_manifest,
     PdfMultibookRetrievalConfiguration,

@@ -28,7 +28,7 @@ from pydantic import (
     ValidationError,
 )
 
-from src.evaluation.pdf.library import PdfLibraryManifest
+from src.evaluation.pdf.multibook.library import PdfLibraryManifest
 from src.evaluation.pdf.models import PdfGoldenModality
 from src.ingestion.pdf.fingerprints import fingerprint_canonical_json
 

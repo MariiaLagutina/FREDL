@@ -9,11 +9,14 @@ import tempfile
 from pypdf.errors import PyPdfError
 
 from src.cli import CliError
-from src.evaluation.pdf.library import load_pdf_library_corpus, sha256_file
+from src.evaluation.pdf.multibook.library import (
+    load_pdf_library_corpus,
+    sha256_file,
+)
 from src.evaluation.pdf.multibook.scoring.collector import (
     collect_pdf_multibook_judgments, PdfMissingJudgments,
 )
-from src.evaluation.pdf.multibook_golden import PdfMultibookGolden
+from src.evaluation.pdf.multibook.curation.golden import PdfMultibookGolden
 from src.evaluation.pdf.multibook.scoring.judgment_models import (
     PdfCollectedJudgments, PdfJudgmentInputs, PdfWorksheetSubmission,
 )

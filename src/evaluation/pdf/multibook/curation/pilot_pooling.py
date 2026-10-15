@@ -16,14 +16,14 @@ import re
 from typing import cast, Literal
 
 from src.evaluation.pdf.judgments import PdfRecordRelevance
-from src.evaluation.pdf.library import PdfLibraryCorpus
-from src.evaluation.pdf.multibook_golden import (
+from src.evaluation.pdf.multibook.library import PdfLibraryCorpus
+from src.evaluation.pdf.multibook.curation.golden import (
     PdfEvidenceLocator,
     PdfMultibookCase,
     PdfMultibookGolden,
 )
-from src.evaluation.pdf.multibook_import import anchor_records
-from src.evaluation.pdf.multibook_judgments import (
+from src.evaluation.pdf.multibook.curation.importer import anchor_records
+from src.evaluation.pdf.multibook.curation.pilot_judgments import (
     PdfJudgmentPool,
     PdfMultibookJudgment,
     PdfMultibookJudgmentSet,

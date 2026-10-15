@@ -10,21 +10,21 @@ from pydantic import ValidationError
 
 from src.cli import CliError
 from src.evaluation.pdf.judgments import PdfRecordRelevance
-from src.evaluation.pdf.library import load_pdf_library_corpus
-from src.evaluation.pdf.multibook_cli import (
+from src.evaluation.pdf.multibook.library import load_pdf_library_corpus
+from src.evaluation.pdf.multibook.curation.cli import (
     pdf_collect_judgments,
     pdf_import_multibook_golden,
     pdf_prepare_judgment_pilot,
 )
-from src.evaluation.pdf.multibook_golden import PdfMultibookGolden
-from src.evaluation.pdf.multibook_judgments import (
+from src.evaluation.pdf.multibook.curation.golden import PdfMultibookGolden
+from src.evaluation.pdf.multibook.curation.pilot_judgments import (
     load_pdf_multibook_judgments,
     PdfMultibookJudgment,
     PdfMultibookJudgmentSet,
     PdfPoolSource,
     validate_multibook_judgments,
 )
-from src.evaluation.pdf.pooling import (
+from src.evaluation.pdf.multibook.curation.pilot_pooling import (
     anchor_pool_entries,
     build_judgment_pool,
     read_judgment_worksheet,
@@ -34,8 +34,11 @@ from src.evaluation.pdf.pooling import (
 )
 from src.ingestion.pdf.reading_document import prepare_pdf_reading_document
 from src.ingestion.pdf.retrieval_corpus import PdfRetrievalPolicy
-from tests.evaluation.pdf.multibook_golden_helpers import _golden, _library
-from tests.evaluation.pdf.multibook_package_helpers import (
+from tests.evaluation.pdf.multibook.curation.golden_helpers import (
+    _golden,
+    _library,
+)
+from tests.evaluation.pdf.multibook.curation.package_helpers import (
     _decisions,
     _package_files,
     _write_package,
@@ -287,7 +290,9 @@ def _relabelled(golden: PdfMultibookGolden) -> PdfMultibookGolden:
 def test_carry_over_moves_labels_unchanged_to_a_regenerated_pool() -> None:
     from hashlib import sha256
 
-    from src.evaluation.pdf.pooling import carry_over_worksheet
+    from src.evaluation.pdf.multibook.curation.pilot_pooling import (
+        carry_over_worksheet,
+    )
 
     library, golden, pool, sheet = _pilot()
     labelled = _filled(sheet, {"a1": ("required", "yes"),
@@ -329,10 +334,16 @@ def test_carry_over_moves_labels_unchanged_to_a_regenerated_pool() -> None:
 def test_cli_migrates_a_labelled_pilot_from_v1_to_v2(tmp_path: Path) -> None:
     from hashlib import sha256
 
-    from src.evaluation.pdf.multibook_cli import pdf_migrate_judgment_pilot
-    from src.evaluation.pdf.multibook_golden import load_pdf_multibook_golden
-    from src.evaluation.pdf.multibook_import import PdfImportDecisions
-    from tests.evaluation.pdf.multibook_package_helpers import (
+    from src.evaluation.pdf.multibook.curation.cli import (
+        pdf_migrate_judgment_pilot,
+    )
+    from src.evaluation.pdf.multibook.curation.golden import (
+        load_pdf_multibook_golden,
+    )
+    from src.evaluation.pdf.multibook.curation.importer import (
+        PdfImportDecisions,
+    )
+    from tests.evaluation.pdf.multibook.curation.package_helpers import (
         _as_v1,
         _interpretations,
         _with_ambiguous,

@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from src.evaluation.pdf.library import (
+from src.evaluation.pdf.multibook.library import (
     PdfLibraryBookInput, build_pdf_library_corpus,
 )
 from src.evaluation.pdf.multibook.scoring.collector import PdfMissingJudgments
@@ -30,7 +30,7 @@ from tests.evaluation.pdf.multibook.pooling.pool_helpers import (
     PoolInputs,
     build_pool,
 )
-from tests.evaluation.pdf.multibook_golden_helpers import _records
+from tests.evaluation.pdf.multibook.curation.golden_helpers import _records
 
 
 corpus = contracts.corpus

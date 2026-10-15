@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from src.cli import CliError
-from src.evaluation.pdf.library import (
+from src.evaluation.pdf.multibook.library import (
     PdfLibraryBookInput,
     PdfLibraryCorpus,
     build_pdf_library_corpus,

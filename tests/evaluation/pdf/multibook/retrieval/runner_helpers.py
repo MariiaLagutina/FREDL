@@ -8,12 +8,12 @@ import pytest
 import torch
 from torch import Tensor
 
-from src.evaluation.pdf.library import (
+from src.evaluation.pdf.multibook.library import (
     PdfLibraryCorpus,
     load_pdf_library_corpus,
 )
 from src.evaluation.pdf.manifest import PdfRetrieverKind
-from src.evaluation.pdf.multibook_golden import PdfMultibookGolden
+from src.evaluation.pdf.multibook.curation.golden import PdfMultibookGolden
 from src.evaluation.pdf.multibook.retrieval.queries import PdfQueryMode
 from src.evaluation.pdf.multibook.retrieval.runner import (
     run_pdf_multibook_retrieval,
@@ -24,8 +24,8 @@ from src.evaluation.pdf.multibook.retrieval.runs import (
 from src.ingestion.pdf.retrieval_corpus import PdfRetrievalPolicy
 
 from tests.evaluation.pdf.multibook.retrieval.contract_helpers import ENV, HASH
-from tests.evaluation.pdf.multibook_package_helpers import _write_pdf
-from tests.evaluation.pdf.multibook_golden_helpers import _golden
+from tests.evaluation.pdf.multibook.curation.package_helpers import _write_pdf
+from tests.evaluation.pdf.multibook.curation.golden_helpers import _golden
 
 
 class FakeEncoder:

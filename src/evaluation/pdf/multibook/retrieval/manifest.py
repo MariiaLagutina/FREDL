@@ -7,7 +7,7 @@ from pydantic import (
     BaseModel, ConfigDict, Field, field_validator, model_validator,
 )
 
-from src.evaluation.pdf.library import (
+from src.evaluation.pdf.multibook.library import (
     PdfLibraryCorpus,
     PdfLibraryManifest,
     require_library_matches_manifest,
@@ -21,7 +21,7 @@ from src.evaluation.pdf.manifest import (
     PdfRunEnvironment,
     PdfSemanticConfiguration,
 )
-from src.evaluation.pdf.multibook_golden import PdfMultibookGolden
+from src.evaluation.pdf.multibook.curation.golden import PdfMultibookGolden
 from src.evaluation.pdf.multibook.retrieval.queries import (
     PdfMultibookQueryPlan,
     require_pdf_query_plan_matches,

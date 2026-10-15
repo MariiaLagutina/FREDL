@@ -9,11 +9,11 @@ from typing import Any
 from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
-from src.evaluation.pdf.multibook_golden import (
+from src.evaluation.pdf.multibook.curation.golden import (
     PdfExpectedOutcome,
     PdfLimitationReason,
 )
-from src.evaluation.pdf.multibook_import import (
+from src.evaluation.pdf.multibook.curation.importer import (
     PdfImportDecision,
     PdfImportDecisions,
 )
@@ -191,7 +191,7 @@ def _with_ambiguous(texts: dict[str, tuple[str, ...]]) -> dict[str, Any]:
 
 
 def _interpretations() -> PdfImportDecision:
-    from src.evaluation.pdf.multibook_golden import PdfInterpretation
+    from src.evaluation.pdf.multibook.curation.golden import PdfInterpretation
 
     def meaning(name: str, unit: str, outcome: str) -> PdfInterpretation:
         support = "complete" if outcome == "complete" else "partial"
@@ -212,7 +212,9 @@ def _interpretations() -> PdfImportDecision:
 
 
 def _as_v1(golden: Any) -> Any:
-    from src.evaluation.pdf.multibook_golden_v1 import PdfMultibookGoldenV1
+    from src.evaluation.pdf.multibook.curation.golden_v1 import (
+        PdfMultibookGoldenV1,
+    )
 
     data = golden.model_dump(mode="json", by_alias=True)
     data["version"] = 1
