@@ -317,6 +317,13 @@ class PdfGoldenProvenance(_StrictModel):
     decisions: tuple[str, ...] = ()
 
 
+class PdfGoldenFreezeRecord(_StrictModel):
+    """Record who approved freezing a dataset, outside its content."""
+
+    approved_by: str = Field(min_length=1)
+    approval_note: str = Field(min_length=1)
+
+
 class PdfMultibookGolden(_StrictModel):
     """Define one versioned multi-book evaluation set.
 
@@ -334,6 +341,7 @@ class PdfMultibookGolden(_StrictModel):
     language: str = Field(min_length=1)
     library: PdfLibraryManifest
     provenance: PdfGoldenProvenance | None = None
+    freeze_record: PdfGoldenFreezeRecord | None = None
     evidence_units: tuple[PdfEvidenceUnit, ...]
     cases: tuple[PdfMultibookCase, ...] = Field(min_length=1)
 
@@ -344,6 +352,10 @@ class PdfMultibookGolden(_StrictModel):
     @model_validator(mode="after")
     def validate_references(self) -> "PdfMultibookGolden":
         """Check identities, unit references, books, and categories."""
+        if (self.status == "frozen") != (self.freeze_record is not None):
+            raise ValueError(
+                "Exactly the frozen multi-book golden set has a freeze record"
+            )
         _require_unique("case", (case.case_id for case in self.cases))
         _require_unique(
             "evidence unit", (unit.unit_id for unit in self.evidence_units),
@@ -380,7 +392,7 @@ class PdfMultibookGolden(_StrictModel):
 
     @property
     def content_fingerprint(self) -> str:
-        """Hash the dataset content, ignoring only its draft/frozen status.
+        """Hash the dataset content, ignoring only its freeze state.
 
         A draft and the frozen dataset made from it share this value, which
         proves that freezing changed nothing else.
@@ -389,7 +401,8 @@ class PdfMultibookGolden(_StrictModel):
             "schema": PDF_MULTIBOOK_GOLDEN_SCHEMA,
             "version": PDF_MULTIBOOK_GOLDEN_VERSION,
             "content": self.model_dump(
-                mode="json", by_alias=True, exclude={"status"},
+                mode="json", by_alias=True,
+                exclude={"status", "freeze_record"},
             ),
         })
 

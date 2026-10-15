@@ -265,6 +265,9 @@ def test_content_fingerprint_is_canonical_and_ignores_only_status() -> None:
     draft = _validate(_golden())
     frozen_data = _golden()
     frozen_data["status"] = "frozen"
+    frozen_data["freeze_record"] = {
+        "approved_by": "Reviewer", "approval_note": "Synthetic approval.",
+    }
     reordered = json.loads(json.dumps(_golden()), object_pairs_hook=lambda
                            pairs: dict(reversed(pairs)))
 
@@ -318,6 +321,19 @@ def test_invalid_evidence_and_outcome_combinations_are_rejected(
 
     with pytest.raises(ValidationError, match=message):
         _validate(data)
+
+
+def test_frozen_status_requires_a_freeze_record() -> None:
+    frozen_without_record = _golden()
+    frozen_without_record["status"] = "frozen"
+    draft_with_record = _golden()
+    draft_with_record["freeze_record"] = {
+        "approved_by": "Reviewer", "approval_note": "Synthetic approval.",
+    }
+
+    for data in (frozen_without_record, draft_with_record):
+        with pytest.raises(ValidationError, match="freeze record"):
+            _validate(data)
 
 
 def test_limitation_reasons_keep_three_failure_kinds_apart() -> None:
