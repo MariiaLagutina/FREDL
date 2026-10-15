@@ -9,8 +9,9 @@ with human record judgments; answerability has separate runs and metrics.
 
 A separate [multi-book golden contract](#multi-book-golden-contract) with human
 relevance judgments is implemented and tested. A global multi-book retrieval
-runner now searches the pinned eligible library. Multi-book retrieval pooling
-and metrics are not implemented yet; no private baseline has been measured.
+runner now searches the pinned eligible library. Deterministic retrieval
+pooling produces blind human-review worksheets. Multi-book metrics are not
+implemented yet; no private baseline has been measured.
 
 The general `index` and API indexing path use text/code ingestion and do not
 dispatch to the PDF pipeline. For PDFs, use the `pdf_*` commands below. They
@@ -35,6 +36,7 @@ uv run python -m src pdf_run_retrieval --help
 | `pdf_snapshot_records` | `library_root book_path output` | Extract one book and save canonical records with legacy and v2 fingerprints. |
 | `pdf_migrate_judgments` | `source_judgments source_snapshot source_dataset target_dataset library_root output_dir` | Check historical labels, map records, and produce a migration report and review queue. |
 | `pdf_run_retrieval` | `library_root dataset retriever output` | Save rankings, neighbor context and a compatibility manifest. |
+| `pdf_pool_multibook_judgments` | `golden library_root runs output_dir` | Pool three compatible global runs, verified anchors and direct context into blank review tasks; `--depth=10`. |
 | `pdf_run_multibook_retrieval` | `library_root golden retriever output` | Search the entire pinned library globally; save full rankings, top-5/top-10 context provenance and a versioned manifest. |
 | `pdf_evaluate_retrieval` | `run dataset judgments library_root output` | Validate current inputs and corpus eligibility, then score the stored run. |
 | `pdf_compare_runs` | `first second` | Compare stored retrieval manifests and report identity differences and environment warnings. |
@@ -123,6 +125,66 @@ bytes, returned in the command summary.
 This runner is covered by synthetic tests with fake encoders and generated
 PDFs. It does not compute multi-book relevance metrics, collect judgments or
 establish cross-book retrieval quality. Private runs require separate approval.
+
+## Global retrieval judgment pooling
+
+`pdf_pool_multibook_judgments golden library_root runs output_dir --depth=10`
+reads stored runs without searching or loading models. `runs` is a JSON
+manifest with `schema_name: "fredl.pdf.multibook-pooling-inputs"`, `version: 1`
+and a `runs` array. Each entry has `retriever` (`bm25`, `minilm` or `hybrid`),
+`path` and the exact file `sha256`. Relative paths resolve beside the manifest.
+Exactly one run of each kind is required; duplicate references, changed bytes,
+invalid fingerprints or incompatible inputs fail. Golden file bytes, current
+PDF hashes, records, corpus, query plans, context protocols and evidence page
+hashes/anchor offsets are verified. Environment diagnostics do not affect
+comparison identity. These checks cannot prove scores without rerunning an
+engine; pooling never reruns it.
+
+Depth is 5 or 10, matching the run's independently validated context cutoffs.
+The candidate union contains each retriever's top-depth records, its direct
+context and required/supporting anchor overlaps. Anchors can remain reviewable
+when a corpus policy excludes them from search; no other excluded neighbors
+are added. No book quotas or automatic relevance labels apply. All origins
+remain in `judgment-pool.json`: ranked origins retain per-retriever rank
+and score; context origins retain ranked parents and cutoff. Context is never
+given an artificial rank or score. Input run order does not affect output: queries follow the query
+plan, units their case/interpretation reference order, records canonical
+source order, and run provenance BM25/MiniLM/Hybrid order followed by anchors.
+
+The separate version 1 `fredl.pdf.multibook-retrieval-pool` contract keeps
+candidates by `(case_id, interpretation_id | null, record_id)` and review tasks
+by `(case_id, interpretation_id | null, unit_id, record_id)`. Original
+ambiguous questions retain separate conditional-unit tasks with their meaning
+shown; clarified variants receive only their own sufficient-set units. Evidence
+is never combined across meanings. Related-unit anchors contribute candidates
+for their own query variant, but related units are not judgment targets.
+Queries without target units retain a candidate inventory without labels.
+
+The new output directory requires an existing parent. It contains
+`judgment-pool.json`, blind `worksheet.md`, blank `worksheet.csv`,
+`pool-summary.md` and a completion `package-manifest.json` with exact output
+file hashes and the semantic pool fingerprint. Within each query/unit group,
+worksheet order uses the versioned `blind-review-order-v1` identity hash
+(query, unit, book and record), independent of rank, provenance, pool
+fingerprint and source order. Worksheets omit retrievers, scores, anchor status
+and expected outcomes; each excerpt keeps its record ID and original text,
+using a code fence longer than any source backtick run.
+Review the worksheet separately from provenance. Blank labels remain unjudged.
+No final metrics are computed, and incomplete judgments cannot establish a
+final baseline. The historical pilot format, collector and labels are unchanged;
+the old collector does not accept the new query-aware sheet. Label collection
+for this contract remains a separate implementation step.
+
+All files are written into a private same-parent staging directory and their
+exact bytes are checked before one atomic no-replace directory rename publishes
+the complete package. Existing paths, including empty directories and symlinks,
+are refused; concurrent callers cannot replace or mix packages. This requires
+Linux libc/kernel `renameat2(RENAME_NOREPLACE)` and filesystem support. An
+unsupported platform/filesystem fails without a check-then-rename fallback.
+Ordinary failures clean staging; abrupt process termination may leave a hidden
+staging directory. No fsync is performed: atomic visibility does not guarantee
+crash durability. Consumers must check the completion manifest's hashes.
+Synthetic verification does not establish private retrieval quality.
 
 ## Compatibility and metrics
 
@@ -254,9 +316,8 @@ Completed private work:
   using anchor-based pools only, and its labels moved unchanged from the
   version 1 draft to version 2.
 
-Planned and not yet implemented: a command that pools global top-10 results
-(the pooling function itself exists and is tested), multi-book retrieval
-metrics with per-book and cross-book slices,
+Planned and not yet implemented: collection of the new query-aware retrieval
+worksheet, multi-book retrieval metrics with per-book and cross-book slices,
 an answerability context policy that labels each passage with its book and
 physical page, and public aggregate reporting.
 
@@ -266,8 +327,9 @@ the original question separate from each approved clarified interpretation.
 Configuration/comparison identities are distinct from results fingerprints;
 validation checks pinned inputs, ranking rules and direct neighbor provenance.
 These contracts do not execute retrieval, pooling or metrics. B0 Slice 2 adds
-the [global retrieval runner](#global-multi-book-retrieval); pooling and
-evaluation commands remain future work.
+the [global retrieval runner](#global-multi-book-retrieval); Slice 3 adds
+[retrieval judgment pooling](#global-retrieval-judgment-pooling). Final
+evaluation remains future work.
 
 The approved future primary metric is Best Evidence Recall (`BER@5`), with
 `BER@10` diagnostic: the greatest supplied-unit coverage of any sufficient set.
