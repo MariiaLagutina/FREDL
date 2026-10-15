@@ -46,7 +46,7 @@ from src.evaluation.pdf.multibook.scoring.cli import (
 from src.evaluation.pdf.multibook.pooling.cli import (
     pdf_pool_multibook_judgments,
 )
-from src.evaluation.pdf.multibook_retrieval_cli import (
+from src.evaluation.pdf.multibook.retrieval.cli import (
     pdf_run_multibook_retrieval,
 )
 

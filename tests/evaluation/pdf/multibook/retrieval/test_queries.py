@@ -7,17 +7,17 @@ import pytest
 
 from src.evaluation.pdf.library import PdfLibraryCorpus
 from src.evaluation.pdf.multibook_golden import PdfMultibookGolden
-from src.evaluation.pdf.multibook_queries import (
+from src.evaluation.pdf.multibook.retrieval.queries import (
     PdfMultibookQueryPlan,
     PdfQueryMode,
     build_pdf_multibook_query_plan,
     require_pdf_query_plan_matches,
 )
 
-from tests.evaluation.pdf import (
-    multibook_contract_helpers as contract_fixtures,
+from tests.evaluation.pdf.multibook.retrieval import (
+    contract_helpers as contract_fixtures,
 )
-from tests.evaluation.pdf.multibook_contract_helpers import _manifest
+from tests.evaluation.pdf.multibook.retrieval.contract_helpers import _manifest
 from tests.evaluation.pdf.multibook_golden_helpers import _golden
 
 

@@ -4,9 +4,11 @@ import json
 
 import pytest
 
-from tests.evaluation.pdf import multibook_contract_helpers as contracts
+from tests.evaluation.pdf.multibook.retrieval import (
+    contract_helpers as contracts,
+)
 from tests.evaluation.pdf.multibook.pooling import pool_helpers as helpers
-from tests.evaluation.pdf import multibook_runner_helpers as runner
+from tests.evaluation.pdf.multibook.retrieval import runner_helpers as runner
 from tests.evaluation.pdf.multibook.pooling.pool_helpers import (
     PoolInputs,
     build_pool,

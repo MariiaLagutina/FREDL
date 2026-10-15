@@ -25,11 +25,12 @@ P0/P1/P2 corpus policies, section-interval context and fingerprint layers.
 
 Historical single-book evaluation modules stay directly under
 `src/evaluation/pdf/`. Multi-book modules are being organized by
-responsibility under `src/evaluation/pdf/multibook/`. Pooling of saved runs
-into blind review packages is in `multibook/pooling/`, and human judgment
-collection and multi-book retrieval metrics are in `multibook/scoring/`. The
-retrieval and golden-set curation modules, including the pilot pooling in
-`pooling.py`, remain directly under `src/evaluation/pdf/` for now.
+responsibility under `src/evaluation/pdf/multibook/`. Global retrieval over
+the pinned library is in `multibook/retrieval/`, pooling of saved runs into
+blind review packages is in `multibook/pooling/`, and human judgment collection
+and multi-book retrieval metrics are in `multibook/scoring/`. The library corpus
+and golden-set curation modules, including the pilot pooling in `pooling.py`,
+remain directly under `src/evaluation/pdf/` for now.
 
 Tests mirror production responsibilities under
 `tests/evaluation/pdf/multibook/`. Tests that run several responsibilities

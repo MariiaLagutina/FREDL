@@ -14,9 +14,11 @@ from src.evaluation.pdf.multibook.pooling.models import (
 from src.evaluation.pdf.multibook.pooling.builder import (
     require_pdf_retrieval_pool_matches,
 )
-from tests.evaluation.pdf import multibook_contract_helpers as contracts
+from tests.evaluation.pdf.multibook.retrieval import (
+    contract_helpers as contracts,
+)
 from tests.evaluation.pdf.multibook.pooling import pool_helpers as helpers
-from tests.evaluation.pdf import multibook_runner_helpers as runner
+from tests.evaluation.pdf.multibook.retrieval import runner_helpers as runner
 from tests.evaluation.pdf.multibook.pooling.pool_helpers import (
     PoolInputs,
     build_pool,
@@ -122,7 +124,9 @@ def test_incompatible_or_copied_inputs_fail_closed(
     elif change == "hash":
         run = runs[0].run
         manifest = run.manifest.model_copy(update={"golden_sha256": "0" * 64})
-        from src.evaluation.pdf.multibook_runs import build_pdf_multibook_run
+        from src.evaluation.pdf.multibook.retrieval.runs import (
+            build_pdf_multibook_run,
+        )
         runs = (runs[0].model_copy(update={
             "run": build_pdf_multibook_run(manifest, run.results),
         }), *runs[1:])
@@ -221,7 +225,7 @@ def test_input_manifest_rejects_duplicate_retrievers() -> None:
 def test_pool_tracks_exact_run_query_selection(
     pool_inputs: PoolInputs, mode: str,
 ) -> None:
-    from src.evaluation.pdf.multibook_queries import PdfQueryMode
+    from src.evaluation.pdf.multibook.retrieval.queries import PdfQueryMode
     golden, corpus, _, pages = pool_inputs
     runs = helpers.saved_runs(golden, corpus, mode=PdfQueryMode(mode))
     pool = build_pool((golden, corpus, runs, pages))
@@ -306,8 +310,10 @@ def test_excluded_anchor_stays_a_candidate_without_inventing_retrieval_origin(
 def test_individually_valid_runs_must_share_pooling_protocol(
     pool_inputs: PoolInputs, change: str,
 ) -> None:
-    from src.evaluation.pdf.multibook_queries import PdfQueryMode
-    from src.evaluation.pdf.multibook_runs import build_pdf_multibook_run
+    from src.evaluation.pdf.multibook.retrieval.queries import PdfQueryMode
+    from src.evaluation.pdf.multibook.retrieval.runs import (
+        build_pdf_multibook_run,
+    )
     from src.evaluation.pdf.library import (
         PdfLibraryBookInput, build_pdf_library_corpus,
     )

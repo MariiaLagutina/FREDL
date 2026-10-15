@@ -17,11 +17,11 @@ from src.ingestion.pdf.retrieval_corpus import (
     build_pdf_retrieval_corpus,
 )
 
-from tests.evaluation.pdf import (
-    multibook_contract_helpers as contract_fixtures,
-    multibook_runner_helpers as runner_fixtures,
+from tests.evaluation.pdf.multibook.retrieval import (
+    contract_helpers as contract_fixtures,
+    runner_helpers as runner_fixtures,
 )
-from tests.evaluation.pdf.multibook_runner_helpers import _run
+from tests.evaluation.pdf.multibook.retrieval.runner_helpers import _run
 from tests.evaluation.pdf.multibook_golden_helpers import _records
 
 

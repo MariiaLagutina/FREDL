@@ -12,7 +12,7 @@ from src.evaluation.pdf.library import (
     PdfLibraryCorpus,
     build_pdf_library_corpus,
 )
-from src.evaluation.pdf.multibook_runs import (
+from src.evaluation.pdf.multibook.retrieval.runs import (
     PdfMultibookContextAtCutoff,
     PdfMultibookContextHit,
     PdfMultibookQueryResult,
@@ -27,10 +27,10 @@ from src.ingestion.pdf.retrieval_corpus import (
     build_pdf_retrieval_corpus,
 )
 
-from tests.evaluation.pdf import (
-    multibook_contract_helpers as contract_fixtures,
+from tests.evaluation.pdf.multibook.retrieval import (
+    contract_helpers as contract_fixtures,
 )
-from tests.evaluation.pdf.multibook_contract_helpers import (
+from tests.evaluation.pdf.multibook.retrieval.contract_helpers import (
     _check,
     _manifest,
     _results,

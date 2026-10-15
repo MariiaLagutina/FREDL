@@ -10,8 +10,8 @@ from src.evaluation.pdf.multibook_golden import (
 )
 from src.evaluation.pdf.multibook.pooling.models import PoolModel, SHA256
 from src.evaluation.pdf.multibook.pooling.models import PdfPoolRunIdentity
-from src.evaluation.pdf.multibook_queries import PdfQueryIdentity
-from src.evaluation.pdf.multibook_runs import PdfMultibookContextHit
+from src.evaluation.pdf.multibook.retrieval.queries import PdfQueryIdentity
+from src.evaluation.pdf.multibook.retrieval.runs import PdfMultibookContextHit
 from src.ingestion.pdf.fingerprints import fingerprint_canonical_json
 
 

@@ -14,13 +14,15 @@ from src.evaluation.pdf.multibook.scoring.report import (
     aggregate_multibook_metrics,
 )
 from src.evaluation.pdf.multibook.pooling.models import PdfPoolingRun
-from src.evaluation.pdf.multibook_runner import _neighbor_context
-from src.evaluation.pdf.multibook_runs import (
+from src.evaluation.pdf.multibook.retrieval.runner import _neighbor_context
+from src.evaluation.pdf.multibook.retrieval.runs import (
     PdfMultibookRankedHit, build_pdf_multibook_run,
 )
-from tests.evaluation.pdf import multibook_contract_helpers as contracts
+from tests.evaluation.pdf.multibook.retrieval import (
+    contract_helpers as contracts,
+)
 from tests.evaluation.pdf.multibook.pooling import pool_helpers as helpers
-from tests.evaluation.pdf import multibook_runner_helpers as runner
+from tests.evaluation.pdf.multibook.retrieval import runner_helpers as runner
 from tests.evaluation.pdf.multibook.scoring.metric_helpers import (
     collect, fill, score, worksheet,
 )

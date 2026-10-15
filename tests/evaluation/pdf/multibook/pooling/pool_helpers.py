@@ -16,13 +16,18 @@ from src.evaluation.pdf.multibook_golden import PdfMultibookGolden
 from src.evaluation.pdf.multibook.pooling.models import (
     PdfPoolingRun, PdfRetrievalJudgmentPool,
 )
-from src.evaluation.pdf.multibook_runner import run_pdf_multibook_retrieval
-from src.evaluation.pdf.multibook_queries import PdfQueryMode
+from src.evaluation.pdf.multibook.retrieval.runner import (
+    run_pdf_multibook_retrieval,
+)
+from src.evaluation.pdf.multibook.retrieval.queries import PdfQueryMode
 from src.ingestion.pdf.reading_document import prepare_pdf_reading_document
 from src.ingestion.pdf.reading_text import PdfReadingPage
 from src.ingestion.pdf.retrieval_corpus import PdfRetrievalPolicy
-from tests.evaluation.pdf.multibook_contract_helpers import ENV, HASH
-from tests.evaluation.pdf.multibook_runner_helpers import FakeEncoder, _queries
+from tests.evaluation.pdf.multibook.retrieval.contract_helpers import ENV, HASH
+from tests.evaluation.pdf.multibook.retrieval.runner_helpers import (
+    FakeEncoder,
+    _queries,
+)
 
 
 PoolInputs = tuple[

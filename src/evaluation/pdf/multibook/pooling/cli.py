@@ -21,7 +21,9 @@ from src.evaluation.pdf.multibook.pooling.builder import (
 from src.evaluation.pdf.multibook.pooling.worksheet import (
     render_retrieval_pool_worksheet,
 )
-from src.evaluation.pdf.multibook_runs import PdfMultibookRetrievalRun
+from src.evaluation.pdf.multibook.retrieval.runs import (
+    PdfMultibookRetrievalRun,
+)
 from src.ingestion.pdf.pages import _resolve_book_path
 from src.ingestion.pdf.reading_document import prepare_pdf_reading_document
 

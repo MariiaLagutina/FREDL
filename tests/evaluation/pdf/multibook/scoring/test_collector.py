@@ -9,9 +9,11 @@ import pytest
 from src.evaluation.pdf.multibook.scoring.collector import (
     collect_pdf_multibook_judgments, PdfMissingJudgments,
 )
-from tests.evaluation.pdf import multibook_contract_helpers as contracts
+from tests.evaluation.pdf.multibook.retrieval import (
+    contract_helpers as contracts,
+)
 from tests.evaluation.pdf.multibook.pooling import pool_helpers as helpers
-from tests.evaluation.pdf import multibook_runner_helpers as runner
+from tests.evaluation.pdf.multibook.retrieval import runner_helpers as runner
 from tests.evaluation.pdf.multibook.scoring.metric_helpers import (
     collect, fill, score, submission, worksheet,
 )

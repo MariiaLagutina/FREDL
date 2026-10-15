@@ -14,12 +14,16 @@ from src.evaluation.pdf.library import (
 )
 from src.evaluation.pdf.manifest import PdfRetrieverKind
 from src.evaluation.pdf.multibook_golden import PdfMultibookGolden
-from src.evaluation.pdf.multibook_queries import (
+from src.evaluation.pdf.multibook.retrieval.queries import (
     build_pdf_multibook_query_plan,
     PdfQueryMode,
 )
-from src.evaluation.pdf.multibook_runner import run_pdf_multibook_retrieval
-from src.evaluation.pdf.multibook_runs import PdfMultibookRetrievalRun
+from src.evaluation.pdf.multibook.retrieval.runner import (
+    run_pdf_multibook_retrieval,
+)
+from src.evaluation.pdf.multibook.retrieval.runs import (
+    PdfMultibookRetrievalRun,
+)
 from src.ingestion.pdf.pages import _resolve_book_path
 from src.ingestion.pdf.retrieval_corpus import PdfRetrievalPolicy
 

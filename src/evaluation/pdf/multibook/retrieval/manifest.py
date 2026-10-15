@@ -22,7 +22,7 @@ from src.evaluation.pdf.manifest import (
     PdfSemanticConfiguration,
 )
 from src.evaluation.pdf.multibook_golden import PdfMultibookGolden
-from src.evaluation.pdf.multibook_queries import (
+from src.evaluation.pdf.multibook.retrieval.queries import (
     PdfMultibookQueryPlan,
     require_pdf_query_plan_matches,
 )

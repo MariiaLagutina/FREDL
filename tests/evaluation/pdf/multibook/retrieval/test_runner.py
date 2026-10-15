@@ -13,15 +13,18 @@ from src.evaluation.pdf.library import (
     PdfLibraryCorpus,
     build_pdf_library_corpus,
 )
-from src.evaluation.pdf.multibook_queries import PdfQueryMode
+from src.evaluation.pdf.multibook.retrieval.queries import PdfQueryMode
 from src.ingestion.pdf.retrieval_corpus import PdfRetrievalPolicy
 from src.retrieval.tokenization import TextTokenizer
 
-from tests.evaluation.pdf import (
-    multibook_contract_helpers as contract_fixtures,
-    multibook_runner_helpers as runner_fixtures,
+from tests.evaluation.pdf.multibook.retrieval import (
+    contract_helpers as contract_fixtures,
+    runner_helpers as runner_fixtures,
 )
-from tests.evaluation.pdf.multibook_runner_helpers import FakeEncoder, _run
+from tests.evaluation.pdf.multibook.retrieval.runner_helpers import (
+    FakeEncoder,
+    _run,
+)
 from tests.evaluation.pdf.multibook_golden_helpers import _records
 
 

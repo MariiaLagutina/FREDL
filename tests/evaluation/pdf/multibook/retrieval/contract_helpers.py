@@ -17,13 +17,15 @@ from src.evaluation.pdf.manifest import (
     rrf_configuration,
     semantic_configuration,
 )
-from src.evaluation.pdf.multibook_manifest import (
+from src.evaluation.pdf.multibook.retrieval.manifest import (
     PdfMultibookRetrievalConfiguration,
     PdfMultibookRetrievalManifest,
     build_pdf_multibook_manifest,
 )
-from src.evaluation.pdf.multibook_queries import build_pdf_multibook_query_plan
-from src.evaluation.pdf.multibook_runs import (
+from src.evaluation.pdf.multibook.retrieval.queries import (
+    build_pdf_multibook_query_plan,
+)
+from src.evaluation.pdf.multibook.retrieval.runs import (
     PdfMultibookContextAtCutoff,
     PdfMultibookContextHit,
     PdfMultibookQueryResult,

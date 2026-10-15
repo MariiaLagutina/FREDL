@@ -13,22 +13,27 @@ import pytest
 from src.__main__ import main
 from src.cli import CliError
 from src.evaluation.pdf.library import PdfLibraryCorpus
-from src.evaluation.pdf.multibook_retrieval_cli import (
+from src.evaluation.pdf.multibook.retrieval.cli import (
     pdf_run_multibook_retrieval,
     write_pdf_multibook_run,
 )
-from src.evaluation.pdf.multibook_runs import PdfMultibookRetrievalRun
+from src.evaluation.pdf.multibook.retrieval.runs import (
+    PdfMultibookRetrievalRun,
+)
 from src.retrieval.semantic.config import (
     DEFAULT_SEMANTIC_MODEL,
     DEFAULT_SEMANTIC_REVISION,
     SemanticEncoderConfig,
 )
 
-from tests.evaluation.pdf import (
-    multibook_contract_helpers as contract_fixtures,
-    multibook_runner_helpers as runner_fixtures,
+from tests.evaluation.pdf.multibook.retrieval import (
+    contract_helpers as contract_fixtures,
+    runner_helpers as runner_fixtures,
 )
-from tests.evaluation.pdf.multibook_runner_helpers import FakeEncoder, _run
+from tests.evaluation.pdf.multibook.retrieval.runner_helpers import (
+    FakeEncoder,
+    _run,
+)
 
 
 corpus = contract_fixtures.corpus
@@ -52,7 +57,7 @@ def test_four_pdf_cli_workflow_is_offline_and_writes_valid_run(
         return FakeEncoder()
 
     monkeypatch.setattr(
-        "src.evaluation.pdf.multibook_runner.MiniLMEncoder", fake,
+        "src.evaluation.pdf.multibook.retrieval.runner.MiniLMEncoder", fake,
     )
     output = tmp_path / "run.json"
     summary = pdf_run_multibook_retrieval(
@@ -124,7 +129,7 @@ def test_atomic_publication_never_leaves_partial_or_overwrites_racing_output(
         def fail_sync(fd: int) -> None:
             raise OSError("Synthetic flush failure")
         monkeypatch.setattr(
-            "src.evaluation.pdf.multibook_retrieval_cli.os.fsync", fail_sync,
+            "src.evaluation.pdf.multibook.retrieval.cli.os.fsync", fail_sync,
         )
     else:
         def fail_link(source: Path, target: Path) -> None:
@@ -132,7 +137,7 @@ def test_atomic_publication_never_leaves_partial_or_overwrites_racing_output(
                 target.write_bytes(b"concurrent output")
             raise FileExistsError("Synthetic publish failure")
         monkeypatch.setattr(
-            "src.evaluation.pdf.multibook_retrieval_cli.os.link", fail_link,
+            "src.evaluation.pdf.multibook.retrieval.cli.os.link", fail_link,
         )
     with pytest.raises(OSError):
         write_pdf_multibook_run(output, run)
@@ -200,7 +205,7 @@ def test_unsupported_hard_links_report_safe_cli_error_and_clean_up(
         raise OSError(errno.EOPNOTSUPP, "SYNTHETIC-SENSITIVE-MARKER")
 
     monkeypatch.setattr(
-        "src.evaluation.pdf.multibook_retrieval_cli.os.link", unsupported,
+        "src.evaluation.pdf.multibook.retrieval.cli.os.link", unsupported,
     )
     with pytest.raises(CliError, match="hard-link support") as error:
         pdf_run_multibook_retrieval(
@@ -227,7 +232,7 @@ def test_two_concurrent_writers_publish_exactly_one_complete_artifact(
         real_link(source, target)
 
     monkeypatch.setattr(
-        "src.evaluation.pdf.multibook_retrieval_cli.os.link",
+        "src.evaluation.pdf.multibook.retrieval.cli.os.link",
         synchronized_link,
     )
 

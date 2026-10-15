@@ -19,15 +19,15 @@ from src.evaluation.pdf.manifest import (
 )
 from src.evaluation.pdf.minilm_baseline import PdfMiniLmBaseline
 from src.evaluation.pdf.multibook_golden import PdfMultibookGolden
-from src.evaluation.pdf.multibook_manifest import (
+from src.evaluation.pdf.multibook.retrieval.manifest import (
     build_pdf_multibook_manifest,
     PdfMultibookRetrievalConfiguration,
 )
-from src.evaluation.pdf.multibook_queries import (
+from src.evaluation.pdf.multibook.retrieval.queries import (
     build_pdf_multibook_query_plan,
     PdfQueryMode,
 )
-from src.evaluation.pdf.multibook_runs import (
+from src.evaluation.pdf.multibook.retrieval.runs import (
     build_pdf_multibook_run,
     PdfMultibookContextAtCutoff,
     PdfMultibookContextHit,

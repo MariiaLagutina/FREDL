@@ -12,20 +12,25 @@ from src.evaluation.pdf.library import (
     build_pdf_library_corpus,
 )
 from src.evaluation.pdf.manifest import PdfRetrieverKind
-from src.evaluation.pdf.multibook_retrieval_cli import (
+from src.evaluation.pdf.multibook.retrieval.cli import (
     pdf_run_multibook_retrieval,
 )
-from src.evaluation.pdf.multibook_runner import run_pdf_multibook_retrieval
+from src.evaluation.pdf.multibook.retrieval.runner import (
+    run_pdf_multibook_retrieval,
+)
 from src.ingestion.pdf.retrieval_corpus import PdfRetrievalPolicy
 from src.retrieval.semantic.config import SemanticEncoderConfig
 from src.retrieval.semantic.runtime import SemanticBackendLoadError
 
-from tests.evaluation.pdf import (
-    multibook_contract_helpers as contract_fixtures,
-    multibook_runner_helpers as runner_fixtures,
+from tests.evaluation.pdf.multibook.retrieval import (
+    contract_helpers as contract_fixtures,
+    runner_helpers as runner_fixtures,
 )
-from tests.evaluation.pdf.multibook_contract_helpers import ENV, HASH
-from tests.evaluation.pdf.multibook_runner_helpers import FakeEncoder, _queries
+from tests.evaluation.pdf.multibook.retrieval.contract_helpers import ENV, HASH
+from tests.evaluation.pdf.multibook.retrieval.runner_helpers import (
+    FakeEncoder,
+    _queries,
+)
 
 
 corpus = contract_fixtures.corpus
@@ -109,7 +114,8 @@ def test_missing_local_model_fails_safely_without_output(
         raise SemanticBackendLoadError("SYNTHETIC-SENSITIVE-MARKER")
 
     monkeypatch.setattr(
-        "src.evaluation.pdf.multibook_runner.MiniLMEncoder", unavailable,
+        "src.evaluation.pdf.multibook.retrieval.runner.MiniLMEncoder",
+        unavailable,
     )
     output = tmp_path / "run.json"
     with pytest.raises(CliError, match="downloads are disabled") as error:

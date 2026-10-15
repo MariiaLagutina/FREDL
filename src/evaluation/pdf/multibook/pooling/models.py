@@ -6,9 +6,13 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic import model_validator
 
 from src.evaluation.pdf.manifest import PdfRetrieverKind
-from src.evaluation.pdf.multibook_queries import PdfQueryIdentity
-from src.evaluation.pdf.multibook_queries import PdfMultibookQueryPlan
-from src.evaluation.pdf.multibook_runs import PdfMultibookRetrievalRun
+from src.evaluation.pdf.multibook.retrieval.queries import PdfQueryIdentity
+from src.evaluation.pdf.multibook.retrieval.queries import (
+    PdfMultibookQueryPlan,
+)
+from src.evaluation.pdf.multibook.retrieval.runs import (
+    PdfMultibookRetrievalRun,
+)
 from src.ingestion.pdf.fingerprints import fingerprint_canonical_json
 
 

@@ -23,7 +23,7 @@ from src.evaluation.pdf.multibook.pooling.models import (
 from src.evaluation.pdf.multibook.pooling.worksheet import (
     POOL_WORKSHEET_COLUMNS, render_retrieval_pool_worksheet,
 )
-from tests.evaluation.pdf.multibook_contract_helpers import HASH
+from tests.evaluation.pdf.multibook.retrieval.contract_helpers import HASH
 from tests.evaluation.pdf.multibook.pooling.pool_helpers import PoolInputs
 
 

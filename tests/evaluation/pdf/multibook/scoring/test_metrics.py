@@ -7,9 +7,11 @@ import pytest
 from src.evaluation.pdf.multibook.scoring.report import (
     aggregate_multibook_metrics, build_multibook_metric_report,
 )
-from tests.evaluation.pdf import multibook_contract_helpers as contracts
+from tests.evaluation.pdf.multibook.retrieval import (
+    contract_helpers as contracts,
+)
 from tests.evaluation.pdf.multibook.pooling import pool_helpers as helpers
-from tests.evaluation.pdf import multibook_runner_helpers as runner
+from tests.evaluation.pdf.multibook.retrieval import runner_helpers as runner
 from tests.evaluation.pdf.multibook.scoring.metric_helpers import (
     collect, fill, score, worksheet,
 )
@@ -209,8 +211,8 @@ def test_evidence_at_rank11_is_not_unrestricted_mrr(
     from src.evaluation.pdf.library import (
         PdfLibraryBookInput, build_pdf_library_corpus,
     )
-    from src.evaluation.pdf.multibook_runner import _neighbor_context
-    from src.evaluation.pdf.multibook_runs import (
+    from src.evaluation.pdf.multibook.retrieval.runner import _neighbor_context
+    from src.evaluation.pdf.multibook.retrieval.runs import (
         PdfMultibookRankedHit, build_pdf_multibook_run,
     )
     from tests.evaluation.pdf.multibook_golden_helpers import _records

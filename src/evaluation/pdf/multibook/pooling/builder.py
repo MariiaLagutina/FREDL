@@ -16,9 +16,13 @@ from src.evaluation.pdf.multibook.pooling.models import (
     PdfCandidateOrigin, PdfPoolCandidate, PdfPoolingRun,
     PdfPoolRunIdentity, PdfRetrievalJudgmentPool, PdfRetrievalJudgmentTask,
 )
-from src.evaluation.pdf.multibook_queries import PdfQueryIdentity
-from src.evaluation.pdf.multibook_runner import _require_consistent_corpus
-from src.evaluation.pdf.multibook_runs import require_pdf_multibook_run_matches
+from src.evaluation.pdf.multibook.retrieval.queries import PdfQueryIdentity
+from src.evaluation.pdf.multibook.retrieval.runner import (
+    _require_consistent_corpus,
+)
+from src.evaluation.pdf.multibook.retrieval.runs import (
+    require_pdf_multibook_run_matches,
+)
 from src.ingestion.pdf.reading_text import PdfReadingPage
 
 

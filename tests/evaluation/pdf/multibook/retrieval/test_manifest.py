@@ -11,22 +11,22 @@ from src.evaluation.pdf.library import (
     PdfLibraryCorpus,
     build_pdf_library_corpus,
 )
-from src.evaluation.pdf.multibook_manifest import (
+from src.evaluation.pdf.multibook.retrieval.manifest import (
     PdfMultibookRetrievalConfiguration,
     PdfMultibookRetrievalManifest,
     require_pdf_multibook_manifest_matches,
 )
-from src.evaluation.pdf.multibook_runs import (
+from src.evaluation.pdf.multibook.retrieval.runs import (
     PdfMultibookRankedHit,
     PdfMultibookRetrievalRun,
     build_pdf_multibook_run,
 )
 from src.ingestion.pdf.retrieval_corpus import PdfRetrievalPolicy
 
-from tests.evaluation.pdf import (
-    multibook_contract_helpers as contract_fixtures,
+from tests.evaluation.pdf.multibook.retrieval import (
+    contract_helpers as contract_fixtures,
 )
-from tests.evaluation.pdf.multibook_contract_helpers import (
+from tests.evaluation.pdf.multibook.retrieval.contract_helpers import (
     HASH,
     _check,
     _config,

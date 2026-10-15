@@ -16,7 +16,7 @@ from src.evaluation.pdf.multibook.pooling.models import (
     PdfRetrievalJudgmentPool,
 )
 from tests.evaluation.pdf.multibook.pooling import pool_helpers as pool_helpers
-from tests.evaluation.pdf import multibook_runner_helpers as runner
+from tests.evaluation.pdf.multibook.retrieval import runner_helpers as runner
 
 
 pdf_inputs = runner.pdf_inputs

@@ -11,12 +11,12 @@ from pydantic import (
 from src.evaluation.pdf.library import PdfLibraryCorpus
 from src.evaluation.pdf.manifest import PdfRetrieverKind
 from src.evaluation.pdf.multibook_golden import PdfMultibookGolden
-from src.evaluation.pdf.multibook_manifest import (
+from src.evaluation.pdf.multibook.retrieval.manifest import (
     PdfMultibookRetrievalConfiguration,
     PdfMultibookRetrievalManifest,
     require_pdf_multibook_manifest_matches,
 )
-from src.evaluation.pdf.multibook_queries import (
+from src.evaluation.pdf.multibook.retrieval.queries import (
     PdfMultibookQueryPlan,
     PdfQueryIdentity,
 )
