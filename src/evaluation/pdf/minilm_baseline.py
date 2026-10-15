@@ -29,11 +29,15 @@ class PdfMiniLmBaseline:
         self,
         records: Sequence[PdfIndexRecord],
         encoder: SemanticTextEncoder | None = None,
+        *,
+        retrieval_texts: Sequence[str] | None = None,
     ) -> None:
-        """Encode the exact PDF record text once and retain record identity."""
+        """Encode the searchable PDF text once and retain record identity."""
         self._records = tuple(records)
         self._encoder = encoder or MiniLMEncoder()
-        lexical = PdfBm25Baseline(self._records)
+        lexical = PdfBm25Baseline(
+            self._records, retrieval_texts=retrieval_texts,
+        )
         self._index = build_semantic_index(
             lexical.lexical_index,
             self._encoder,

@@ -55,6 +55,7 @@ from src.ingestion.pdf.reading_text import (
 from src.ingestion.pdf.sections import (
     build_pdf_section_intervals,
     map_pdf_section_boundaries,
+    pdf_section_interval_id,
     PdfSectionBoundary,
     PdfSectionInterval,
 )
@@ -105,6 +106,10 @@ __all__ = [
     "PdfReadingFlow",
     "PdfReadingDocument",
     "PdfReadingPageSpan",
+    "PdfRecordClassification",
+    "PdfRecordRole",
+    "PdfRetrievalCorpus",
+    "PdfRetrievalPolicy",
     "PdfSectionBoundary",
     "PdfSectionInterval",
     "PdfTextFragment",
@@ -115,8 +120,10 @@ __all__ = [
     "build_book_card",
     "build_pdf_text_flows",
     "build_pdf_index_records",
+    "build_pdf_retrieval_corpus",
     "build_pdf_section_intervals",
     "chunk_pdf_reading_document",
+    "classify_pdf_records",
     "build_pdf_reading_pages",
     "build_pdf_reading_flows",
     "extract_pdf_page",
@@ -126,9 +133,18 @@ __all__ = [
     "find_repeated_margin_patterns",
     "make_pdf_chunk",
     "map_pdf_section_boundaries",
+    "pdf_section_interval_id",
     "plan_pdf_pages",
     "prepare_pdf_reading_document",
     "read_pdf_identity",
 ]
 
 from src.ingestion.pdf.outline import PdfOutlineEntry, read_pdf_outline
+from src.ingestion.pdf.retrieval_corpus import (
+    build_pdf_retrieval_corpus,
+    classify_pdf_records,
+    PdfRecordClassification,
+    PdfRecordRole,
+    PdfRetrievalCorpus,
+    PdfRetrievalPolicy,
+)

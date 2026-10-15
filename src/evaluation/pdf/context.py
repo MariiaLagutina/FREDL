@@ -12,7 +12,13 @@ def find_pdf_neighbor_context(
     *,
     top_k: int = 5,
 ) -> tuple[str, ...]:
-    """Return adjacent same-section records around the top ranked hits."""
+    """Return adjacent records from the same section interval as each hit.
+
+    Records match only by their exact section interval identity. Equal
+    section paths, resolutions, or hints are not sufficient, because
+    distinct intervals can share all of them. A record without an interval
+    identity receives no context.
+    """
     if top_k <= 0:
         raise ValueError("PDF context top_k must be positive")
 
@@ -43,7 +49,7 @@ def find_pdf_neighbor_context(
             if not 0 <= neighbor_index < len(flow_records):
                 continue
             neighbor = flow_records[neighbor_index]
-            if neighbor.section_path != record.section_path:
+            if not _same_interval(record, neighbor):
                 continue
             if not _records_touch(record, neighbor):
                 continue
@@ -52,6 +58,14 @@ def find_pdf_neighbor_context(
             context.append(neighbor.record_id)
             seen.add(neighbor.record_id)
     return tuple(context)
+
+
+def _same_interval(left: PdfIndexRecord, right: PdfIndexRecord) -> bool:
+    """Return whether both records carry the same known interval."""
+    return (
+        left.section_interval_id is not None
+        and left.section_interval_id == right.section_interval_id
+    )
 
 
 def _records_touch(

@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from enum import Enum
+import hashlib
 
 from src.ingestion.pdf.headings import PdfHeadingMatch, PdfHeadingStatus
 from src.ingestion.pdf.reading_flow import PdfReadingFlow
@@ -74,6 +75,34 @@ class PdfSectionInterval:
     def spans_multiple_flows(self) -> bool:
         """Return whether an empty page divides this section's text."""
         return self.start_flow_index != self.end_flow_index
+
+    @property
+    def interval_id(self) -> str:
+        """Identify this exact interval, independent of its metadata."""
+        return pdf_section_interval_id(
+            self.book_path, self.start_flow_index, self.start_flow_offset,
+        )
+
+
+def pdf_section_interval_id(
+    book_path: str,
+    flow_index: int,
+    flow_offset: int,
+) -> str:
+    """Derive a stable section-interval identity from its start position.
+
+    Interval starts are unique within a book, so two intervals with the
+    same path, resolution, and hint still receive distinct identities.
+    Text before the first interval uses the document start, where no
+    interval can begin while such text exists.
+
+    book_path is the canonical library-relative path, as in chunk IDs.
+    Moving the library root keeps identities; renaming or moving the file
+    inside the library changes them together with every chunk ID.
+    """
+    identity = f"{book_path}\0{flow_index}\0{flow_offset}"
+    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
+    return f"pdf-section:{digest}"
 
 
 @dataclass(frozen=True, slots=True)

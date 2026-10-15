@@ -59,7 +59,11 @@ class PdfJudgmentSet(_StrictModel):
 
 
 def fingerprint_pdf_records(records: Sequence[PdfIndexRecord]) -> str:
-    """Hash all source and chunk fields that can affect evidence labels."""
+    """Hash all source and chunk fields that can affect evidence labels.
+
+    The section interval identity is included because it decides which
+    neighbouring records can expand a hit's context.
+    """
     _require_unique_record_ids(records)
     digest = sha256()
     for record in sorted(records, key=lambda item: item.record_id):
@@ -71,6 +75,7 @@ def fingerprint_pdf_records(records: Sequence[PdfIndexRecord]) -> str:
             str(record.flow_start),
             str(record.flow_end),
             record.text,
+            record.section_interval_id or "",
         )
         for value in values:
             digest.update(value.encode("utf-8"))

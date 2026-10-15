@@ -50,6 +50,8 @@ class PdfChunk:
     section_resolution: PdfSectionResolution = PdfSectionResolution.NONE
     section_hint: tuple[str, ...] = ()
     unresolved_reason: PdfHeadingStatus | None = None
+    # Identifies the exact section interval; None when it is unknown.
+    section_interval_id: str | None = None
 
     @property
     def first_page_number(self) -> int:
@@ -72,6 +74,7 @@ def make_pdf_chunk(
     section_resolution: PdfSectionResolution | None = None,
     section_hint: tuple[str, ...] = (),
     unresolved_reason: PdfHeadingStatus | None = None,
+    section_interval_id: str | None = None,
 ) -> PdfChunk:
     """Create one chunk from a half-open reading-flow range.
 
@@ -122,6 +125,7 @@ def make_pdf_chunk(
         ),
         section_hint=section_hint,
         unresolved_reason=unresolved_reason,
+        section_interval_id=section_interval_id,
     )
 
 

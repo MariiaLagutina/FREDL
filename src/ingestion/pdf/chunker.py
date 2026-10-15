@@ -10,6 +10,7 @@ from src.ingestion.pdf.reading_flow import (
     PdfReadingFlow,
 )
 from src.ingestion.pdf.sections import (
+    pdf_section_interval_id,
     PdfSectionInterval,
     PdfSectionResolution,
 )
@@ -98,6 +99,10 @@ def _chunk_flow_range(
                 section_hint=interval.outline_hint if interval else (),
                 unresolved_reason=(
                     interval.unresolved_reason if interval else None
+                ),
+                section_interval_id=(
+                    interval.interval_id if interval
+                    else pdf_section_interval_id(flow.book_path, 0, 0)
                 ),
             )
         )

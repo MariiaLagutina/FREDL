@@ -25,6 +25,7 @@ class PdfIndexRecord:
     section_resolution: PdfSectionResolution = PdfSectionResolution.NONE
     section_hint: tuple[str, ...] = ()
     unresolved_reason: PdfHeadingStatus | None = None
+    section_interval_id: str | None = None
 
     @property
     def first_page_number(self) -> int:
@@ -55,6 +56,7 @@ def build_pdf_index_records(
             section_resolution=chunk.section_resolution,
             section_hint=chunk.section_hint,
             unresolved_reason=chunk.unresolved_reason,
+            section_interval_id=chunk.section_interval_id,
         )
         for chunk in chunks
     )

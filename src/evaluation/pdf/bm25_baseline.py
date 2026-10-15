@@ -33,11 +33,21 @@ class PdfBm25Baseline:
         self,
         records: Sequence[PdfIndexRecord],
         parameters: BM25Parameters | None = None,
+        *,
+        retrieval_texts: Sequence[str] | None = None,
     ) -> None:
-        """Build one immutable lexical index and preserve record identity."""
+        """Build one immutable lexical index and preserve record identity.
+
+        retrieval_texts, aligned with records, replaces only the searchable
+        text, such as a policy view without boilerplate; records keep theirs.
+        """
         self._records = tuple(records)
         _require_unique_record_ids(self._records)
-        documents = tuple(_build_document(record) for record in self._records)
+        texts = _aligned_texts(self._records, retrieval_texts)
+        documents = tuple(
+            _build_document(record, text)
+            for record, text in zip(self._records, texts)
+        )
         self._retriever = BM25Retriever(BM25Index(documents, parameters))
         self._records_by_key = {
             document.key: record
@@ -89,7 +99,23 @@ class PdfBm25Baseline:
         )
 
 
-def _build_document(record: PdfIndexRecord) -> BM25Document:
+def _aligned_texts(
+    records: tuple[PdfIndexRecord, ...],
+    retrieval_texts: Sequence[str] | None,
+) -> tuple[str, ...]:
+    if retrieval_texts is None:
+        return tuple(record.text for record in records)
+    if len(retrieval_texts) != len(records):
+        raise ValueError("PDF retrieval texts must align with records")
+    if any(
+        len(text) != len(record.text)
+        for record, text in zip(records, retrieval_texts)
+    ):
+        raise ValueError("PDF retrieval texts must keep record offsets")
+    return tuple(retrieval_texts)
+
+
+def _build_document(record: PdfIndexRecord, text: str) -> BM25Document:
     """Keep searchable PDF text and section metadata in separate fields."""
     text_tokenizer = TextTokenizer()
     metadata_tokenizer = CodeTokenizer()
@@ -102,12 +128,12 @@ def _build_document(record: PdfIndexRecord) -> BM25Document:
         file_path=f"{record.book_path}#flow={record.flow_index}",
         start=record.flow_start,
         end=record.flow_end,
-        text=record.text,
+        text=text,
         section_path=record.section_path,
     )
     return BM25Document(
         chunk=chunk,
-        content_terms=tuple(text_tokenizer.tokenize(record.text)),
+        content_terms=tuple(text_tokenizer.tokenize(text)),
         metadata_terms=metadata_terms,
     )
 

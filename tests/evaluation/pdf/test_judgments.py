@@ -1,5 +1,6 @@
 """Tests for versioned human PDF record relevance judgments."""
 
+from dataclasses import replace
 import json
 from pathlib import Path
 
@@ -98,6 +99,17 @@ def test_record_fingerprint_is_stable_for_record_order() -> None:
     assert fingerprint_pdf_records((first, second)) == (
         fingerprint_pdf_records((second, first))
     )
+
+
+def test_rejects_labels_after_section_interval_changes(
+    tmp_path: Path,
+) -> None:
+    records = (_record(),)
+    path = _write_judgments(tmp_path, records)
+    regrouped = (replace(records[0], section_interval_id="pdf-section:b"),)
+
+    with pytest.raises(ValueError, match="fingerprint differs"):
+        load_pdf_judgment_set(path, _dataset(), regrouped)
 
 
 def test_rejects_labels_after_record_content_changes(tmp_path: Path) -> None:
