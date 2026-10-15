@@ -91,8 +91,9 @@ kind of learning.
 The interface should make resurfacing calm and dismissible. A retriever helper
 may offer one earlier thought or question in a side area. Closing it, continuing
 to read, asking another question, opening another source, or returning to the
-original passage are all useful signals. FREDL should not ask for a rating after
-every explanation.
+original passage are ambiguous interaction signals, not automatic evidence of
+usefulness. Their meaning requires combined evidence and explicit feedback.
+FREDL should not ask for a rating after every explanation.
 
 ## Current validation boundary
 
@@ -100,4 +101,10 @@ The founder is the first user. The immediate goal is to learn whether the
 question-and-context loop helps with real engineering study and project work.
 The prototype is evidence only about that use. Broader claims require broader
 testing later.
+
+Technical PDF validation now covers four books, with known extraction and layout
+limitations. It does not establish cross-book retrieval quality, answerability,
+or the usefulness of the full learning loop. New evaluation baselines remain
+pending; the implemented utilities and their limits are described in
+[Technical Foundation](technical-foundation.md).
 
