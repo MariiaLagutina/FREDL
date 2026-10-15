@@ -43,6 +43,106 @@ CLI, live in `tests/evaluation/pdf/multibook/integration/`. Moving a module
 changed its import path only; command names, arguments, artifacts and
 fingerprints stay the same.
 
+## Architecture Refactoring — October 2026
+
+### Motivation
+
+As the multi-book evaluation subsystem grew, 23 multi-book modules and 19 of
+their test modules sat in the same flat directories as the single-book code.
+Each name was descriptive, but finding one responsibility meant scanning many
+files that shared the `multibook_` prefix. The refactoring addressed that
+navigation and maintenance cost. It was not a response to a known defect in
+retrieval, pooling or scoring.
+
+### Decision
+
+Modules are grouped by the responsibility they carry, in the order data flows
+through an evaluation: `library → curation → retrieval → pooling → scoring`.
+The library pins the books and applies a corpus policy to each; curation
+defines and imports the golden set and runs the judgment pilot; retrieval
+searches the library and records runs with their provenance; pooling turns
+saved runs into blind review tasks; scoring collects the human labels and
+computes metrics. The package list is in [Code layout](#code-layout).
+
+Imports point the other way: a package may import from packages before it in
+this order, never from packages after it. The historical pilot pooling lives in
+`curation/` because it serves the golden set and its pilot labels, not the
+retrieval pooling that follows a run. Historical single-book modules stay
+directly under `src/evaluation/pdf/` and import nothing from `multibook/`.
+
+### Mirrored tests
+
+Tests under `tests/evaluation/pdf/multibook/` use the same packages, so the
+tests for a module are found by the same path. Tests that run several
+responsibilities together live in `integration/`. Shared helpers sit in the
+package whose objects they build and are imported only from the same or a later
+package; no test module imports another test module. Each test module binds the
+fixtures it uses explicitly, and there is no global `conftest.py`, so
+restrictive fixtures such as the ones that forbid retrieval or model loading
+apply only where a module opts in. The contract tests for `library.py`
+currently live in `curation/test_golden_contracts.py`.
+
+### Migration
+
+The move took five commits. Each left the whole test suite passing.
+
+1. `d49cd5368b11805fcd4b991bf63080c84f7ef852`: moved shared helpers out of test
+   modules, so that no test module imports another.
+2. `6e82c7778570fb0fcbdf4336c0d010a204f96dc2`: scoring.
+3. `94b2ef7a3148315a8d8f970705d55b1714efb7ff`: pooling.
+4. `61cc26f35b2194ad9d321e6d26a42aab496f90eb`: retrieval.
+5. `095e667351e7e0afe02b8264e63df10eee7f2831`: curation and the library.
+
+Packages moved from the last layer to the first, so each step changed imports
+only in the moved package and in packages already moved. No compatibility
+modules were left at the old paths: a patch applied to such a module would not
+reach the module that actually runs the code.
+
+### Preserved behavior and verification
+
+The refactoring was intended to change module paths only. Against the layout
+before the move, these checks passed:
+
+- 1213 tests pass, including 442 PDF and 332 multi-book tests, with none
+  skipped; test IDs, including parameters, are the same once paths are mapped,
+  and every test uses the same fixtures;
+- the 16 PDF commands are unchanged, and their `--help` output is
+  byte-identical;
+- all 61 string monkeypatch targets in the tests resolve, and those that patch
+  module functions point at the module that calls them;
+- production modules have the same syntax tree once import statements are
+  excluded; five test modules changed in structure when helpers were extracted
+  in the first step;
+- fingerprint regression tests pass, and the version 1 and version 2 golden-set
+  and pilot judgment contracts are unchanged;
+- the import graph has no cycles and no import against the layer order, and no
+  single-book module changed;
+- strict lint and privacy checks pass, and a full test run with external
+  network connections blocked made no connection attempts.
+
+These checks show that behavior is preserved as far as the existing tests
+cover it. They do not measure retrieval quality or performance, and no private
+evaluation was run.
+
+### Known limitations
+
+The move did not create these issues; it made some of them easier to see.
+
+- Five imports cross module boundaries to reach private functions, such as
+  book-path resolution in PDF ingestion.
+- Retrieval pooling still uses shared pieces kept in curation modules: locator
+  verification in the importer, and the judged-unit list and labelling guide in
+  the pilot modules.
+- The scoring command imports a run loader from the pooling command module.
+- Importing any multi-book module loads the historical `src/evaluation/pdf/`
+  package initializer, which imports the single-book baselines and their
+  dependencies.
+- Some curation modules are large, notably the importer, but each remains
+  mostly about one task.
+
+GitHub CI has not yet run on these commits, because the branch is not yet
+published.
+
 ## Commands
 
 Run from the repository with the locked environment installed (`make install`).
