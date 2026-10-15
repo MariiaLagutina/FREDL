@@ -5,8 +5,10 @@ from typing import Literal
 from pydantic import Field, model_validator
 
 from src.evaluation.pdf.judgments import PdfRecordRelevance
-from src.evaluation.pdf.multibook_pool_models import PoolModel, SHA256
-from src.evaluation.pdf.multibook_pool_models import PdfRetrievalJudgmentTask
+from src.evaluation.pdf.multibook.pooling.models import PoolModel, SHA256
+from src.evaluation.pdf.multibook.pooling.models import (
+    PdfRetrievalJudgmentTask,
+)
 from src.ingestion.pdf.fingerprints import fingerprint_canonical_json
 
 

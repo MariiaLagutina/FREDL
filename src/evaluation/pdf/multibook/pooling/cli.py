@@ -9,16 +9,16 @@ from pypdf.errors import PyPdfError
 from src.cli import CliError
 from src.evaluation.pdf.library import load_pdf_library_corpus, sha256_file
 from src.evaluation.pdf.multibook_golden import PdfMultibookGolden
-from src.evaluation.pdf.multibook_pool_package import (
+from src.evaluation.pdf.multibook.pooling.package import (
     write_review_package,
 )
-from src.evaluation.pdf.multibook_pool_models import (
+from src.evaluation.pdf.multibook.pooling.models import (
     PdfPoolingInputs, PdfPoolingRun,
 )
-from src.evaluation.pdf.multibook_pooling import (
+from src.evaluation.pdf.multibook.pooling.builder import (
     build_pdf_retrieval_judgment_pool,
 )
-from src.evaluation.pdf.multibook_pool_worksheet import (
+from src.evaluation.pdf.multibook.pooling.worksheet import (
     render_retrieval_pool_worksheet,
 )
 from src.evaluation.pdf.multibook_runs import PdfMultibookRetrievalRun

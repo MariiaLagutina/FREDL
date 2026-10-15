@@ -12,7 +12,9 @@ from src.evaluation.pdf.multibook.scoring.metric_models import (
     PdfMetricMean, PdfMultibookRetrievalEvaluation, PdfQueryRetrievalMetrics,
     PdfRetrievalAggregate,
 )
-from src.evaluation.pdf.multibook_pool_models import PdfRetrievalJudgmentPool
+from src.evaluation.pdf.multibook.pooling.models import (
+    PdfRetrievalJudgmentPool,
+)
 
 
 def aggregate_multibook_metrics(

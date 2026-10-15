@@ -10,7 +10,9 @@ import shutil
 import sys
 import tempfile
 
-from src.evaluation.pdf.multibook_pool_models import PdfRetrievalJudgmentPool
+from src.evaluation.pdf.multibook.pooling.models import (
+    PdfRetrievalJudgmentPool,
+)
 
 
 def _rename_new_directory(source: Path, target: Path) -> None:

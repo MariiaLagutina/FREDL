@@ -13,7 +13,7 @@ from src.evaluation.pdf.library import (
 )
 from src.evaluation.pdf.manifest import PdfRetrieverKind
 from src.evaluation.pdf.multibook_golden import PdfMultibookGolden
-from src.evaluation.pdf.multibook_pool_models import (
+from src.evaluation.pdf.multibook.pooling.models import (
     PdfPoolingRun, PdfRetrievalJudgmentPool,
 )
 from src.evaluation.pdf.multibook_runner import run_pdf_multibook_retrieval
@@ -86,7 +86,7 @@ def synthetic_inputs(corpus: PdfLibraryCorpus) -> PoolInputs:
 def build_pool(
     inputs: PoolInputs, **kwargs: Any,
 ) -> PdfRetrievalJudgmentPool:
-    from src.evaluation.pdf.multibook_pooling import (
+    from src.evaluation.pdf.multibook.pooling.builder import (
         build_pdf_retrieval_judgment_pool,
     )
     golden, corpus, runs, pages = inputs

@@ -5,13 +5,16 @@ import io
 
 import pytest
 
-from src.evaluation.pdf.multibook_pool_worksheet import (
+from src.evaluation.pdf.multibook.pooling.worksheet import (
     POOL_WORKSHEET_COLUMNS, render_retrieval_pool_worksheet,
 )
 from tests.evaluation.pdf import multibook_contract_helpers as contracts
-from tests.evaluation.pdf import multibook_pool_helpers as helpers
+from tests.evaluation.pdf.multibook.pooling import pool_helpers as helpers
 from tests.evaluation.pdf import multibook_runner_helpers as runner
-from tests.evaluation.pdf.multibook_pool_helpers import PoolInputs, build_pool
+from tests.evaluation.pdf.multibook.pooling.pool_helpers import (
+    PoolInputs,
+    build_pool,
+)
 
 
 corpus = contracts.corpus
@@ -108,7 +111,7 @@ def test_markdown_preserves_backticks_and_trailing_newlines(
     pool_inputs: PoolInputs,
 ) -> None:
     from dataclasses import replace
-    from src.evaluation.pdf.multibook_pool_worksheet import _review_record
+    from src.evaluation.pdf.multibook.pooling.worksheet import _review_record
     _, corpus, _, _ = pool_inputs
     text = 'Example:\n```python\nprint(1)\n```\n\n'
     record = replace(corpus.source_records[0], text=text)

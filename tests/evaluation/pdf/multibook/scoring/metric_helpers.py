@@ -17,12 +17,14 @@ from src.evaluation.pdf.multibook.scoring.metrics import (
 from src.evaluation.pdf.multibook.scoring.metric_models import (
     PdfQueryRetrievalMetrics,
 )
-from src.evaluation.pdf.multibook_pool_models import PdfRetrievalJudgmentPool
-from src.evaluation.pdf.multibook_pool_worksheet import (
+from src.evaluation.pdf.multibook.pooling.models import (
+    PdfRetrievalJudgmentPool,
+)
+from src.evaluation.pdf.multibook.pooling.worksheet import (
     POOL_WORKSHEET_COLUMNS, render_retrieval_pool_worksheet,
 )
 from tests.evaluation.pdf.multibook_contract_helpers import HASH
-from tests.evaluation.pdf.multibook_pool_helpers import PoolInputs
+from tests.evaluation.pdf.multibook.pooling.pool_helpers import PoolInputs
 
 
 Decision = Callable[[dict[str, str]], tuple[str, str]]

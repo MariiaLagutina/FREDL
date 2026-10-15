@@ -26,8 +26,10 @@ from src.evaluation.pdf.multibook.scoring.metrics import (
 from src.evaluation.pdf.multibook.scoring.metric_models import (
     PdfQueryRetrievalMetrics,
 )
-from src.evaluation.pdf.multibook_pool_cli import load_pdf_pooling_runs
-from src.evaluation.pdf.multibook_pool_models import PdfRetrievalJudgmentPool
+from src.evaluation.pdf.multibook.pooling.cli import load_pdf_pooling_runs
+from src.evaluation.pdf.multibook.pooling.models import (
+    PdfRetrievalJudgmentPool,
+)
 from src.ingestion.pdf.pages import _resolve_book_path
 from src.ingestion.pdf.reading_document import prepare_pdf_reading_document
 

@@ -6,7 +6,9 @@ import re
 
 from src.evaluation.pdf.library import PdfLibraryCorpus
 from src.evaluation.pdf.multibook_golden import PdfMultibookGolden
-from src.evaluation.pdf.multibook_pool_models import PdfRetrievalJudgmentPool
+from src.evaluation.pdf.multibook.pooling.models import (
+    PdfRetrievalJudgmentPool,
+)
 from src.evaluation.pdf.pooling import LABELING_GUIDE
 from src.ingestion.pdf.fingerprints import fingerprint_canonical_json
 from src.ingestion.pdf.index_records import PdfIndexRecord

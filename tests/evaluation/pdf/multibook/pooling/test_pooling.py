@@ -8,16 +8,19 @@ import pytest
 from pydantic import ValidationError
 
 from src.evaluation.pdf.library import PdfLibraryCorpus
-from src.evaluation.pdf.multibook_pool_models import (
+from src.evaluation.pdf.multibook.pooling.models import (
     PdfCandidateOrigin, PdfPoolingInputs, PdfRetrievalJudgmentPool,
 )
-from src.evaluation.pdf.multibook_pooling import (
+from src.evaluation.pdf.multibook.pooling.builder import (
     require_pdf_retrieval_pool_matches,
 )
 from tests.evaluation.pdf import multibook_contract_helpers as contracts
-from tests.evaluation.pdf import multibook_pool_helpers as helpers
+from tests.evaluation.pdf.multibook.pooling import pool_helpers as helpers
 from tests.evaluation.pdf import multibook_runner_helpers as runner
-from tests.evaluation.pdf.multibook_pool_helpers import PoolInputs, build_pool
+from tests.evaluation.pdf.multibook.pooling.pool_helpers import (
+    PoolInputs,
+    build_pool,
+)
 
 
 corpus = contracts.corpus
@@ -236,7 +239,7 @@ def test_large_corpus_uses_exact_top_depth_and_cutoff_context(
         PdfLibraryBookInput, build_pdf_library_corpus,
     )
     from src.evaluation.pdf.multibook_import import anchor_records
-    from src.evaluation.pdf.multibook_pooling import query_pool_units
+    from src.evaluation.pdf.multibook.pooling.builder import query_pool_units
     from tests.evaluation.pdf.multibook_golden_helpers import _records
     inputs = []
     for book in corpus.books:

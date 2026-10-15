@@ -18,9 +18,13 @@ from src.evaluation.pdf.multibook.scoring.judgment_models import (
 from src.evaluation.pdf.multibook.scoring.metric_models import (
     PdfMultibookRetrievalEvaluation,
 )
-from src.evaluation.pdf.multibook_pool_cli import pdf_pool_multibook_judgments
-from src.evaluation.pdf.multibook_pool_models import PdfRetrievalJudgmentPool
-from tests.evaluation.pdf import multibook_pool_helpers as pool_helpers
+from src.evaluation.pdf.multibook.pooling.cli import (
+    pdf_pool_multibook_judgments,
+)
+from src.evaluation.pdf.multibook.pooling.models import (
+    PdfRetrievalJudgmentPool,
+)
+from tests.evaluation.pdf.multibook.pooling import pool_helpers as pool_helpers
 from tests.evaluation.pdf import multibook_runner_helpers as runner
 from tests.evaluation.pdf.multibook.scoring.metric_helpers import fill
 

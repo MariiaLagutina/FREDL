@@ -10,8 +10,8 @@ from typing import Any
 
 import pytest
 
-from src.evaluation.pdf import multibook_pool_package as publication
-from src.evaluation.pdf.multibook_pool_package import write_review_package
+from src.evaluation.pdf.multibook.pooling import package as publication
+from src.evaluation.pdf.multibook.pooling.package import write_review_package
 
 
 def test_write_failure_cleans_only_own_files(
@@ -27,7 +27,7 @@ def test_write_failure_cleans_only_own_files(
             raise OSError('Synthetic failure')
         return real_open(path, flags, mode, **kwargs)
     monkeypatch.setattr(
-        'src.evaluation.pdf.multibook_pool_package.os.open', fail,
+        'src.evaluation.pdf.multibook.pooling.package.os.open', fail,
     )
     with pytest.raises(OSError):
         write_review_package(output, {'first.md': 'one', 'second.md': 'two'},

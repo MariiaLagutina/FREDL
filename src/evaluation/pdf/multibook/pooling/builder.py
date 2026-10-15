@@ -12,7 +12,7 @@ from src.evaluation.pdf.multibook_import import (
     anchor_records, verify_pdf_multibook_golden,
 )
 from src.evaluation.pdf.multibook_judgments import pool_units
-from src.evaluation.pdf.multibook_pool_models import (
+from src.evaluation.pdf.multibook.pooling.models import (
     PdfCandidateOrigin, PdfPoolCandidate, PdfPoolingRun,
     PdfPoolRunIdentity, PdfRetrievalJudgmentPool, PdfRetrievalJudgmentTask,
 )

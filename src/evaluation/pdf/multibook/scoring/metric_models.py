@@ -8,8 +8,8 @@ from src.evaluation.pdf.manifest import PdfRetrieverKind
 from src.evaluation.pdf.multibook_golden import (
     PdfExpectedBehavior, PdfExpectedOutcome,
 )
-from src.evaluation.pdf.multibook_pool_models import PoolModel, SHA256
-from src.evaluation.pdf.multibook_pool_models import PdfPoolRunIdentity
+from src.evaluation.pdf.multibook.pooling.models import PoolModel, SHA256
+from src.evaluation.pdf.multibook.pooling.models import PdfPoolRunIdentity
 from src.evaluation.pdf.multibook_queries import PdfQueryIdentity
 from src.evaluation.pdf.multibook_runs import PdfMultibookContextHit
 from src.ingestion.pdf.fingerprints import fingerprint_canonical_json

@@ -13,18 +13,21 @@ from src.evaluation.pdf.multibook.scoring.collector import PdfMissingJudgments
 from src.evaluation.pdf.multibook.scoring.report import (
     aggregate_multibook_metrics,
 )
-from src.evaluation.pdf.multibook_pool_models import PdfPoolingRun
+from src.evaluation.pdf.multibook.pooling.models import PdfPoolingRun
 from src.evaluation.pdf.multibook_runner import _neighbor_context
 from src.evaluation.pdf.multibook_runs import (
     PdfMultibookRankedHit, build_pdf_multibook_run,
 )
 from tests.evaluation.pdf import multibook_contract_helpers as contracts
-from tests.evaluation.pdf import multibook_pool_helpers as helpers
+from tests.evaluation.pdf.multibook.pooling import pool_helpers as helpers
 from tests.evaluation.pdf import multibook_runner_helpers as runner
 from tests.evaluation.pdf.multibook.scoring.metric_helpers import (
     collect, fill, score, worksheet,
 )
-from tests.evaluation.pdf.multibook_pool_helpers import PoolInputs, build_pool
+from tests.evaluation.pdf.multibook.pooling.pool_helpers import (
+    PoolInputs,
+    build_pool,
+)
 from tests.evaluation.pdf.multibook_golden_helpers import _records
 
 

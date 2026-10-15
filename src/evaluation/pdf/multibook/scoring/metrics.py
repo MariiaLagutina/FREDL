@@ -15,10 +15,10 @@ from src.evaluation.pdf.multibook.scoring.judgment_models import (
 from src.evaluation.pdf.multibook.scoring.metric_models import (
     PdfContextGain, PdfEvidenceCoverage, PdfQueryRetrievalMetrics,
 )
-from src.evaluation.pdf.multibook_pool_models import (
+from src.evaluation.pdf.multibook.pooling.models import (
     PdfPoolingRun, PdfRetrievalJudgmentPool,
 )
-from src.evaluation.pdf.multibook_pooling import (
+from src.evaluation.pdf.multibook.pooling.builder import (
     query_pool_units, require_pdf_retrieval_pool_matches,
 )
 from src.ingestion.pdf.reading_text import PdfReadingPage

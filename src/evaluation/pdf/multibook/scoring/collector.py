@@ -13,13 +13,13 @@ from src.evaluation.pdf.multibook.scoring.judgment_models import (
     PdfCollectedJudgment, PdfCollectedJudgments, PdfWorksheetSubmission,
     PdfWorksheetSource,
 )
-from src.evaluation.pdf.multibook_pool_models import (
+from src.evaluation.pdf.multibook.pooling.models import (
     PdfPoolingRun, PdfRetrievalJudgmentPool,
 )
-from src.evaluation.pdf.multibook_pooling import (
+from src.evaluation.pdf.multibook.pooling.builder import (
     require_pdf_retrieval_pool_matches,
 )
-from src.evaluation.pdf.multibook_pool_worksheet import (
+from src.evaluation.pdf.multibook.pooling.worksheet import (
     POOL_WORKSHEET_COLUMNS, render_retrieval_pool_worksheet,
 )
 from src.ingestion.pdf.reading_text import PdfReadingPage
