@@ -120,7 +120,9 @@ receives no neighbor context.
 
 The evaluation CLI supplies only corpus-eligible records to context expansion;
 it cannot jump across a gap left by an excluded record. These workflows operate
-on one book per run. Identities depend on the canonical library-relative book
+on one book per run. A multi-book library corpus applies the policy to each
+book separately and keeps record identities unique across books; no retrieval
+run uses it yet. Identities depend on the canonical library-relative book
 path: renaming a book changes identity and requires explicit compatibility and
 judgment review rather than silent reuse.
 
@@ -210,14 +212,17 @@ generated-answer correctness. Only the four pinned books are admissible answer
 evidence; the pinned BI Early Release edition is approved for this corpus and
 is not interchangeable with a later edition.
 
-The package is not a frozen or executable multi-book Golden Set. The current
-golden schema and run manifests require one book; source support is
-`complete`, `partial` or `not_found`, and model output is binary. Multi-book
-OR-of-AND evidence combinations, ambiguity, lost mathematical or visual
-structure, and source-incomplete cases have no implemented evaluation mapping.
-No record-level judgments or new baselines have been created for these 22
-candidates. Four-book technical validation and candidate review do not measure
-cross-book answerability quality.
+A separate multi-book golden schema, version 2, now represents OR-of-AND
+evidence sets, separate source and extracted-text support, lost mathematical or
+visual structure, source-incomplete cases, and ambiguous questions with
+explicit interpretations. Human relevance judgments are recorded per evidence
+unit. The candidates form an unfrozen draft under this schema, and a
+four-question judgment pilot is complete. Run manifests, retrieval runners and
+metrics still require one book, and answerability output is binary. No full
+judgments or new baselines exist for these candidates, and candidate review
+does not measure cross-book answerability quality. The contract, its commands
+and its migration guarantees are documented in
+[PDF evaluation and CLI](pdf-evaluation.md#multi-book-golden-contract).
 
 ### Not yet measured
 
@@ -225,6 +230,8 @@ cross-book answerability quality.
   PDF Tasks 1–5; historical runs use an earlier corpus and protocol and cannot
   be compared directly with the pending baselines;
 - retrieval and answerability across several books and document classes;
+- whether FREDL recognizes an ambiguous question and asks for clarification; no
+  component implements this behavior;
 - whether a returned passage was useful in the product flow.
 
 Recall and ranking metrics can diagnose retrieval. User feedback must remain a
@@ -270,12 +277,14 @@ memory.
 
 ## Next implementation slice
 
-Four-book technical validation and the evaluation-contract utilities are
-implemented, with the limits above. The multi-book candidate review is complete,
-but Golden Set freezing, a versioned multi-book contract, record judgments and
-evaluation execution remain separate work requiring approval. New baselines
-remain pending. Neither the diagnostic probes, completed migration nor candidate
-acceptance establish improved retrieval quality or answerability.
+Four-book technical validation, the evaluation-contract utilities and the
+multi-book golden and judgment contract are implemented, with the limits above.
+The next evaluation step is a runner and metrics for the combined library;
+retrieval runs, full relevance labelling, Golden Set freezing and model
+evaluation remain separate work requiring approval. New baselines remain
+pending. Neither the diagnostic probes, completed migrations, candidate
+acceptance nor the judgment pilot establish improved retrieval quality or
+answerability.
 
 The rest of the milestone remains intentionally small:
 

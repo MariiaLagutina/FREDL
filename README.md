@@ -17,10 +17,12 @@ application.
 > FREDL is at an early research and development stage. A manual prototype under
 > founder-led testing, a verified retrieval foundation, a local PDF ingestion
 > pipeline, and a historical single-book evaluation exist today. Technical PDF
-> validation covers four books. A private package of 22 candidate questions has
-> human approval, but its multi-book evaluation contract, record judgments and
-> new baselines are not complete. General PDF compatibility, the production
-> frontend and personal learning memory remain unimplemented or unverified.
+> validation covers four books. A versioned multi-book evaluation contract and
+> human-judgment tooling are implemented. A private set of 22 human-approved
+> candidate questions is an unfrozen draft with a four-question judgment pilot;
+> library-wide retrieval runs, full judgments and new baselines are not
+> complete. General PDF compatibility, the production frontend and personal
+> learning memory remain unimplemented or unverified.
 
 ## Why FREDL
 
@@ -147,7 +149,8 @@ carrying forward.
 | PDF section-aware chunking | Verified headings, outline-without-destinations fallback, unresolved structural status and exact physical-page provenance |
 | PDF retrieval evaluation | Historical single-book baselines; current corpus and evaluation contract implemented, new baselines pending |
 | Answerability check | Local experimental runner with separate metrics; not part of a product reading flow |
-| Multi-book PDF evaluation | 22 human-approved private candidates; no frozen Golden Set, multi-book contract, record judgments or new baselines |
+| Multi-book PDF evaluation | Golden contract, import and judgment tooling implemented; unfrozen draft of 22 human-approved private candidates and a four-question judgment pilot; no library-wide runner, retrieval runs, full judgments or new baselines |
+| Clarification of ambiguous questions | Evaluation reference only ([PD-005](docs/product-decisions.md#pd-005-ask-for-clarification-instead-of-guessing-the-users-meaning)); not implemented |
 | Production frontend | Not implemented |
 | Learning-memory storage | Designed conceptually; not implemented |
 | Adaptive resurfacing | Research hypothesis; not implemented |
@@ -183,6 +186,7 @@ external model.
 | Optional semantic search | Pinned CPU MiniLM embeddings |
 | Optional hybrid search | Weighted Reciprocal Rank Fusion for documentation and PDF records |
 | PDF evaluation | Canonical ordering, layered fingerprints, manifests, judgment migration, and ranked/context evidence-unit coverage |
+| Multi-book evaluation contract | Library corpus with per-book policy; golden schema v2 with OR-of-AND evidence sets and clarification-aware interpretations; per-unit human judgments, blind pools and label-preserving migration; no library-wide runner or metrics yet |
 | PDF neighbor context | Eligible touching records in the same known section interval; equal section titles alone are insufficient |
 | Answerability experiment | Binary `ANSWERABLE` / `NOT_FOUND` decision with false refusals and false acceptances reported separately |
 | Answer generation | Replaceable local model backend with citation validation |
@@ -253,14 +257,18 @@ The next work is deliberately narrower than the complete product vision.
 
 ### 1. Establish the next PDF evaluation
 
-Four-book technical validation and PDF Tasks 1–5 are implemented. Task 6 has
-22 human-reviewed candidates accepted in a private package. Candidate approval
-does not freeze a Golden Set, assign record relevance, or establish retrieval
-or answerability quality. The remaining evaluation work requires separate scope
-and approval:
+Four-book technical validation and PDF Tasks 1–5 are implemented. For Task 6,
+the versioned multi-book contract, candidate import, human-judgment tooling and
+label-preserving schema migration are implemented. The 22 human-approved
+candidates form an unfrozen draft, and a four-question judgment pilot is
+complete. Candidate approval and the pilot do not establish retrieval or
+answerability quality. The remaining work requires separate approval:
 
-- define a versioned multi-book contract for evidence combinations and limits;
-- review record relevance and sufficient alternative evidence;
+- implement a runner that searches the combined library, and multi-book
+  retrieval metrics;
+- run BM25, MiniLM and hybrid retrieval, pool their top-10 results and complete
+  human relevance labelling;
+- freeze the Golden Set and its judgments;
 - measure retrieval, evidence sufficiency and answerability separately;
 - report per-book and cross-book results without reusing historical scores as
   current baselines.
@@ -339,11 +347,12 @@ only. It does not detect book text copied into an allowed file.
   parts of the current retrieval code are reusable and what PDF support must
   prove next.
 - [`docs/pdf-evaluation.md`](docs/pdf-evaluation.md) describes the existing
-  single-book evaluation utilities, CLI commands and multi-book review boundary.
+  single-book evaluation utilities, CLI commands, the multi-book golden and
+  relevance-judgment contract, and the work not yet measured.
 
 ## Verification
 
-On 15 October 2026, `make test` passed **881 automated tests** locally with
+On 15 October 2026, `make test` passed **949 automated tests** locally with
 Python 3.13. CI targets Python 3.10. The supported checks are:
 
 ```text
