@@ -10,8 +10,9 @@ with human record judgments; answerability has separate runs and metrics.
 A separate [multi-book golden contract](#multi-book-golden-contract) with human
 relevance judgments is implemented and tested. A global multi-book retrieval
 runner now searches the pinned eligible library. Deterministic retrieval
-pooling produces blind human-review worksheets. Multi-book metrics are not
-implemented yet; no private baseline has been measured.
+pooling produces blind human-review worksheets. An interpretation-aware
+collector and retrieval metrics evaluator are implemented with synthetic tests;
+no private multi-book baseline has been measured.
 
 The general `index` and API indexing path use text/code ingestion and do not
 dispatch to the PDF pipeline. For PDFs, use the `pdf_*` commands below. They
@@ -36,6 +37,8 @@ uv run python -m src pdf_run_retrieval --help
 | `pdf_snapshot_records` | `library_root book_path output` | Extract one book and save canonical records with legacy and v2 fingerprints. |
 | `pdf_migrate_judgments` | `source_judgments source_snapshot source_dataset target_dataset library_root output_dir` | Check historical labels, map records, and produce a migration report and review queue. |
 | `pdf_run_retrieval` | `library_root dataset retriever output` | Save rankings, neighbor context and a compatibility manifest. |
+| `pdf_collect_multibook_judgments` | `golden library_root runs inputs output` | Validate pinned human CSV labels and write a new interpretation-aware draft artifact. |
+| `pdf_evaluate_multibook_retrieval` | `golden library_root runs inputs output` | Revalidate the same human inputs and score complete ranked/context bindings at 5 and 10. |
 | `pdf_pool_multibook_judgments` | `golden library_root runs output_dir` | Pool three compatible global runs, verified anchors and direct context into blank review tasks; `--depth=10`. |
 | `pdf_run_multibook_retrieval` | `library_root golden retriever output` | Search the entire pinned library globally; save full rankings, top-5/top-10 context provenance and a versioned manifest. |
 | `pdf_evaluate_retrieval` | `run dataset judgments library_root output` | Validate current inputs and corpus eligibility, then score the stored run. |
@@ -170,10 +173,9 @@ fingerprint and source order. Worksheets omit retrievers, scores, anchor status
 and expected outcomes; each excerpt keeps its record ID and original text,
 using a code fence longer than any source backtick run.
 Review the worksheet separately from provenance. Blank labels remain unjudged.
-No final metrics are computed, and incomplete judgments cannot establish a
-final baseline. The historical pilot format, collector and labels are unchanged;
-the old collector does not accept the new query-aware sheet. Label collection
-for this contract remains a separate implementation step.
+Pooling computes no metrics. The historical pilot format, collector and labels
+are unchanged; the old `pdf_collect_judgments` command does not accept this
+query-aware sheet. Use the separate interpretation-aware collector below.
 
 All files are written into a private same-parent staging directory and their
 exact bytes are checked before one atomic no-replace directory rename publishes
@@ -185,6 +187,82 @@ Ordinary failures clean staging; abrupt process termination may leave a hidden
 staging directory. No fsync is performed: atomic visibility does not guarantee
 crash durability. Consumers must check the completion manifest's hashes.
 Synthetic verification does not establish private retrieval quality.
+
+## Human collection and multi-book retrieval metrics
+
+Both new commands take `golden library_root runs inputs output`. `runs` is the
+Slice 3 run manifest. `inputs` is read-only JSON with
+`schema_name: "fredl.pdf.multibook-judgment-inputs"`, `version: 1`,
+`pool: {"path": "judgment-pool.json", "sha256": "<exact hash>"}`,
+`pool_fingerprint`, and a `worksheets` array of `{path, sha256, reviewer}`.
+Relative pool/worksheet paths resolve beside this manifest. Every exact file
+hash is checked; pool/provenance is regenerated against the pinned Golden Set,
+current corpus, run identities, rankings and both context cutoffs. No retrieval
+or model execution occurs. Source runs' exact hashes and fingerprints are kept.
+
+`pdf_collect_multibook_judgments` writes a new version 1
+`fredl.pdf.multibook-collected-judgments` draft. CSV files may partition the
+worksheet rows; together they must contain every exact item and binding once.
+Missing/unknown rows, malformed cells, duplicated or conflicting bindings and
+hash drift are errors. Original and clarified bindings never share labels.
+Accepted relevance cells are `required`, `supporting`, `irrelevant` or blank;
+supply cells are exactly `yes`, `no` or blank. Blank relevance requires blank
+supply. Irrelevant requires blank supply. A relevant label with blank supply
+is retained as incomplete. Notes and source file bytes are not rewritten.
+There is no automatic pilot migration, label carry-over or freeze path.
+
+`pdf_evaluate_multibook_retrieval` independently recollects those pinned CSVs
+in memory, then writes a version 1 `fredl.pdf.multibook-retrieval-evaluation`.
+It requires complete labels for every unit/record binding contributing to
+any run's ranked top-5/top-10 or either direct-context cutoff, including the
+original ambiguous diagnostic track. Missing bindings are reported in full;
+no final artifact is written. A depth-5 pool that omits top-10 bindings cannot
+silently pass. Blank anchor-only rows outside the evaluated retrieval scope
+remain unjudged and are retained in the collected draft.
+
+Metric policy `declared-sets-query-macro-v1` uses the Golden Set's declared
+sufficient sets without modality heuristics. Within each query variant:
+
+- `BER@5` is primary; `BER@10` is diagnostic. For each sufficient set, count
+  distinct units supplied by at least one retrieved record, divide by set
+  size, then take the best set's coverage. Supply policy
+  `required-and-explicit-yes-v1` requires both `required` relevance and explicit
+  human `yes` for that exact unit binding. `supporting` never closes a unit,
+  even with `yes`; its human label remains preserved unchanged.
+- Sufficient-set success is true only when at least one complete AND-set is
+  supplied. Alternative sets are OR, never a combined denominator.
+- Localization coverage uses the same best-set calculation but requires
+  `required` relevance, independently of supply. A located caption/formula
+  with supply `no` cannot count toward BER.
+- `MRR@10_localization` and `MRR@10_supply` use the reciprocal of the first
+  ranked top-10 record meeting the respective criterion for any eligible unit.
+  No hit gives zero; no sufficient set gives null. Context never gets a rank.
+
+`ranked_only` and `with_context` are separate tracks at both cutoffs;
+`context_only_gain` is their difference. Exact context parents remain in the
+report. MRR is recorded once per query/engine and is unaffected by expansion.
+Original and clarified results are separate artifact lists. Original ambiguous
+queries retain conditional-unit diagnostics, but have no case-level sufficient
+set and therefore null coverage/success/MRR. Unsupported and source-incomplete
+queries similarly contribute null, not failed-retrieval zeros.
+
+Every aggregate records its metric denominator, query/interpretation/case
+counts and excluded identities. Means weight query variants equally. Headline
+averages include only complete original/clarified queries. Partial and
+extraction-limited queries use their declared sets in separate outcome slices;
+their scores concern those sets, not full-question answerability. Track and
+outcome slices expose other denominators explicitly.
+
+Artifacts bind Golden/corpus/library/query/comparison identities, pool and
+judgment fingerprints, run hashes, pool file hash and human-input hashes.
+Evaluation environment/code diagnostics are excluded from its semantic
+fingerprint; exact input hashes still identify the consumed bytes. Reordering
+valid CSV rows preserves decisions and metric values, but changes byte hashes
+and therefore artifact provenance/fingerprints. Outputs
+require new filenames and existing parent directories, with exclusive hard-link
+publication as in Slice 2. Existing outputs are refused; no crash durability is
+promised. These synthetic checks establish implementation behavior only, not
+private retrieval quality, answerability or learning-loop usefulness.
 
 ## Compatibility and metrics
 
@@ -316,8 +394,7 @@ Completed private work:
   using anchor-based pools only, and its labels moved unchanged from the
   version 1 draft to version 2.
 
-Planned and not yet implemented: collection of the new query-aware retrieval
-worksheet, multi-book retrieval metrics with per-book and cross-book slices,
+Planned and not yet implemented: multi-book answerability evaluation,
 an answerability context policy that labels each passage with its book and
 physical page, and public aggregate reporting.
 
@@ -328,13 +405,15 @@ Configuration/comparison identities are distinct from results fingerprints;
 validation checks pinned inputs, ranking rules and direct neighbor provenance.
 These contracts do not execute retrieval, pooling or metrics. B0 Slice 2 adds
 the [global retrieval runner](#global-multi-book-retrieval); Slice 3 adds
-[retrieval judgment pooling](#global-retrieval-judgment-pooling). Final
-evaluation remains future work.
+[retrieval judgment pooling](#global-retrieval-judgment-pooling). Slice 4 adds
+[human collection and retrieval metrics](#human-collection-and-multi-book-retrieval-metrics),
+verified synthetically only.
 
-The approved future primary metric is Best Evidence Recall (`BER@5`), with
+The primary retrieval metric is Best Evidence Recall (`BER@5`), with
 `BER@10` diagnostic: the greatest supplied-unit coverage of any sufficient set.
 Localization, sufficient-set success and `MRR@10_localization` /
-`MRR@10_supply` remain separate. These metrics are not implemented yet.
+`MRR@10_supply` remain separate. Their implementation has synthetic coverage;
+private baseline measurement remains pending.
 
 Not yet performed on the private library: retrieval runs, full human labelling,
 freezing the Golden Set or its judgments, and any multi-book retrieval or

@@ -39,6 +39,10 @@ from src.evaluation.pdf.multibook_cli import (
     pdf_migrate_judgment_pilot,
     pdf_prepare_judgment_pilot,
 )
+from src.evaluation.pdf.multibook_evaluation_cli import (
+    pdf_collect_multibook_judgments,
+    pdf_evaluate_multibook_retrieval,
+)
 from src.evaluation.pdf.multibook_pool_cli import (
     pdf_pool_multibook_judgments,
 )
@@ -60,6 +64,12 @@ def main(argv: Sequence[str] | None = None) -> None:
                 "evaluate_all": evaluate_all,
                 "index": index,
                 "index_semantic": index_semantic,
+                "pdf_collect_multibook_judgments": (
+                    pdf_collect_multibook_judgments
+                ),
+                "pdf_evaluate_multibook_retrieval": (
+                    pdf_evaluate_multibook_retrieval
+                ),
                 "pdf_collect_judgments": pdf_collect_judgments,
                 "pdf_compare_runs": pdf_compare_runs,
                 "pdf_evaluate_answerability": pdf_evaluate_answerability,
