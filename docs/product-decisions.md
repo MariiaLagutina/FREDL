@@ -311,3 +311,69 @@ Revisit the preview design when layout-aware extraction recovers formulas,
 tables or figures reliably enough to verify, when crop coordinates prove
 unreliable, or when a real reading session shows that page navigation alone
 does not let the reader resolve the evidence.
+
+## PD-005: Ask for clarification instead of guessing the user's meaning
+
+**Date:** 15 October 2026
+**Status:** accepted for evaluation; product behavior not implemented
+
+### Context
+
+A technical library can give one short question several valid meanings. The
+same word can name a software library and an unrelated technique, and a metric
+can have several definitions in different books. Choosing one meaning silently
+would answer a question the reader may not have asked, and evidence for one
+meaning could look like support for another.
+
+Ambiguous intent is a different problem from insufficient evidence. A clear
+question can still be only partially supported, unsupported, limited by
+extraction, or incomplete in the source itself. Treating either problem as the
+other would hide what actually went wrong.
+
+### Decision
+
+- Record what a question means separately from how well the books support it.
+  Intent is `answer` or `clarification_required`; evidence sufficiency remains
+  the expected outcome.
+- Require clarification only when two or more materially different valid
+  meanings remain open within the question and its scope. A question that names
+  its book, method, figure, table or measurement is treated as scoped.
+- When clarification is required, FREDL should ask which meaning the reader
+  intends instead of choosing one, and must not merge evidence from different
+  meanings into one answer.
+- Evaluate each meaning as its own interpretation, with a clarified question,
+  expected outcome and evidence.
+- Never use clarification to cover missing evidence, and never present
+  insufficient evidence as ambiguity.
+- Do not infer why the reader asked or what they intend to learn.
+
+### Evidence
+
+An intent-clarity review of the 22 human-approved multi-book candidates
+identified two questions with materially different valid interpretations. This
+demonstrated the need to evaluate question intent separately from evidence
+sufficiency.
+
+The multi-book golden schema version 2 encodes the decision for evaluation.
+Each question records its expected behavior, each meaning of an ambiguous
+question is an interpretation with its own evidence, interpretations never
+share evidence units, and freezing requires a clarified question for every
+interpretation. The draft is not frozen, and no retrieval or model run has
+measured it.
+
+### Consequences
+
+- Multi-book retrieval metrics are planned per interpretation for ambiguous
+  questions and are reported apart from clear questions. They show whether
+  evidence for each meaning is found, not whether FREDL asks.
+- The planned multi-book answerability scoring keeps ambiguous questions out of
+  its primary binary accuracy.
+- No implemented FREDL component detects ambiguity or asks a clarifying
+  question. Designing and evaluating that behavior is separate future work.
+
+### Revisit when
+
+Revisit this decision when real reading sessions show that clarification
+prompts interrupt more than they help, when ambiguous questions become common
+enough to need an ordering of readings, or when a component that asks for
+clarification is designed and needs its own evaluation contract.

@@ -123,6 +123,13 @@ pending; the implemented utilities and their limits are described in
 [Technical Foundation](technical-foundation.md).
 
 A private Task 6 package now contains 22 human-approved candidate questions.
-This approves their evaluation intent, not the system's answers. The Golden Set
-is not frozen, and the multi-book evaluation contract, record-level judgments
-and new baselines remain incomplete.
+This approves their evaluation intent, not the system's answers. A versioned
+multi-book evaluation contract and a four-question human judgment pilot exist,
+but the Golden Set is not frozen, and full judgments, library-wide retrieval
+runs and new baselines remain incomplete.
+
+The contract records what a question means separately from how well the books
+support it. When a question has several materially different meanings, FREDL
+should ask which one the reader intends instead of guessing, as recorded in
+[PD-005](product-decisions.md#pd-005-ask-for-clarification-instead-of-guessing-the-users-meaning).
+This is an evaluation reference; FREDL does not yet ask for clarification.
