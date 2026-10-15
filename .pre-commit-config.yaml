@@ -1,0 +1,33 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+
+  - repo: local
+    hooks:
+      - id: fredl-private-files
+        name: Block private FREDL files
+        entry: uv run --locked python scripts/check_private_files.py
+        language: system
+        pass_filenames: true
+        stages: [pre-commit, pre-push]
+
+      - id: flake8
+        name: Flake8
+        entry: uv run --locked flake8
+        language: system
+        types: [python]
+
+      - id: fredl-pre-push
+        name: FREDL strict checks before push
+        entry: make
+        args: [lint-strict, test]
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

@@ -126,15 +126,16 @@ def test_scores_ranked_evidence_and_negative_abstention() -> None:
     answerable = evaluation.case_scores[0]
     assert answerable.required_recall_at_k == 0.5
     assert answerable.all_required_at_k is False
-    assert answerable.required_evidence_coverage_at_k == 1.0
-    assert answerable.all_required_evidence_at_k is True
+    assert answerable.ranked_required_evidence_coverage_at_k == 1.0
+    assert answerable.all_ranked_required_evidence_at_k is True
+    assert answerable.context_required_evidence_coverage_at_k == 1.0
     assert answerable.first_required_rank == 2
     assert answerable.reciprocal_rank == 0.5
     assert answerable.judged_irrelevant_at_k == 0
     assert answerable.unjudged_at_k == 1
     assert evaluation.negative_abstention_accuracy == 1.0
-    assert evaluation.mean_required_evidence_coverage_at_k == 1.0
-    assert evaluation.all_required_evidence_at_k_rate == 1.0
+    assert evaluation.mean_ranked_required_evidence_coverage_at_k == 1.0
+    assert evaluation.all_ranked_required_evidence_at_k_rate == 1.0
 
 
 def test_does_not_treat_unjudged_records_as_irrelevant() -> None:
@@ -154,7 +155,7 @@ def test_does_not_treat_unjudged_records_as_irrelevant() -> None:
     assert score.unjudged_at_k == 1
 
 
-def test_counts_required_evidence_supplied_as_context() -> None:
+def test_reports_context_coverage_separately_from_ranked_coverage() -> None:
     records = (_record("required"), _record("unjudged"))
     results = (
         PdfRetrievalResult(
@@ -172,8 +173,54 @@ def test_counts_required_evidence_supplied_as_context() -> None:
     score = evaluation.case_scores[0]
     assert score.required_recall_at_k == 0.0
     assert score.first_required_rank is None
-    assert score.required_evidence_coverage_at_k == 1.0
-    assert score.all_required_evidence_at_k is True
+    assert score.ranked_required_evidence_coverage_at_k == 0.0
+    assert score.all_ranked_required_evidence_at_k is False
+    assert score.context_required_evidence_coverage_at_k == 1.0
+    assert score.all_context_required_evidence_at_k is True
+    assert evaluation.mean_ranked_required_evidence_coverage_at_k == 0.0
+    assert evaluation.mean_context_required_evidence_coverage_at_k == 1.0
+
+
+def test_evidence_counts_only_where_the_record_is_required() -> None:
+    dataset = _dataset().model_copy(deep=True)
+    case = dataset.cases[0]
+    two_units = case.model_copy(update={
+        "evidence": (case.evidence[0], case.evidence[0].model_copy(
+            update={"physical_pages": (2,)},
+        )),
+    })
+    dataset = dataset.model_copy(
+        update={"cases": (two_units, dataset.cases[1])},
+    )
+    judgments = PdfJudgmentSet.model_validate_json(json.dumps({
+        "schema_version": 2,
+        "dataset_id": "golden-v1",
+        "book_path": "books/example.pdf",
+        "record_set_fingerprint": "0" * 64,
+        "judgments": [
+            {"case_id": "answerable", "evidence_index": 0,
+             "record_id": "mixed", "relevance": "required"},
+            {"case_id": "answerable", "evidence_index": 1,
+             "record_id": "mixed", "relevance": "supporting"},
+            {"case_id": "answerable", "evidence_index": 1,
+             "record_id": "second", "relevance": "required"},
+        ],
+    }))
+    records = (_record("mixed"), _record("second"))
+    results = (
+        PdfRetrievalResult("answerable", ("mixed",)),
+        PdfRetrievalResult("negative", (), abstained=True),
+    )
+
+    score = evaluate_pdf_retrieval(
+        dataset, judgments, records, results, top_k=1
+    ).case_scores[0]
+
+    assert score.required_evidence_total == 2
+    assert score.ranked_required_evidence_covered_at_k == 1
+    assert score.ranked_required_evidence_coverage_at_k == 0.5
+    assert score.all_ranked_required_evidence_at_k is False
+    assert score.required_recall_at_k == 0.5
 
 
 def test_requires_exactly_one_result_for_every_case() -> None:

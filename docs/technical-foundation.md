@@ -7,6 +7,11 @@ retrieval, grounded generation, persistence, validation, and a local API.
 It supports Python, Markdown, plain text, and text-based PDFs. It does not yet
 provide the production learning interface.
 
+The general `index` and API indexing path still use the text/code pipeline;
+recognizing a PDF during file discovery does not connect it to that pipeline.
+The separate PDF utilities prepare and evaluate PDF records. There is no
+production PDF reader or complete library-to-learning-memory flow.
+
 Reusable components include:
 
 - structure-aware text chunking;
@@ -30,8 +35,10 @@ scripts, submission instructions, and reports are not part of FREDL.
 
 ### Implemented
 
-The PDF pipeline has been verified on one text-based technical book. It
-records:
+Technical validation covers four text-based books: Beyond Vibe Coding,
+AI-Powered Business Intelligence (Early Release), AI Engineering, and
+AI and Machine Learning for Coders. They include print and EPUB-reflow layouts;
+this is bounded validation, not general PDF support. The pipeline records:
 
 - the source document identity and neutral book-card metadata;
 - one-based physical page numbers and positioned text fragments with font
@@ -40,30 +47,76 @@ records:
 - an observable classification of every page as text, text with images,
   image-only, possible vector graphics, or empty; non-text pages are routed
   separately instead of entering the reading text;
-- repeated page margins, removed from reading text while remaining auditable;
+- repeated page margins, removed while preserving raw line separators and
+  remaining auditable;
 - words and sentences reconstructed across page boundaries;
 - embedded-outline headings confirmed against extracted text and layout, and
   mapped to verified section intervals;
+- verified section paths, separate unverified section hints, and explicit
+  resolution status and reasons for unresolved boundaries;
 - section-aware bounded chunks with stable identifiers;
 - for every chunk, its reading-flow range and the exact source range on each
   contributing physical page;
 - index-neutral records that keep text separate from structural metadata.
 
+Heading matching handles different heading conventions. For existing outlines
+without destinations, a fallback searches complete title lines with display-font
+evidence and checks their order against located headings. Repeated titles need
+an unambiguous position between located headings. Outline order alone cannot
+create a match. Unresolved entries limit verified attribution instead of
+silently extending the preceding section.
+
 How a passage is presented, including section paths, physical pages, and
 non-content outline entries, is recorded in
 [PD-001](product-decisions.md#pd-001-represent-a-passage-through-its-verified-section-and-exact-pdf-page).
 
-### Not yet verified or implemented
+### Reliability and support limits
 
-- books without a usable embedded outline;
-- multi-column layouts, footnotes, tables, formulas, captions, and code-heavy
-  pages as distinct structures;
-- scanned or image-only books, which would require OCR;
-- the relationship between a retrieval chunk and the passage a reader sees in
-  a production interface.
+Reliability reports expose heading outcomes and layout findings, including code
+overflow, code split by chunks, tables, formulas, footnote markers, and visual
+pages. Findings are diagnostic: they neither repair content nor affect retrieval
+eligibility or ranking. Detection is heuristic and incomplete.
 
-These cases must be tested on representative books rather than treated as
-ordinary paragraphs.
+Prose and heading attribution were checked across the four books. Print-layout
+code preserves line text, but chunk splits can degrade it; EPUB-reflow code may
+already be clipped in the source. Tables lose column structure, footnotes lose
+marker relationships, and formulas can lose subscript and superscript meaning.
+Figures and image-only or vector-only content are unsupported without OCR or
+visual interpretation. Multi-column reading order and complex structures are
+not generally supported. Books with no embedded outline remain unverified.
+
+The mapping from retrieval chunks to passages in a production reading interface
+also remains unimplemented. Successful text extraction does not establish
+faithful support for every structure on a page.
+
+## Retrieval corpus and context
+
+The corpus classifier identifies content, index, table of contents, and
+unsectioned front matter from observable structure. It also locates confirmed
+repeated boilerplate. Three reversible policies are available:
+
+- P0 (`all_records`): search all original records;
+- P1 (`exclude_navigation`): exclude confidently identified navigation;
+- P2 (`exclude_navigation_and_boilerplate`): apply P1 and mask confirmed
+  boilerplate in searchable text, preserving offsets and CR/LF separators;
+  exclude a record if its masked searchable text is empty.
+
+P2 is the current experimental default, as recorded in
+[PD-003](product-decisions.md#pd-003-keep-navigation-and-repeated-boilerplate-out-of-experimental-search).
+Original records remain unchanged. Uncertain content and unsectioned front
+matter stay eligible. Classification heuristics were checked on four books;
+they are not a universal content classifier.
+
+Neighbor context requires the same known `section_interval_id`, the same
+reading flow and touching ranges. Equal section paths or hints are insufficient
+because different intervals can share them. A record without an interval identity
+receives no neighbor context.
+
+The evaluation CLI supplies only corpus-eligible records to context expansion;
+it cannot jump across a gap left by an excluded record. These workflows operate
+on one book per run. Identities depend on the canonical library-relative book
+path: renaming a book changes identity and requires explicit compatibility and
+judgment review rather than silent reuse.
 
 ## Retrieval evaluation for FREDL
 
@@ -89,22 +142,82 @@ corrected openly, with its reason recorded. Passage-level relevance judgments
 mark index records as required, supporting, or irrelevant and are versioned
 separately.
 
+Judgment schema v2 records migration provenance. Snapshots and migration tools
+preserve historical inputs; automatic transfer requires a unique byte-identical
+or whitespace-only text match, unchanged physical pages and section path,
+unchanged golden case, and evidence-page overlap. Other mappings require review.
+Migration to golden v2 is complete: 56 labels were preserved, 55 automatically
+and one through Maria's manual review. This transfers existing judgments rather
+than expanding their coverage: they remain limited to one book, and the added
+hard negative has no passage-level judgments.
+
 The evaluation measures:
 
 - required-record recall and reciprocal rank for BM25, MiniLM, and hybrid
   retrieval;
 - evidence-unit coverage, which accepts one required record per labelled
-  evidence item;
-- coverage after adding adjacent records from the same section;
-- answerability, with false refusals and false acceptances reported
-  separately.
+  evidence item and counts a record only for units where it is labelled required;
+- ranked top-k coverage separately from coverage expanded with eligible
+  adjacent context;
+- judged-irrelevant and unjudged records in top-k.
 
-The first evaluation covers one book and 17 questions, five of them hard
-negatives. Its results and limits are recorded in
+Page-overlap probes are diagnostics, not relevance judgments: sharing an
+evidence page does not prove that a record contains the required evidence.
+Answerability is evaluated separately, with false refusals and false acceptances
+reported independently of retrieval metrics.
+
+The historical first evaluation covers one book and 17 questions, five of them
+hard negatives. Its results and limits are recorded in
 [PD-002](product-decisions.md#pd-002-require-direct-evidence-before-treating-retrieval-as-an-answer).
+
+### Evaluation contract and reproducibility
+
+PDF records use canonical order by book, reading flow, offsets, and identifier,
+so input order does not determine ranking ties or corpus classification.
+Versioned canonical-JSON fingerprints distinguish:
+
+- record sets (v2), including behavior-relevant text, structure, and provenance;
+- retrieval corpora (v2), including policy, eligible records, and searchable text;
+- retrieval configurations, including retriever, top-k, context rule,
+  tokenization, encoder revision, and ranking parameters;
+- answerability configurations, including model-file hash, runtime, server
+  arguments, prompt, guard, and generation settings.
+
+The legacy record fingerprint is retained for historical verification. Run
+manifests bind the golden dataset hash, record set, corpus, and configuration;
+incompatible inputs are rejected rather than silently rescored. Code revision,
+dirty state, and package versions are recorded as reproducibility warnings,
+not run identity. Matching fingerprints alone do not prove identical execution.
+
+The `python -m src pdf_*` commands support record snapshots, judgment migration,
+retrieval and answerability runs, evaluation, and retrieval-run comparison.
+These are local evaluation utilities, not the product learning flow.
+Exact interfaces and output behavior are documented in
+[PDF evaluation and CLI](pdf-evaluation.md).
+
+### Multi-book candidate review
+
+Task 6 has 22 human-approved candidates in a private review package, with source
+evidence and review history kept outside Git. Candidate acceptance is separate
+from original-PDF support, extracted-text support, retrieval coverage and
+generated-answer correctness. Only the four pinned books are admissible answer
+evidence; the pinned BI Early Release edition is approved for this corpus and
+is not interchangeable with a later edition.
+
+The package is not a frozen or executable multi-book Golden Set. The current
+golden schema and run manifests require one book; source support is
+`complete`, `partial` or `not_found`, and model output is binary. Multi-book
+OR-of-AND evidence combinations, ambiguity, lost mathematical or visual
+structure, and source-incomplete cases have no implemented evaluation mapping.
+No record-level judgments or new baselines have been created for these 22
+candidates. Four-book technical validation and candidate review do not measure
+cross-book answerability quality.
 
 ### Not yet measured
 
+- new BM25, MiniLM, hybrid, evidence-coverage, and answerability baselines after
+  PDF Tasks 1–5; historical runs use an earlier corpus and protocol and cannot
+  be compared directly with the pending baselines;
 - retrieval and answerability across several books and document classes;
 - whether a returned passage was useful in the product flow.
 
@@ -115,15 +228,29 @@ come from a disliked source, or arrive at the wrong time.
 ## Answerability
 
 Retrieval always returns the closest passages, even when a book does not answer
-the question. The planned answerability stage sits after retrieval and decides
-whether the passages directly support an answer before any answer is
-generated. In the current experiment its output is limited to `ANSWERABLE` or
-`NOT_FOUND`, and its prompt is versioned.
+the question. An implemented evaluation runner reads a compatible stored
+retrieval run and tests whether its passages directly support an answer.
+Integration of this stage before answer generation in a product reading flow
+remains future work. Model output is limited to `ANSWERABLE` or `NOT_FOUND`.
 
-The current experimental baseline is a local Qwen3-4B model in Q4
-quantization, served by llama.cpp outside FREDL's dependencies. It is an
-evaluated experiment, not part of a reading flow and not a production
-guarantee.
+The versioned passage policy selects ranked top-k records followed by
+deduplicated context and supplies original record text, including any boilerplate
+masked for search. Its manifest binds the context rule and searchable-text
+policy to the retrieval run and answerability configuration. Model-only results
+are reported separately from the pipeline's subject guard and model comparison
+verifier results.
+
+The current experimental model is Qwen3-4B Q4_K_M with thinking disabled,
+served locally by llama.cpp outside FREDL's dependencies. The evaluation client
+accepts only loopback server addresses. Historical results do not establish a
+new baseline for the current contract or a production guarantee.
+
+The runner does not start or inspect llama.cpp. The operator must serve the
+declared model and accurately record runtime settings; hashing a local model
+file does not verify which weights the server loaded. The binary protocol
+counts partial support as answerable and does not independently classify
+ambiguity or extraction limitations. A model's familiar explanation cannot
+replace missing source evidence.
 
 ## Privacy and model boundary
 
@@ -137,11 +264,12 @@ memory.
 
 ## Next implementation slice
 
-Ingesting a technical PDF, preserving page-level provenance, and searching it
-with real questions are verified on one book. Before building on them, the
-pipeline is tested on several more books with different layouts to expose the
-failures a single book cannot reveal, and the next golden set is built from
-questions across those books.
+Four-book technical validation and the evaluation-contract utilities are
+implemented, with the limits above. The multi-book candidate review is complete,
+but Golden Set freezing, a versioned multi-book contract, record judgments and
+evaluation execution remain separate work requiring approval. New baselines
+remain pending. Neither the diagnostic probes, completed migration nor candidate
+acceptance establish improved retrieval quality or answerability.
 
 The rest of the milestone remains intentionally small:
 

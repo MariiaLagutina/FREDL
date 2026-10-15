@@ -2,17 +2,25 @@
 
 **FREDL helps you return not only to what you read, but to why it mattered.**
 
-FREDL is a personal learning system for people whose PDF libraries grow faster
-than they can read them. It is built around the questions that bring someone
-to a book, the reason a question mattered at that moment, and what changed
-after the idea was used in practice.
+FREDL is an AI-assisted learning system for technical, scientific, and
+educational materials. Its first intended user is its developer, who is
+studying programming and AI engineering. The longer-term ambition is to
+support learning across other disciplines, subject to future validation.
+
+It is built around the questions that bring someone to a source, why a question
+mattered, and what changed after applying an idea. Source-grounded explanations,
+verifiable book/page provenance, and inspection of original sources are core
+requirements. FREDL is not a general-purpose PDF reader or fiction-reading
+application.
 
 > [!IMPORTANT]
 > FREDL is at an early research and development stage. A manual prototype under
 > founder-led testing, a verified retrieval foundation, a local PDF ingestion
-> pipeline, and a first PDF evaluation exist today. The evaluation covers one
-> private technical book; broader PDF support, the production frontend, and the
-> learning-memory system are not finished product features.
+> pipeline, and a historical single-book evaluation exist today. Technical PDF
+> validation covers four books. A private package of 22 candidate questions has
+> human approval, but its multi-book evaluation contract, record judgments and
+> new baselines are not complete. General PDF compatibility, the production
+> frontend and personal learning memory remain unimplemented or unverified.
 
 ## Why FREDL
 
@@ -135,11 +143,11 @@ carrying forward.
 | Manual prototype | Version 0.8 in founder-led self-testing |
 | Retrieval foundation | Implemented for code, text, and local PDF index records |
 | Code and Markdown ingestion | Implemented |
-| PDF ingestion and page provenance | Implemented for the active text-based technical PDF; broader document classes remain unverified |
-| PDF section-aware chunking | Implemented with verified headings, bounded chunks, and exact physical-page provenance |
-| PDF retrieval evaluation | First version complete on one private book: golden questions, passage relevance labels, and lexical, semantic, and hybrid baselines |
-| Answerability check | Experimental; evaluated with a local model, not yet part of a reading flow |
-| Multi-book PDF evaluation | Next active step |
+| PDF ingestion and page provenance | Local utilities checked on four text-based technical books; complex layouts have explicit limitations |
+| PDF section-aware chunking | Verified headings, outline-without-destinations fallback, unresolved structural status and exact physical-page provenance |
+| PDF retrieval evaluation | Historical single-book baselines; current corpus and evaluation contract implemented, new baselines pending |
+| Answerability check | Local experimental runner with separate metrics; not part of a product reading flow |
+| Multi-book PDF evaluation | 22 human-approved private candidates; no frozen Golden Set, multi-book contract, record judgments or new baselines |
 | Production frontend | Not implemented |
 | Learning-memory storage | Designed conceptually; not implemented |
 | Adaptive resurfacing | Research hypothesis; not implemented |
@@ -166,14 +174,16 @@ external model.
 | Code ingestion | AST-aware Python chunking |
 | Text ingestion | Structure-aware Markdown and plain-text chunking |
 | PDF extraction | Physical pages, positioned text, font metadata, and observable page classification |
-| PDF reading text | Repeated-margin removal and cross-page word reconstruction while preserving raw extraction |
-| PDF structure | Embedded-outline matching and verified section intervals |
+| PDF reading text | Margin removal preserves raw line separators; cross-page reconstruction keeps source provenance |
+| PDF structure | Verified outline matching, layout-supported fallback without destinations, and explicit unresolved boundaries |
 | PDF chunking | Section-aware bounded chunks with balanced tails and stable identifiers |
 | PDF provenance | Reading-flow ranges plus exact source ranges on every contributing physical page |
 | PDF index records | Index-neutral local records with text and structural metadata kept separate |
+| PDF retrieval corpus | Reversible P0/P1/P2 policies; navigation exclusion and searchable-text boilerplate masking without altering source records |
 | Optional semantic search | Pinned CPU MiniLM embeddings |
 | Optional hybrid search | Weighted Reciprocal Rank Fusion for documentation and PDF records |
-| PDF evaluation | Validated private golden sets, versioned relevance judgments, evidence-unit coverage, and adjacent same-section context |
+| PDF evaluation | Canonical ordering, layered fingerprints, manifests, judgment migration, and ranked/context evidence-unit coverage |
+| PDF neighbor context | Eligible touching records in the same known section interval; equal section titles alone are insufficient |
 | Answerability experiment | Binary `ANSWERABLE` / `NOT_FOUND` decision with false refusals and false acceptances reported separately |
 | Answer generation | Replaceable local model backend with citation validation |
 | Interfaces | Python Fire CLI and local FastAPI server |
@@ -185,7 +195,17 @@ indexes, and treats an invalid generated citation as an error rather than
 presenting an unsupported answer. Its earlier benchmark results are not used as
 evidence for PDF quality.
 
+PDF workflows use the separate `pdf_*` commands, not the general `index` or
+API indexing path. Figures and formulas are not faithfully interpreted; tables,
+footnotes and code can lose structure, and some PDFs already contain clipped
+source content. Reliability reports expose findings without changing ranking.
+See [PDF evaluation and CLI](docs/pdf-evaluation.md) for interfaces and limits.
+
 ### First PDF evaluation
+
+The results below are historical, from the earlier corpus and evaluation
+protocol. They cannot be directly compared with pending baselines after the
+PDF extraction, corpus and evaluation-contract changes.
 
 The first PDF evaluation uses one private technical book and 17 real
 questions: 10 completely answerable, two partially answerable, and five hard
@@ -231,20 +251,22 @@ answer. Questions, labels, and book text stay outside the repository.
 
 The next work is deliberately narrower than the complete product vision.
 
-### 1. Test the PDF pipeline on a wider library
+### 1. Establish the next PDF evaluation
 
-The first single-book evaluation is complete. The next step widens the
-evidence before the pipeline becomes a product feature:
+Four-book technical validation and PDF Tasks 1–5 are implemented. Task 6 has
+22 human-reviewed candidates accepted in a private package. Candidate approval
+does not freeze a Golden Set, assign record relevance, or establish retrieval
+or answerability quality. The remaining evaluation work requires separate scope
+and approval:
 
-- add several more books with different layouts to the private library;
-- run extraction, outline matching, chunking, and retrieval on them and expose
-  the failures instead of hiding them;
-- fix the code paths those books reveal;
-- build the next golden set from questions across several books, so retrieval
-  and answerability are measured on more than one source.
+- define a versioned multi-book contract for evidence combinations and limits;
+- review record relevance and sufficient alternative evidence;
+- measure retrieval, evidence sufficiency and answerability separately;
+- report per-book and cross-book results without reusing historical scores as
+  current baselines.
 
-Support for columns, tables, formulas, code-heavy layouts, and scanned pages
-will be expanded only after representative examples are added and evaluated.
+Broader multimodal support, OCR and faithful complex-layout extraction remain
+future work. Four-book validation does not establish general PDF compatibility.
 
 ### 2. First production user flow
 
@@ -296,6 +318,14 @@ make lint-strict  # run flake8 and strict mypy
 make clean        # remove local Python check caches
 ```
 
+Optional local Git hooks are defined in `.pre-commit-config.yaml`. They are
+not part of the locked environment; install the `pre-commit` tool separately,
+then run `pre-commit install --hook-type pre-commit --hook-type pre-push`.
+Commits check whitespace, file endings, YAML/TOML, large files, private file
+names and flake8; pushes also run `make lint-strict` and `make test`. The
+private-file check (`scripts/check_private_files.py`) inspects names and paths
+only. It does not detect book text copied into an allowed file.
+
 ## Documentation
 
 - [`docs/product-direction.md`](docs/product-direction.md) explains the learning
@@ -305,10 +335,13 @@ make clean        # remove local Python check caches
 - [`docs/technical-foundation.md`](docs/technical-foundation.md) records which
   parts of the current retrieval code are reusable and what PDF support must
   prove next.
+- [`docs/pdf-evaluation.md`](docs/pdf-evaluation.md) describes the existing
+  single-book evaluation utilities, CLI commands and multi-book review boundary.
 
 ## Verification
 
-The current repository contains **725 automated tests**. It is checked with:
+On 15 October 2026, `make test` passed **881 automated tests** locally with
+Python 3.13. CI targets Python 3.10. The supported checks are:
 
 ```text
 make test
@@ -316,8 +349,8 @@ make lint
 make lint-strict
 ```
 
-Expected third-party deprecation warnings currently come from Starlette's
-AnyIO compatibility alias and Python Fire's coroutine inspection.
+The local test run reports one third-party deprecation warning from Starlette's
+AnyIO compatibility alias.
 
 ## License
 

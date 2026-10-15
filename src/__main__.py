@@ -23,6 +23,15 @@ from src.cli import (
     serve,
     validate_sources,
 )
+from src.evaluation.pdf.cli import (
+    pdf_compare_runs,
+    pdf_evaluate_answerability,
+    pdf_evaluate_retrieval,
+    pdf_migrate_judgments,
+    pdf_run_answerability,
+    pdf_run_retrieval,
+    pdf_snapshot_records,
+)
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -38,6 +47,13 @@ def main(argv: Sequence[str] | None = None) -> None:
                 "evaluate_all": evaluate_all,
                 "index": index,
                 "index_semantic": index_semantic,
+                "pdf_compare_runs": pdf_compare_runs,
+                "pdf_evaluate_answerability": pdf_evaluate_answerability,
+                "pdf_evaluate_retrieval": pdf_evaluate_retrieval,
+                "pdf_migrate_judgments": pdf_migrate_judgments,
+                "pdf_run_answerability": pdf_run_answerability,
+                "pdf_run_retrieval": pdf_run_retrieval,
+                "pdf_snapshot_records": pdf_snapshot_records,
                 "search": search,
                 "search_dataset": search_dataset,
                 "search_dataset_hybrid": search_dataset_hybrid,

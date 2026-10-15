@@ -59,3 +59,25 @@ def test_fuses_lexical_and_semantic_ranks_over_one_pdf_corpus() -> None:
     assert lexical.lexical_rank == 1
     assert semantic.semantic_rank == 1
     assert all(hit.score > 0 for hit in hits)
+
+
+class _RecordingEncoder(_SemanticEncoder):
+    def __init__(self) -> None:
+        self.texts: list[str] = []
+
+    def encode(self, texts: tuple[str, ...]) -> Tensor:
+        self.texts.extend(texts)
+        return super().encode(texts)
+
+
+def test_semantic_index_encodes_policy_text_not_record_text() -> None:
+    record = _record("record", "concept with a publisher note", 0)
+    searchable = "concept with a".ljust(len(record.text))
+    encoder = _RecordingEncoder()
+
+    baseline = PdfHybridBaseline(
+        (record,), encoder, retrieval_texts=(searchable,),
+    )
+
+    assert encoder.texts == [searchable]
+    assert baseline.search("concept")[0].record is record

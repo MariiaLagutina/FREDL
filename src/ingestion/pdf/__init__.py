@@ -1,7 +1,10 @@
 """PDF-specific ingestion utilities."""
 
 from src.ingestion.pdf.headings import (
-    match_pdf_headings, PdfHeadingMatch, PdfHeadingStatus,
+    match_pdf_headings,
+    PdfHeadingMatch,
+    PdfHeadingPageSource,
+    PdfHeadingStatus,
 )
 from src.ingestion.pdf.assessment import (
     assess_pdf_page,
@@ -38,6 +41,13 @@ from src.ingestion.pdf.pages import (
     PdfPage,
 )
 from src.ingestion.pdf.planning import PdfBookPagePlan, plan_pdf_pages
+from src.ingestion.pdf.reliability import (
+    assess_pdf_reliability,
+    PdfExtractionSupport,
+    PdfReliabilityReport,
+    PdfStructureFinding,
+    PdfStructureKind,
+)
 from src.ingestion.pdf.reading_text import (
     build_pdf_reading_pages,
     PdfReadingPage,
@@ -45,6 +55,7 @@ from src.ingestion.pdf.reading_text import (
 from src.ingestion.pdf.sections import (
     build_pdf_section_intervals,
     map_pdf_section_boundaries,
+    pdf_section_interval_id,
     PdfSectionBoundary,
     PdfSectionInterval,
 )
@@ -68,6 +79,7 @@ from src.ingestion.pdf.text_flow import (
 __all__ = [
     "match_pdf_headings",
     "PdfHeadingMatch",
+    "PdfHeadingPageSource",
     "PdfHeadingStatus",
     "BookCard",
     "PdfBookIdentity",
@@ -81,6 +93,10 @@ __all__ = [
     "PdfMarginLocation",
     "PdfMarginPattern",
     "PdfPage",
+    "PdfExtractionSupport",
+    "PdfReliabilityReport",
+    "PdfStructureFinding",
+    "PdfStructureKind",
     "PdfPageAssessment",
     "PdfPageContentKind",
     "PdfPageJoin",
@@ -90,17 +106,24 @@ __all__ = [
     "PdfReadingFlow",
     "PdfReadingDocument",
     "PdfReadingPageSpan",
+    "PdfRecordClassification",
+    "PdfRecordRole",
+    "PdfRetrievalCorpus",
+    "PdfRetrievalPolicy",
     "PdfSectionBoundary",
     "PdfSectionInterval",
     "PdfTextFragment",
     "PdfTextFlow",
     "PdfTextLayout",
     "assess_pdf_page",
+    "assess_pdf_reliability",
     "build_book_card",
     "build_pdf_text_flows",
     "build_pdf_index_records",
+    "build_pdf_retrieval_corpus",
     "build_pdf_section_intervals",
     "chunk_pdf_reading_document",
+    "classify_pdf_records",
     "build_pdf_reading_pages",
     "build_pdf_reading_flows",
     "extract_pdf_page",
@@ -110,9 +133,18 @@ __all__ = [
     "find_repeated_margin_patterns",
     "make_pdf_chunk",
     "map_pdf_section_boundaries",
+    "pdf_section_interval_id",
     "plan_pdf_pages",
     "prepare_pdf_reading_document",
     "read_pdf_identity",
 ]
 
 from src.ingestion.pdf.outline import PdfOutlineEntry, read_pdf_outline
+from src.ingestion.pdf.retrieval_corpus import (
+    build_pdf_retrieval_corpus,
+    classify_pdf_records,
+    PdfRecordClassification,
+    PdfRecordRole,
+    PdfRetrievalCorpus,
+    PdfRetrievalPolicy,
+)

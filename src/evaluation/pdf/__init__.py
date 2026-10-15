@@ -30,8 +30,8 @@ from src.evaluation.pdf.hybrid_baseline import (
     PdfHybridHit,
 )
 from src.evaluation.pdf.loader import load_pdf_golden_dataset
+from src.ingestion.pdf.fingerprints import fingerprint_pdf_records
 from src.evaluation.pdf.judgments import (
-    fingerprint_pdf_records,
     load_pdf_judgment_set,
     PdfJudgmentSet,
     PdfRecordJudgment,

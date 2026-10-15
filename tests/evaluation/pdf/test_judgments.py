@@ -1,5 +1,6 @@
 """Tests for versioned human PDF record relevance judgments."""
 
+from dataclasses import replace
 import json
 from pathlib import Path
 
@@ -11,6 +12,11 @@ from src.evaluation.pdf import (
     PdfGoldenDataset,
     PdfRecordRelevance,
 )
+from src.evaluation.pdf.judgments import (
+    PdfJudgmentMapping,
+    PdfJudgmentSource,
+)
+from src.ingestion.pdf.fingerprints import legacy_fingerprint_pdf_records_v1
 from src.ingestion.pdf.chunks import PdfChunkPageSpan
 from src.ingestion.pdf.index_records import PdfIndexRecord
 
@@ -65,7 +71,7 @@ def _write_judgments(
     **overrides: object,
 ) -> Path:
     data: dict[str, object] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "dataset_id": "golden-v1",
         "book_path": "books/example.pdf",
         "record_set_fingerprint": fingerprint_pdf_records(records),
@@ -80,6 +86,78 @@ def _write_judgments(
     path = tmp_path / "judgments.json"
     path.write_text(json.dumps(data), encoding="utf-8")
     return path
+
+
+def test_loads_version_1_judgments_with_the_legacy_fingerprint(
+    tmp_path: Path,
+) -> None:
+    records = (_record(),)
+    path = _write_judgments(
+        tmp_path, records,
+        schema_version=1,
+        record_set_fingerprint=legacy_fingerprint_pdf_records_v1(records),
+    )
+
+    result = load_pdf_judgment_set(path, _dataset(), records)
+
+    assert result.schema_version == 1
+    with pytest.raises(ValueError, match="fingerprint differs"):
+        load_pdf_judgment_set(
+            _write_judgments(tmp_path, records, schema_version=1),
+            _dataset(),
+            records,
+        )
+
+
+def test_version_1_judgments_cannot_carry_migration_provenance(
+    tmp_path: Path,
+) -> None:
+    records = (_record(),)
+    path = _write_judgments(
+        tmp_path, records,
+        schema_version=1,
+        record_set_fingerprint=legacy_fingerprint_pdf_records_v1(records),
+        migrated_from=_source(),
+    )
+
+    with pytest.raises(ValueError, match="JSON is invalid"):
+        load_pdf_judgment_set(path, _dataset(), records)
+
+
+def test_version_2_judgments_keep_migration_provenance(
+    tmp_path: Path,
+) -> None:
+    records = (_record(),)
+    path = _write_judgments(
+        tmp_path, records,
+        migrated_from=_source(),
+        judgments=[{
+            "case_id": "pdf-001",
+            "evidence_index": 0,
+            "record_id": records[0].record_id,
+            "relevance": "required",
+            "provenance": {
+                "source_record_id": "pdf:old-record",
+                "mapping": "whitespace_only",
+            },
+        }],
+    )
+
+    result = load_pdf_judgment_set(path, _dataset(), records)
+
+    provenance = result.judgments[0].provenance
+    assert provenance is not None
+    assert provenance.mapping is PdfJudgmentMapping.WHITESPACE_ONLY
+    assert result.migrated_from == PdfJudgmentSource.model_validate(_source())
+
+
+def _source() -> dict[str, object]:
+    return {
+        "dataset_id": "golden-v0",
+        "judgments_sha256": "a" * 64,
+        "record_set_fingerprint": "b" * 64,
+        "record_set_fingerprint_version": 1,
+    }
 
 
 def test_loads_judgments_for_exact_record_set(tmp_path: Path) -> None:
@@ -98,6 +176,17 @@ def test_record_fingerprint_is_stable_for_record_order() -> None:
     assert fingerprint_pdf_records((first, second)) == (
         fingerprint_pdf_records((second, first))
     )
+
+
+def test_rejects_labels_after_section_interval_changes(
+    tmp_path: Path,
+) -> None:
+    records = (_record(),)
+    path = _write_judgments(tmp_path, records)
+    regrouped = (replace(records[0], section_interval_id="pdf-section:b"),)
+
+    with pytest.raises(ValueError, match="fingerprint differs"):
+        load_pdf_judgment_set(path, _dataset(), regrouped)
 
 
 def test_rejects_labels_after_record_content_changes(tmp_path: Path) -> None:

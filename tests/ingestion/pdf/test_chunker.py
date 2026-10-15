@@ -8,10 +8,12 @@ from src.ingestion.pdf.outline import PdfOutlineEntry
 from src.ingestion.pdf.reading_document import PdfReadingDocument
 from src.ingestion.pdf.reading_flow import build_pdf_reading_flows
 from src.ingestion.pdf.reading_text import PdfReadingPage
+from src.ingestion.pdf.index_records import build_pdf_index_records
 from src.ingestion.pdf.sections import (
     build_pdf_section_intervals,
     map_pdf_section_boundaries,
     PdfSectionInterval,
+    PdfSectionResolution,
 )
 
 
@@ -260,3 +262,52 @@ def test_rejects_invalid_chunk_sizes(maximum: int, minimum: int) -> None:
             max_chunk_size=maximum,
             min_chunk_size=minimum,
         )
+
+
+def test_chunks_keep_unresolved_hint_separate_from_verified_path() -> None:
+    document = _document(
+        "Summary\nEnd of chapter one.",
+        "Chapter Two\nOpening of chapter two.",
+    )
+    entries = (
+        PdfHeadingMatch(
+            PdfOutlineEntry("Summary", ("One", "Summary"), 1),
+            PdfHeadingStatus.MATCHED,
+            0,
+            7,
+        ),
+        PdfHeadingMatch(
+            PdfOutlineEntry("Two", ("Two",), 2),
+            PdfHeadingStatus.NOT_FOUND,
+        ),
+    )
+    intervals = build_pdf_section_intervals(
+        map_pdf_section_boundaries(entries, document.reading_flows),
+        document.reading_flows,
+    )
+
+    chunks = chunk_pdf_reading_document(
+        document,
+        section_intervals=intervals,
+        max_chunk_size=200,
+        min_chunk_size=10,
+    )
+    records = build_pdf_index_records(chunks)
+
+    assert tuple(chunk.section_path for chunk in chunks) == (
+        ("One", "Summary"),
+        (),
+    )
+    assert chunks[1].text.startswith("Chapter Two")
+    assert chunks[1].section_resolution is PdfSectionResolution.UNRESOLVED
+    assert chunks[1].section_hint == ("Two",)
+    assert chunks[1].unresolved_reason is PdfHeadingStatus.NOT_FOUND
+    assert records[1].section_hint == ("Two",)
+    assert records[0].section_resolution is PdfSectionResolution.VERIFIED
+
+
+def test_text_before_every_heading_has_no_section_evidence() -> None:
+    chunks = chunk_pdf_reading_document(_document("Front matter text."))
+
+    assert chunks[0].section_resolution is PdfSectionResolution.NONE
+    assert chunks[0].section_hint == ()

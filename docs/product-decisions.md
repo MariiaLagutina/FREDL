@@ -34,7 +34,9 @@ passage must lead back to an exact source location.
   has been verified.
 - Preserve embedded outline entries for extraction audit, but classify
   `Cover` and `Copyright` as non-content. They do not become section metadata
-  and do not enter RAG retrieval content.
+  or become retrieval content merely through the outline. This classification
+  does not automatically exclude the corresponding page text from retrieval;
+  text eligibility follows the corpus policy in PD-003.
 - Treat an outline destination as a page hint. Confirm its heading against
   extracted text and layout before assigning the section to a passage.
 - Keep unresolved or ambiguous headings explicit instead of inventing a
@@ -53,14 +55,20 @@ chapter markers stored separately from titles, and a heading repeated as the
 first word of the following paragraph. Text, font size, and fragment position
 were all needed to resolve these cases without guessing.
 
+**Validation update, 15 October 2026:** technical PDF validation now covers
+four books. An existing outline without destinations can supply verified
+section context when its headings are independently located in the page text
+and layout. Unresolved headings remain explicit. This does not establish
+support for books without an outline or for all PDF layouts.
+
 ### Consequences
 
 - PDF chunks need a verified section path alongside physical-page provenance.
 - Reader links use physical PDF pages even when the interface also displays a
   printed page number.
 - Outline labels alone are insufficient evidence for retrieval metadata.
-- Front matter may remain available for document audit without polluting the
-  reader's knowledge search.
+- Unsectioned front matter remains searchable under the current experimental
+  corpus policy; an outline label alone is not grounds for excluding it.
 
 ### Revisit when
 
@@ -122,6 +130,12 @@ correctly, including a new hard negative that Qwen3-1.7B accepted.
   this experiment.
 
 ### Evidence
+
+**Historical scope, clarified 15 October 2026:** the results below were
+obtained under the earlier single-book corpus and evaluation protocol, before
+PDF Tasks 1–5. The original numbers remain historical evidence. They cannot
+be directly compared with the pending new baselines, which have not yet been
+measured under the current corpus and evaluation contract.
 
 The private evaluation contains 16 questions: 10 completely answerable, two
 partially answerable, and four hard negatives. Hybrid retrieval plus adjacent
@@ -201,3 +215,42 @@ local model materially improves not-found rejection without increasing false
 refusals. A larger model should be tested only against the same frozen cases
 and reported with both error types. Revisit the runtime boundary before any
 production answerability stage depends on llama.cpp.
+
+## PD-003: Keep navigation and repeated boilerplate out of experimental search
+
+**Date:** 15 October 2026
+**Status:** accepted for the current experiment
+
+### Context
+
+Navigation can repeat the terms a reader searches for without explaining them.
+Repeated boilerplate can similarly compete with substantive passages. Removing
+uncertain material, however, risks hiding useful or unique evidence.
+
+### Decision
+
+- Use P2 (`exclude_navigation_and_boilerplate`) as the current experimental
+  policy: exclude confidently identified navigation and mask confirmed repeated
+  boilerplate in searchable text while preserving original source text.
+- Keep uncertain content and unsectioned front matter searchable. A title or
+  an extraction warning alone does not justify exclusion.
+- Keep this choice reversible. P0 (`all_records`) and P1
+  (`exclude_navigation`) remain available for comparison.
+
+### Evidence
+
+Four-book structural diagnostics identified navigation and repeated boilerplate
+that affect search inputs. These diagnostics and page-overlap probes are not
+human relevance judgments and do not establish improved retrieval quality or
+answerability. New baselines remain pending.
+
+### Consequences
+
+Search may omit confidently identified navigation or ignore repeated boilerplate
+without deleting the source. Reliability findings remain diagnostic and do not
+by themselves suppress content or change its rank.
+
+### Revisit when
+
+Revisit the policy after measured baselines, reviewed relevance judgments, or
+new document types expose lost evidence or unreliable classification.
