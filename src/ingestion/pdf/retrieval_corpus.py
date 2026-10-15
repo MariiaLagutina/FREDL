@@ -4,15 +4,23 @@ from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
-from hashlib import sha256
 import re
 
-from src.ingestion.pdf.index_records import PdfIndexRecord
+from src.ingestion.pdf.fingerprints import (
+    fingerprint_canonical_json,
+    fingerprint_pdf_records,
+)
+from src.ingestion.pdf.index_records import (
+    canonical_pdf_record_order,
+    PdfIndexRecord,
+)
 from src.ingestion.pdf.outline import PdfOutlineEntry
 from src.ingestion.pdf.sections import PdfSectionResolution
 
 
 PDF_RETRIEVAL_CORPUS_VERSION = "pdf-retrieval-corpus-v1"
+PDF_RETRIEVAL_CORPUS_SCHEMA = "fredl.pdf.retrieval-corpus"
+PDF_RETRIEVAL_CORPUS_SCHEMA_VERSION = 2
 
 # Navigation shape is judged over a whole section interval, never over one
 # short record, so a record holding only a heading cannot qualify. Every
@@ -89,7 +97,7 @@ class PdfRecordClassification:
 
 @dataclass(frozen=True, slots=True)
 class PdfRetrievalCorpus:
-    """Hold eligible records, in source order, and their searchable text.
+    """Hold eligible records, in canonical order, and their searchable text.
 
     retrieval_texts aligns with records. A text differs from its record's
     text only when the policy blanks confirmed boilerplate lines; offsets
@@ -100,19 +108,27 @@ class PdfRetrievalCorpus:
     records: tuple[PdfIndexRecord, ...]
     retrieval_texts: tuple[str, ...]
     excluded_record_ids: tuple[str, ...]
+    record_set_fingerprint: str
 
     @property
     def fingerprint(self) -> str:
-        """Hash everything that can change a ranking over this corpus."""
-        digest = sha256()
-        for value in (PDF_RETRIEVAL_CORPUS_VERSION, self.policy.value):
-            digest.update(value.encode("utf-8"))
-            digest.update(b"\0")
-        for record, text in zip(self.records, self.retrieval_texts):
-            for value in (record.record_id, text):
-                digest.update(value.encode("utf-8"))
-                digest.update(b"\0")
-        return digest.hexdigest()
+        """Hash everything that can change a ranking over this corpus.
+
+        The record-set fingerprint covers section paths, interval
+        identities, and provenance; the policy fields cover eligibility and
+        searchable text. Records are hashed in canonical order.
+        """
+        return fingerprint_canonical_json({
+            "schema": PDF_RETRIEVAL_CORPUS_SCHEMA,
+            "version": PDF_RETRIEVAL_CORPUS_SCHEMA_VERSION,
+            "policy_version": PDF_RETRIEVAL_CORPUS_VERSION,
+            "policy": self.policy.value,
+            "record_set_fingerprint": self.record_set_fingerprint,
+            "records": [
+                [record.record_id, text]
+                for record, text in zip(self.records, self.retrieval_texts)
+            ],
+        })
 
 
 def classify_pdf_records(
@@ -124,11 +140,14 @@ def classify_pdf_records(
     Navigation roles depend on the shape of a whole section interval: index
     lines end in page or section references, and contents lines repeat
     outline titles. Titles are never matched against a fixed keyword list.
+    Records are read in canonical order, so the result never depends on
+    the order they were supplied in; it stays aligned with the input.
     """
     _require_one_book(records)
     titles = _outline_titles(outline)
-    roles = _interval_roles(records, titles)
-    boilerplate = _boilerplate_ranges(records)
+    ordered = canonical_pdf_record_order(records)
+    roles = _interval_roles(ordered, titles)
+    boilerplate = _boilerplate_ranges(ordered)
     return tuple(
         PdfRecordClassification(
             record_id=record.record_id,
@@ -154,7 +173,7 @@ def build_pdf_retrieval_corpus(
     eligible: list[PdfIndexRecord] = []
     texts: list[str] = []
     excluded: list[str] = []
-    for record in records:
+    for record in canonical_pdf_record_order(records):
         classification = by_id[record.record_id]
         text = record.text
         if policy is not PdfRetrievalPolicy.ALL_RECORDS and (
@@ -174,6 +193,7 @@ def build_pdf_retrieval_corpus(
         records=tuple(eligible),
         retrieval_texts=tuple(texts),
         excluded_record_ids=tuple(excluded),
+        record_set_fingerprint=fingerprint_pdf_records(records),
     )
 
 

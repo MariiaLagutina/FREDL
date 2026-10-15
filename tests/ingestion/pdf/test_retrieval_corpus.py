@@ -141,6 +141,29 @@ def test_contents_lines_repeating_outline_titles_are_navigation() -> None:
     assert _roles(contents)["contents"] is PdfRecordRole.TABLE_OF_CONTENTS
 
 
+def test_classification_and_corpus_ignore_input_order() -> None:
+    lines = _index_lines(24)
+    records = (
+        _prose(),
+        _index(lines[:12], "first"),
+        _record("second", "".join(lines[12:]), section=("Index",),
+                start=6000, page=250),
+    )
+
+    def corpus(order: tuple[PdfIndexRecord, ...]) -> tuple[
+        dict[str, PdfRecordRole], str, tuple[PdfIndexRecord, ...],
+    ]:
+        classified = classify_pdf_records(order, OUTLINE)
+        built = build_pdf_retrieval_corpus(
+            order, classified, PdfRetrievalPolicy.EXCLUDE_NAVIGATION,
+        )
+        roles = {item.record_id: item.role for item in classified}
+        return (roles, built.fingerprint, built.records)
+
+    assert corpus(tuple(reversed(records))) == corpus(records)
+    assert corpus(records)[0]["second"] is PdfRecordRole.INDEX
+
+
 def test_navigation_shape_spans_all_records_of_an_interval() -> None:
     lines = _index_lines(24)
     first = _index(lines[:12], "first")

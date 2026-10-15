@@ -26,7 +26,13 @@ class PdfRetrievalResult:
 
 @dataclass(frozen=True)
 class PdfRetrievalCaseScore:
-    """Describe retrieval quality for one golden question."""
+    """Describe retrieval quality for one golden question.
+
+    Record recall uses each record's strongest label in the case. Evidence
+    coverage counts an evidence unit only when a record is required for
+    that unit: ranked coverage uses the top-k ranking alone, context
+    coverage also includes the neighbour context records.
+    """
 
     case_id: str
     answerability: PdfGoldenAnswerability
@@ -35,9 +41,12 @@ class PdfRetrievalCaseScore:
     required_recall_at_k: float | None
     all_required_at_k: bool | None
     required_evidence_total: int
-    required_evidence_covered_at_k: int
-    required_evidence_coverage_at_k: float | None
-    all_required_evidence_at_k: bool | None
+    ranked_required_evidence_covered_at_k: int
+    ranked_required_evidence_coverage_at_k: float | None
+    all_ranked_required_evidence_at_k: bool | None
+    context_required_evidence_covered_at_k: int
+    context_required_evidence_coverage_at_k: float | None
+    all_context_required_evidence_at_k: bool | None
     first_required_rank: int | None
     reciprocal_rank: float | None
     judged_irrelevant_at_k: int
@@ -53,8 +62,10 @@ class PdfRetrievalEvaluation:
     case_scores: tuple[PdfRetrievalCaseScore, ...]
     mean_required_recall_at_k: float
     all_required_at_k_rate: float
-    mean_required_evidence_coverage_at_k: float
-    all_required_evidence_at_k_rate: float
+    mean_ranked_required_evidence_coverage_at_k: float
+    all_ranked_required_evidence_at_k_rate: float
+    mean_context_required_evidence_coverage_at_k: float
+    all_context_required_evidence_at_k_rate: float
     mean_reciprocal_rank: float
     negative_abstention_accuracy: float
 
@@ -110,12 +121,20 @@ def evaluate_pdf_retrieval(
             float(score.all_required_at_k is True)
             for score in answerable
         ),
-        mean_required_evidence_coverage_at_k=_mean(
-            score.required_evidence_coverage_at_k
+        mean_ranked_required_evidence_coverage_at_k=_mean(
+            score.ranked_required_evidence_coverage_at_k
             for score in answerable
         ),
-        all_required_evidence_at_k_rate=_mean(
-            float(score.all_required_evidence_at_k is True)
+        all_ranked_required_evidence_at_k_rate=_mean(
+            float(score.all_ranked_required_evidence_at_k is True)
+            for score in answerable
+        ),
+        mean_context_required_evidence_coverage_at_k=_mean(
+            score.context_required_evidence_coverage_at_k
+            for score in answerable
+        ),
+        all_context_required_evidence_at_k_rate=_mean(
+            float(score.all_context_required_evidence_at_k is True)
             for score in answerable
         ),
         mean_reciprocal_rank=_mean(
@@ -136,47 +155,61 @@ def _index_results(
     return indexed
 
 
+_EvidenceLabels = dict[str, dict[int, PdfRecordRelevance]]
+
+_PRIORITY = {
+    PdfRecordRelevance.IRRELEVANT: 0,
+    PdfRecordRelevance.SUPPORTING: 1,
+    PdfRecordRelevance.REQUIRED: 2,
+}
+
+
 def _index_judgments(
     judgment_set: PdfJudgmentSet,
-) -> dict[str, dict[str, tuple[PdfRecordRelevance, frozenset[int]]]]:
-    priority = {
-        PdfRecordRelevance.IRRELEVANT: 0,
-        PdfRecordRelevance.SUPPORTING: 1,
-        PdfRecordRelevance.REQUIRED: 2,
-    }
-    indexed: dict[
-        str,
-        dict[str, tuple[PdfRecordRelevance, frozenset[int]]],
-    ] = {}
+) -> dict[str, _EvidenceLabels]:
+    """Keep each label at the evidence unit it was given for."""
+    indexed: dict[str, _EvidenceLabels] = {}
     for judgment in judgment_set.judgments:
         records = indexed.setdefault(judgment.case_id, {})
-        current = records.get(judgment.record_id)
-        evidence_indexes = frozenset({judgment.evidence_index})
-        if current is None:
-            records[judgment.record_id] = (
-                judgment.relevance,
-                evidence_indexes,
-            )
-            continue
-        relevance, current_evidence_indexes = current
-        records[judgment.record_id] = (
-            max(
-                (relevance, judgment.relevance),
-                key=priority.__getitem__,
-            ),
-            current_evidence_indexes.union(evidence_indexes),
-        )
+        records.setdefault(judgment.record_id, {})[
+            judgment.evidence_index
+        ] = judgment.relevance
     return indexed
+
+
+def _record_relevance(
+    labels: dict[int, PdfRecordRelevance],
+) -> PdfRecordRelevance:
+    return max(labels.values(), key=_PRIORITY.__getitem__)
+
+
+def _required_evidence(
+    judgments: _EvidenceLabels,
+    record_ids: Iterable[str],
+) -> set[int]:
+    return {
+        evidence_index
+        for record_id in record_ids
+        for evidence_index, relevance in judgments.get(record_id, {}).items()
+        if relevance is PdfRecordRelevance.REQUIRED
+    }
+
+
+def _coverage(
+    covered: set[int],
+    required: set[int],
+    is_negative: bool,
+) -> tuple[float | None, bool | None]:
+    if is_negative:
+        return None, None
+    return len(covered) / len(required), covered == required
 
 
 def _score_case(
     case_id: str,
     answerability: PdfGoldenAnswerability,
     result: PdfRetrievalResult,
-    judgments: dict[
-        str,
-        tuple[PdfRecordRelevance, frozenset[int]],
-    ],
+    judgments: _EvidenceLabels,
     known_record_ids: set[str],
     top_k: int,
 ) -> PdfRetrievalCaseScore:
@@ -190,28 +223,21 @@ def _score_case(
         raise ValueError("PDF retrieval context references an unknown record")
 
     ranked = result.ranked_record_ids[:top_k]
-    evidence_records = set(ranked).union(result.context_record_ids)
+    relevance = {
+        record_id: _record_relevance(labels)
+        for record_id, labels in judgments.items()
+    }
     required = {
         record_id
-        for record_id, (relevance, _) in judgments.items()
-        if relevance is PdfRecordRelevance.REQUIRED
+        for record_id, label in relevance.items()
+        if label is PdfRecordRelevance.REQUIRED
     }
     retrieved_required = required.intersection(ranked)
-    required_evidence = {
-        evidence_index
-        for relevance, evidence_indexes in judgments.values()
-        if relevance is PdfRecordRelevance.REQUIRED
-        for evidence_index in evidence_indexes
-    }
-    covered_required_evidence = {
-        evidence_index
-        for record_id in evidence_records
-        for relevance, evidence_indexes in (
-            judgments.get(record_id, (None, frozenset())),
-        )
-        if relevance is PdfRecordRelevance.REQUIRED
-        for evidence_index in evidence_indexes
-    }
+    required_evidence = _required_evidence(judgments, judgments)
+    ranked_evidence = _required_evidence(judgments, ranked)
+    context_evidence = _required_evidence(
+        judgments, (*ranked, *result.context_record_ids),
+    )
     first_required_rank = next(
         (
             rank
@@ -224,6 +250,12 @@ def _score_case(
     required_recall = (
         None if is_negative else len(retrieved_required) / len(required)
     )
+    ranked_coverage, all_ranked = _coverage(
+        ranked_evidence, required_evidence, is_negative,
+    )
+    context_coverage, all_context = _coverage(
+        context_evidence, required_evidence, is_negative,
+    )
     return PdfRetrievalCaseScore(
         case_id=case_id,
         answerability=answerability,
@@ -234,17 +266,12 @@ def _score_case(
             None if is_negative else required == retrieved_required
         ),
         required_evidence_total=len(required_evidence),
-        required_evidence_covered_at_k=len(covered_required_evidence),
-        required_evidence_coverage_at_k=(
-            None
-            if is_negative
-            else len(covered_required_evidence) / len(required_evidence)
-        ),
-        all_required_evidence_at_k=(
-            None
-            if is_negative
-            else required_evidence == covered_required_evidence
-        ),
+        ranked_required_evidence_covered_at_k=len(ranked_evidence),
+        ranked_required_evidence_coverage_at_k=ranked_coverage,
+        all_ranked_required_evidence_at_k=all_ranked,
+        context_required_evidence_covered_at_k=len(context_evidence),
+        context_required_evidence_coverage_at_k=context_coverage,
+        all_context_required_evidence_at_k=all_context,
         first_required_rank=first_required_rank,
         reciprocal_rank=(
             None
@@ -256,8 +283,7 @@ def _score_case(
             )
         ),
         judged_irrelevant_at_k=sum(
-            judgments.get(record_id, (None, frozenset()))[0]
-            is PdfRecordRelevance.IRRELEVANT
+            relevance.get(record_id) is PdfRecordRelevance.IRRELEVANT
             for record_id in ranked
         ),
         unjudged_at_k=sum(

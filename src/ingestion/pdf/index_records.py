@@ -38,6 +38,26 @@ class PdfIndexRecord:
         return self.page_spans[-1].page_number
 
 
+def pdf_record_order_key(
+    record: PdfIndexRecord,
+) -> tuple[str, int, int, int, str]:
+    """Return the canonical reading-order key used for every ranking."""
+    return (
+        record.book_path,
+        record.flow_index,
+        record.flow_start,
+        record.flow_end,
+        record.record_id,
+    )
+
+
+def canonical_pdf_record_order(
+    records: Sequence[PdfIndexRecord],
+) -> tuple[PdfIndexRecord, ...]:
+    """Order records independently of how they were supplied."""
+    return tuple(sorted(records, key=pdf_record_order_key))
+
+
 def build_pdf_index_records(
     chunks: Sequence[PdfChunk],
 ) -> tuple[PdfIndexRecord, ...]:

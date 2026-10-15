@@ -33,11 +33,10 @@ class PdfMiniLmBaseline:
         retrieval_texts: Sequence[str] | None = None,
     ) -> None:
         """Encode the searchable PDF text once and retain record identity."""
-        self._records = tuple(records)
         self._encoder = encoder or MiniLMEncoder()
-        lexical = PdfBm25Baseline(
-            self._records, retrieval_texts=retrieval_texts,
-        )
+        lexical = PdfBm25Baseline(records, retrieval_texts=retrieval_texts)
+        # Canonical order keeps semantic and fused tie-breaking stable.
+        self._records = lexical.records
         self._index = build_semantic_index(
             lexical.lexical_index,
             self._encoder,

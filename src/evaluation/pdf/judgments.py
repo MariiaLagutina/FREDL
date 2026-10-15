@@ -2,13 +2,17 @@
 
 from collections.abc import Sequence
 from enum import Enum
-from hashlib import sha256
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 
 from src.evaluation.pdf.models import PdfGoldenDataset
+from src.ingestion.pdf.fingerprints import (
+    fingerprint_pdf_records,
+    legacy_fingerprint_pdf_records_v1,
+)
 from src.ingestion.pdf.index_records import PdfIndexRecord
 
 
@@ -24,6 +28,30 @@ class _StrictModel(BaseModel):
     model_config = ConfigDict(frozen=True, strict=True, extra="forbid")
 
 
+class PdfJudgmentMapping(str, Enum):
+    """Describe how a migrated label reached its current record."""
+
+    BYTE_IDENTICAL = "byte_identical"
+    WHITESPACE_ONLY = "whitespace_only"
+    MANUAL_REVIEW = "manual_review"
+
+
+class PdfJudgmentProvenance(_StrictModel):
+    """Trace one migrated label to the record a human originally judged."""
+
+    source_record_id: str = Field(min_length=1)
+    mapping: PdfJudgmentMapping
+
+
+class PdfJudgmentSource(_StrictModel):
+    """Identify the preserved judgment file a set was migrated from."""
+
+    dataset_id: str = Field(min_length=1)
+    judgments_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    record_set_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+    record_set_fingerprint_version: Literal[1, 2]
+
+
 class PdfRecordJudgment(_StrictModel):
     """Store one human decision for one page-overlap candidate record."""
 
@@ -31,16 +59,22 @@ class PdfRecordJudgment(_StrictModel):
     evidence_index: int = Field(ge=0)
     record_id: str = Field(min_length=1)
     relevance: PdfRecordRelevance
+    provenance: PdfJudgmentProvenance | None = None
 
 
 class PdfJudgmentSet(_StrictModel):
-    """Bind record-level labels to one dataset and exact record set."""
+    """Bind record-level labels to one dataset and exact record set.
 
-    schema_version: int
+    Version 1 sets use the legacy record fingerprint. Version 2 sets use
+    the canonical fingerprint and may record their migration source.
+    """
+
+    schema_version: Literal[1, 2]
     dataset_id: str = Field(min_length=1)
     book_path: str = Field(min_length=1)
     record_set_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
     judgments: tuple[PdfRecordJudgment, ...] = Field(min_length=1)
+    migrated_from: PdfJudgmentSource | None = None
 
     @field_validator("judgments")
     @classmethod
@@ -57,40 +91,27 @@ class PdfJudgmentSet(_StrictModel):
             raise ValueError("PDF record judgments must be unique")
         return judgments
 
-
-def fingerprint_pdf_records(records: Sequence[PdfIndexRecord]) -> str:
-    """Hash all source and chunk fields that can affect evidence labels.
-
-    The section interval identity is included because it decides which
-    neighbouring records can expand a hit's context.
-    """
-    _require_unique_record_ids(records)
-    digest = sha256()
-    for record in sorted(records, key=lambda item: item.record_id):
-        values = (
-            record.record_id,
-            record.book_path,
-            *record.section_path,
-            str(record.flow_index),
-            str(record.flow_start),
-            str(record.flow_end),
-            record.text,
-            record.section_interval_id or "",
+    @model_validator(mode="after")
+    def require_versioned_provenance(self) -> "PdfJudgmentSet":
+        """Allow migration provenance only in version 2 sets."""
+        has_provenance = self.migrated_from is not None or any(
+            item.provenance is not None for item in self.judgments
         )
-        for value in values:
-            digest.update(value.encode("utf-8"))
-            digest.update(b"\0")
-        for span in record.page_spans:
-            for numeric_value in (
-                span.page_number,
-                span.chunk_start,
-                span.chunk_end,
-                span.page_source_start,
-                span.page_source_end,
-            ):
-                digest.update(str(numeric_value).encode("ascii"))
-                digest.update(b"\0")
-    return digest.hexdigest()
+        if self.schema_version == 1 and has_provenance:
+            raise ValueError("Version 1 PDF judgments cannot carry provenance")
+        return self
+
+
+def fingerprint_for_judgment_version(
+    schema_version: int,
+    records: Sequence[PdfIndexRecord],
+) -> str:
+    """Return the record fingerprint a judgment schema version binds to."""
+    if schema_version == 1:
+        return legacy_fingerprint_pdf_records_v1(records)
+    if schema_version == 2:
+        return fingerprint_pdf_records(records)
+    raise ValueError("Unsupported PDF judgment schema version")
 
 
 def load_pdf_judgment_set(
@@ -108,20 +129,24 @@ def load_pdf_judgment_set(
     except ValidationError as error:
         raise ValueError("PDF judgment set JSON is invalid") from error
 
-    _validate_judgment_set(judgment_set, dataset, records)
+    validate_pdf_judgment_set(judgment_set, dataset, records)
     return judgment_set
 
 
-def _validate_judgment_set(
+def validate_pdf_judgment_set(
     judgment_set: PdfJudgmentSet,
     dataset: PdfGoldenDataset,
     records: Sequence[PdfIndexRecord],
 ) -> None:
+    """Require labels to match the dataset, records, and evidence pages."""
     if judgment_set.dataset_id != dataset.dataset_id:
         raise ValueError("PDF judgment set belongs to another dataset")
     if judgment_set.book_path != dataset.book_path:
         raise ValueError("PDF judgment set belongs to another book")
-    if judgment_set.record_set_fingerprint != fingerprint_pdf_records(records):
+    expected = fingerprint_for_judgment_version(
+        judgment_set.schema_version, records,
+    )
+    if judgment_set.record_set_fingerprint != expected:
         raise ValueError("PDF judgment set record fingerprint differs")
 
     cases = {case.id: case for case in dataset.cases}
@@ -143,9 +168,3 @@ def _validate_judgment_set(
             raise ValueError(
                 "PDF judgment record does not overlap evidence pages"
             )
-
-
-def _require_unique_record_ids(records: Sequence[PdfIndexRecord]) -> None:
-    record_ids = [record.record_id for record in records]
-    if len(record_ids) != len(set(record_ids)):
-        raise ValueError("PDF record fingerprint requires unique record IDs")

@@ -6,7 +6,10 @@ from dataclasses import dataclass
 from src.evaluation.pdf.models import PdfGoldenDataset
 from src.evaluation.pdf.retrieval_metrics import PdfRetrievalResult
 from src.ingestion.documents import Chunk
-from src.ingestion.pdf.index_records import PdfIndexRecord
+from src.ingestion.pdf.index_records import (
+    pdf_record_order_key,
+    PdfIndexRecord,
+)
 from src.retrieval.bm25 import (
     BM25Document,
     BM25Index,
@@ -40,19 +43,30 @@ class PdfBm25Baseline:
 
         retrieval_texts, aligned with records, replaces only the searchable
         text, such as a policy view without boilerplate; records keep theirs.
+        Records are indexed in canonical reading order, so input order
+        cannot change rankings or tie-breaking.
         """
-        self._records = tuple(records)
-        _require_unique_record_ids(self._records)
-        texts = _aligned_texts(self._records, retrieval_texts)
+        supplied = tuple(records)
+        _require_unique_record_ids(supplied)
+        texts = _aligned_texts(supplied, retrieval_texts)
+        pairs = sorted(
+            zip(supplied, texts),
+            key=lambda pair: pdf_record_order_key(pair[0]),
+        )
+        self._records = tuple(record for record, _ in pairs)
         documents = tuple(
-            _build_document(record, text)
-            for record, text in zip(self._records, texts)
+            _build_document(record, text) for record, text in pairs
         )
         self._retriever = BM25Retriever(BM25Index(documents, parameters))
         self._records_by_key = {
             document.key: record
             for document, record in zip(documents, self._records)
         }
+
+    @property
+    def records(self) -> tuple[PdfIndexRecord, ...]:
+        """Return indexed records in canonical reading order."""
+        return self._records
 
     @property
     def lexical_index(self) -> BM25Index:
