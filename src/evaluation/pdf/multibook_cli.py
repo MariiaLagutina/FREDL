@@ -6,6 +6,7 @@ named human approval.
 """
 
 from collections.abc import Sequence
+from hashlib import sha256
 from pathlib import Path
 
 from src.evaluation.pdf.cli import _user_errors, _write_new
@@ -16,7 +17,11 @@ from src.evaluation.pdf.library import (
 )
 from src.evaluation.pdf.multibook_golden import (
     load_pdf_multibook_golden,
+    PdfGoldenLineage,
     PdfMultibookGolden,
+)
+from src.evaluation.pdf.multibook_golden_v1 import (
+    load_pdf_multibook_golden_v1,
 )
 from src.evaluation.pdf.multibook_import import (
     freeze_pdf_multibook_golden,
@@ -24,6 +29,7 @@ from src.evaluation.pdf.multibook_import import (
     load_pdf_import_decisions,
     load_pdf_review_package,
     render_pdf_import_report,
+    require_v1_to_v2_preserved,
     verify_pdf_multibook_golden,
     write_pdf_multibook_golden,
 )
@@ -35,6 +41,7 @@ from src.evaluation.pdf.multibook_judgments import (
 from src.evaluation.pdf.pooling import (
     anchor_pool_entries,
     build_judgment_pool,
+    carry_over_worksheet,
     read_judgment_worksheet,
     render_judgment_worksheet,
     summarize_pool,
@@ -60,17 +67,35 @@ def pdf_import_multibook_golden(
     library_root: str,
     decisions: str,
     output_dir: str,
+    migrated_from: str | None = None,
 ) -> str:
     """Import an accepted review package as a draft and verify locators.
 
     The draft is never frozen. decisions lists explicit human decisions
     for values the package does not encode; it cannot override any
-    approved value.
+    approved value. migrated_from names a version 1 draft this one
+    replaces; every version 1 value must then be preserved.
     """
+    previous = (
+        load_pdf_multibook_golden_v1(Path(migrated_from))
+        if migrated_from is not None else None
+    )
     imported = import_pdf_multibook_candidates(
         load_pdf_review_package(Path(package_dir)),
         load_pdf_import_decisions(Path(decisions)),
+        migrated_from=PdfGoldenLineage(
+            schema_version=1, dataset_id=previous.dataset_id,
+            content_fingerprint=previous.content_fingerprint,
+        ) if previous is not None else None,
     )
+    if previous is not None:
+        imported = type(imported)(
+            golden=imported.golden,
+            findings=(
+                *imported.findings,
+                *require_v1_to_v2_preserved(previous, imported.golden),
+            ),
+        )
     golden = imported.golden
     root = Path(library_root)
     book_paths = golden.library.book_paths
@@ -212,3 +237,95 @@ def _case_list(cases: str | Sequence[str]) -> tuple[str, ...]:
     if not selected:
         raise ValueError("Name at least one case")
     return selected
+
+
+@_user_errors
+def pdf_migrate_judgment_pilot(
+    v1_golden: str,
+    v2_golden: str,
+    library_root: str,
+    old_pool: str,
+    labels: str,
+    labels_sha256: str,
+    reviewer: str,
+    output_dir: str,
+) -> str:
+    """Regenerate a pilot pool for a version 2 draft and carry labels over.
+
+    Every check runs before anything is written: the old pool belongs to
+    the version 1 draft, version 2 preserves every version 1 value, the
+    library and record content are unchanged, the regenerated pool has the
+    same entries, and the labels file hashes as recorded. Labels are moved
+    unchanged by (case, unit, record). Old files are never modified.
+    """
+    previous = load_pdf_multibook_golden_v1(Path(v1_golden))
+    dataset = load_pdf_multibook_golden(Path(v2_golden))
+    if previous.status != "draft" or dataset.status != "draft":
+        raise ValueError("Pilot migration works on drafts only")
+    offered = load_pdf_judgment_pool(Path(old_pool))
+    if offered.golden_content_fingerprint != previous.content_fingerprint:
+        raise ValueError("Old pool does not belong to the version 1 draft")
+    preserved = require_v1_to_v2_preserved(previous, dataset)
+    library = _library(library_root, dataset)
+    if offered.library_fingerprint != library.manifest.fingerprint:
+        raise ValueError("Library records changed since the pilot")
+    cases = tuple(dict.fromkeys(entry.case_id for entry in offered.entries))
+    pool = build_judgment_pool(
+        dataset, library, anchor_pool_entries(dataset, library, cases),
+    )
+    moved = carry_over_worksheet(
+        offered, pool, Path(labels).read_text(encoding="utf-8"),
+        labels_sha256,
+    )
+    judgments = read_judgment_worksheet(
+        moved.sheet, pool, dataset_id=dataset.dataset_id,
+        reviewer=reviewer, status="pilot",
+    )
+    warnings = validate_multibook_judgments(judgments, dataset, library, pool)
+    worksheet, sheet = render_judgment_worksheet(dataset, library, pool)
+    texts = {record.record_id: record.text
+             for record in library.source_records}
+    counts = judgment_counts(judgments.judgments)
+    report = "\n".join([
+        "# Pilot judgment migration (golden version 1 to 2)", "",
+        "Private review material. Labels were moved unchanged by "
+        "(case, unit, record); no label was created or edited.", "",
+        f"- Version 1 golden content: `{previous.content_fingerprint}`",
+        f"- Version 2 golden content: `{dataset.content_fingerprint}`",
+        f"- Library records: `{library.manifest.fingerprint}`",
+        f"- Old pool: `{offered.fingerprint}`",
+        f"- New pool: `{pool.fingerprint}`",
+        f"- Labels file sha256 (input): `{labels_sha256}`",
+        f"- Labels file sha256 (output): "
+        f"`{sha256(moved.sheet.encode('utf-8')).hexdigest()}`",
+        f"- Judgments: {len(judgments.judgments)} "
+        f"({', '.join(f'{k} {v}' for k, v in counts.items())})",
+        f"- Warnings: {', '.join(warnings) or 'none'}",
+        "", "## Checks", "",
+        *(f"- `{item.subject}` {item.kind}: {item.detail}"
+          for item in preserved),
+        "- Old pool bound to the version 1 draft; library unchanged.",
+        "- Regenerated pool has the same entries and sources.",
+        "", "## Rows", "",
+        "| Old | New | Case | Unit | Record | Record text sha256 |",
+        "| --- | --- | --- | --- | --- | --- |",
+        *(f"| {old} | {new} | {key[0]} | {key[1]} | {key[2]} | "
+          f"`{sha256(texts[key[2]].encode('utf-8')).hexdigest()}` |"
+          for old, new, key in moved.row_map),
+    ])
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    _write_new(out / POOL_FILE, pool.model_dump_json(by_alias=True, indent=1))
+    _write_new(out / WORKSHEET_FILE, worksheet)
+    _write_new(out / SHEET_FILE, sheet)
+    _write_new(out / "worksheet-labels.csv", moved.sheet)
+    _write_new(
+        out / "judgments.json",
+        judgments.model_dump_json(by_alias=True, indent=1),
+    )
+    _write_new(out / "migration-report.md", report)
+    return (
+        f"{len(judgments.judgments)} judgments moved; pool "
+        f"{offered.fingerprint[:12]} -> {pool.fingerprint[:12]}; "
+        f"warnings: {len(warnings)}"
+    )

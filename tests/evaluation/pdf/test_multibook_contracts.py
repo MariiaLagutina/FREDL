@@ -194,10 +194,34 @@ def _case(case_id: str, category: str, outcome: str, **fields: Any) -> object:
         "extraction_limited": ("complete", "extraction_limited"),
         "source_incomplete": ("incomplete", "incomplete"),
     }[outcome]
+    behavior = (
+        "clarification_required" if outcome == "ambiguous" else "answer"
+    )
     return {
         "case_id": case_id, "question": f"Synthetic question {case_id}?",
         "category": category, "expected_outcome": outcome,
         "source_support": support[0], "text_context_support": support[1],
+        "expected_behavior": behavior,
+        **fields,
+    }
+
+
+def _interpretation(
+    interpretation_id: str,
+    sets: list[list[str]],
+    outcome: str = "complete",
+    **fields: Any,
+) -> dict[str, Any]:
+    support = {"complete": ("complete", "complete"),
+               "partial": ("partial", "partial"),
+               "extraction_limited": ("complete", "extraction_limited"),
+               "unsupported": ("not_found", "not_found")}[outcome]
+    return {
+        "interpretation_id": interpretation_id,
+        "label": f"Meaning {interpretation_id}",
+        "clarified_question": f"Clarified question {interpretation_id}?",
+        "expected_outcome": outcome, "source_support": support[0],
+        "text_context_support": support[1], "sufficient_sets": sets,
         **fields,
     }
 
@@ -205,7 +229,7 @@ def _case(case_id: str, category: str, outcome: str, **fields: Any) -> object:
 def _golden() -> dict[str, Any]:
     return {
         "schema": "fredl.pdf.multibook-golden",
-        "version": 1,
+        "version": 2,
         "dataset_id": "synthetic-multibook-draft",
         "status": "draft",
         "language": "en",
@@ -232,7 +256,12 @@ def _golden() -> dict[str, Any]:
             _case("both", "complementary_multi_book", "complete",
                   sufficient_sets=[["a-queue", "b-cache"]]),
             _case("which", "ambiguous_terminology", "ambiguous",
-                  conditional_units=["b-cache", "c-cache"]),
+                  conditional_units=["b-cache", "c-cache"],
+                  interpretations=[
+                      _interpretation("beta-meaning", [["b-cache"]]),
+                      _interpretation("delta-meaning", [["c-cache"]],
+                                      "partial"),
+                  ]),
             _case("absent", "hard_negative", "unsupported",
                   related_units=["a-worker"]),
             _case("figure", "reliability_limited", "extraction_limited",
@@ -422,3 +451,152 @@ def test_library_identity_matches_golden_library_pin() -> None:
     assert [pin.record_set_fingerprint for pin in pins] == [
         book.corpus.record_set_fingerprint for book in corpus.books
     ]
+
+
+# Version 2: expected behavior and interpretations ------------------------
+
+def _which(data: dict[str, Any]) -> dict[str, Any]:
+    return _case_named(data, "which")
+
+
+def test_clarification_interpretations_allow_and_or_evidence() -> None:
+    data = _golden()
+    _which(data).update({
+        "conditional_units": ["a-queue", "a-worker", "b-cache", "c-cache"],
+        "interpretations": [
+            _interpretation("both-alpha", [["a-queue", "a-worker"]]),
+            _interpretation("either-cache", [["b-cache"], ["c-cache"]]),
+        ],
+    })
+
+    case = _validate(data).cases[4]
+
+    assert case.expected_behavior.value == "clarification_required"
+    assert [item.set_units for item in case.interpretations] == [
+        ("a-queue", "a-worker"), ("b-cache", "c-cache"),
+    ]
+    clear = _case_named(data, "single")
+    assert clear["expected_behavior"] == "answer"
+
+
+@pytest.mark.parametrize(
+    ("case_id", "update", "message"),
+    [
+        ("single", {"expected_behavior": None}, "expected_behavior"),
+        ("single", {"interpretations": [
+            _interpretation("x", [["a-queue"]]),
+            _interpretation("y", [["a-worker"]])]},
+         "clarification is required exactly|no interpretations"),
+        ("single", {"expected_behavior": "clarification_required"},
+         "exactly for ambiguous"),
+        ("which", {"expected_behavior": "answer"}, "exactly for ambiguous"),
+        ("which", {"interpretations": [
+            _interpretation("only", [["b-cache"], ["c-cache"]])]},
+         "two or more interpretations"),
+        ("which", {"interpretations": [
+            _interpretation("x", [["b-cache"]]),
+            _interpretation("y", [["c-cache"]], related_units=["b-cache"])]},
+         "share evidence units"),
+        ("which", {"conditional_units": ["c-cache", "b-cache"]},
+         "must equal the interpretations"),
+        ("which", {"interpretations": [
+            _interpretation("x", [["b-cache"]]),
+            _interpretation("x", [["c-cache"]])]},
+         "Duplicate interpretation"),
+        ("which", {"related_units": ["a-worker"]},
+         "more than one role|belong to an interpretation"),
+    ],
+)
+def test_invalid_clarification_contracts_are_rejected(
+    case_id: str,
+    update: dict[str, Any],
+    message: str,
+) -> None:
+    data = _golden()
+    case = _case_named(data, case_id)
+    case.update(deepcopy(update))
+    if case.get("expected_behavior") is None:
+        del case["expected_behavior"]
+
+    with pytest.raises(ValidationError, match=message):
+        _validate(data)
+
+
+def test_interpretations_follow_outcome_and_limitation_rules() -> None:
+    ambiguous = _golden()
+    _which(ambiguous)["interpretations"][0] = _interpretation(
+        "beta-meaning", [], "unsupported",
+    ) | {"expected_outcome": "ambiguous",
+         "source_support": "conditional",
+         "text_context_support": "conditional"}
+    missing_reason = _golden()
+    _which(missing_reason)["interpretations"][0] = _interpretation(
+        "beta-meaning", [["b-cache"]], "extraction_limited",
+    )
+    with_reason = _golden()
+    _which(with_reason)["interpretations"][0] = _interpretation(
+        "beta-meaning", [["b-cache"]], "extraction_limited",
+        limitation_reason="mathematical_structure_lost",
+    )
+
+    with pytest.raises(ValidationError, match="is not ambiguous"):
+        _validate(ambiguous)
+    with pytest.raises(ValidationError, match="needs an extraction reason"):
+        _validate(missing_reason)
+    assert _validate(with_reason).cases[4].interpretations[0].limitation_reason
+
+
+def test_freezing_requires_clarified_questions() -> None:
+    data = _golden()
+    data["status"] = "frozen"
+    data["freeze_record"] = {"approved_by": "Reviewer",
+                             "approval_note": "Synthetic approval."}
+    _validate(data)
+    _which(data)["interpretations"][1]["clarified_question"] = None
+
+    with pytest.raises(ValidationError, match="clarified question"):
+        _validate(data)
+    data["status"] = "draft"
+    data["freeze_record"] = None
+    assert _validate(data).status == "draft"
+
+
+# Read-only version 1 ----------------------------------------------------
+
+def _golden_v1() -> dict[str, Any]:
+    data = _golden()
+    data["version"] = 1
+    for case in data["cases"]:
+        del case["expected_behavior"]
+        case.pop("interpretations", None)
+    return data
+
+
+# Pinned so that any change to version 1 semantics is noticed: baseline
+# pools and judgments are bound to version 1 content fingerprints.
+V1_SYNTHETIC_FINGERPRINT = (
+    "73652bbba7b5cc3012d33ae9200071bdda5d6ecb25b85314dd41a8e228c43491"
+)
+
+
+def test_v1_reader_keeps_its_fingerprint_and_formats_stay_apart(
+    tmp_path: Path,
+) -> None:
+    from src.evaluation.pdf.multibook_golden_v1 import (
+        load_pdf_multibook_golden_v1,
+        PdfMultibookGoldenV1,
+    )
+
+    v1 = PdfMultibookGoldenV1.model_validate_json(json.dumps(_golden_v1()))
+    assert v1.content_fingerprint == V1_SYNTHETIC_FINGERPRINT
+    old = tmp_path / "v1.json"
+    old.write_text(json.dumps(_golden_v1()), encoding="utf-8")
+    new = tmp_path / "v2.json"
+    new.write_text(json.dumps(_golden()), encoding="utf-8")
+
+    assert load_pdf_multibook_golden_v1(old).version == 1
+    assert load_pdf_multibook_golden(new).version == 2
+    with pytest.raises(ValueError, match="invalid"):
+        load_pdf_multibook_golden(old)
+    with pytest.raises(ValueError, match="invalid"):
+        load_pdf_multibook_golden_v1(new)

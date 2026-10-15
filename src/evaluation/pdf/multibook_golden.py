@@ -6,6 +6,12 @@ locators point into one book each, and sufficient evidence sets with
 OR-of-AND semantics. Original-source support and extracted-text support
 are separate fields, so a lost formula or a clipped listing is never
 recorded as a retrieval or answerability failure.
+
+Version 2 adds expected_behavior. A question whose wording leaves several
+materially different meanings open requires clarification from the user;
+each meaning is an explicit interpretation with its own outcome and
+evidence, never merged with another. Version 1 stays readable in
+multibook_golden_v1.py.
 """
 
 from collections.abc import Iterable
@@ -28,7 +34,7 @@ from src.ingestion.pdf.fingerprints import fingerprint_canonical_json
 
 
 PDF_MULTIBOOK_GOLDEN_SCHEMA = "fredl.pdf.multibook-golden"
-PDF_MULTIBOOK_GOLDEN_VERSION = 1
+PDF_MULTIBOOK_GOLDEN_VERSION = 2
 _SHA256 = r"^[0-9a-f]{64}$"
 
 
@@ -44,6 +50,17 @@ class PdfMultibookCategory(str, Enum):
     UNSUPPORTED_LIBRARY = "unsupported_library"
     HARD_NEGATIVE = "hard_negative"
     RELIABILITY_LIMITED = "reliability_limited"
+
+
+class PdfExpectedBehavior(str, Enum):
+    """Say whether FREDL should answer or first ask what the user means.
+
+    This is about the user's intent only. A clear question may still be
+    unsupported, partial, or extraction-limited.
+    """
+
+    ANSWER = "answer"
+    CLARIFICATION_REQUIRED = "clarification_required"
 
 
 class PdfExpectedOutcome(str, Enum):
@@ -241,6 +258,8 @@ class PdfMultibookCase(_StrictModel):
     conditional_units: tuple[str, ...] = ()
     related_units: tuple[str, ...] = ()
     reference_notes: str = ""
+    expected_behavior: PdfExpectedBehavior
+    interpretations: tuple["PdfInterpretation", ...] = ()
 
     @field_validator("question")
     @classmethod
@@ -257,37 +276,27 @@ class PdfMultibookCase(_StrictModel):
         sets: tuple[tuple[str, ...], ...],
     ) -> tuple[tuple[str, ...], ...]:
         """Reject empty, repeated, or redundant evidence sets."""
-        members = [frozenset(item) for item in sets]
-        for item, member in zip(sets, members):
-            if not item or len(item) != len(member):
-                raise ValueError(
-                    "Sufficient sets must be non-empty without repeats"
-                )
-        for index, member in enumerate(members):
-            for other_index, other in enumerate(members):
-                if index != other_index and other <= member:
-                    raise ValueError(
-                        "Sufficient sets must be distinct and minimal"
-                    )
-        return sets
+        return _require_minimal_sets(sets)
 
     @model_validator(mode="after")
     def validate_outcome(self) -> "PdfMultibookCase":
-        """Keep outcome, support, limitation, and evidence consistent."""
+        """Keep behavior, outcome, support, and evidence consistent."""
         outcome = self.expected_outcome
         if self.expected_outcome not in _CATEGORY_OUTCOMES[self.category]:
             raise ValueError(
                 f"{self.case_id}: {self.category.value} cannot expect "
                 f"{outcome.value}"
             )
-        if (self.source_support, self.text_context_support) != (
-            _OUTCOME_SUPPORT[outcome]
-        ):
-            raise ValueError(
-                f"{self.case_id}: support fields contradict {outcome.value}"
-            )
+        _require_support(
+            self.case_id, outcome, self.source_support,
+            self.text_context_support,
+        )
         _require_limitation(self.case_id, outcome, self.limitation_reason)
-        _require_evidence_shape(self)
+        _require_evidence_shape(
+            self.case_id, outcome, self.sufficient_sets,
+            self.conditional_units, self.related_units,
+        )
+        _require_interpretations(self)
         return self
 
     @property
@@ -304,7 +313,78 @@ class PdfMultibookCase(_StrictModel):
             *(unit for item in self.sufficient_sets for unit in item),
             *self.conditional_units,
             *self.related_units,
+            *(unit for interpretation in self.interpretations
+              for unit in interpretation.unit_ids),
         )))
+
+
+class PdfInterpretation(_StrictModel):
+    """Describe one meaning of a question that requires clarification.
+
+    Its outcome, support, and evidence apply after the user chose this
+    meaning; evidence is never shared with another interpretation.
+    clarified_question must be human-approved before freezing.
+    reference_notes guide human answer review and never enter metrics.
+    """
+
+    interpretation_id: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    clarified_question: str | None = None
+    expected_outcome: PdfExpectedOutcome
+    source_support: PdfSourceSupport
+    text_context_support: PdfTextSupport
+    limitation_reason: PdfLimitationReason | None = None
+    sufficient_sets: tuple[tuple[str, ...], ...] = ()
+    related_units: tuple[str, ...] = ()
+    reference_notes: str = ""
+
+    @field_validator("sufficient_sets")
+    @classmethod
+    def require_minimal_sets(
+        cls,
+        sets: tuple[tuple[str, ...], ...],
+    ) -> tuple[tuple[str, ...], ...]:
+        """Reject empty, repeated, or redundant evidence sets."""
+        return _require_minimal_sets(sets)
+
+    @model_validator(mode="after")
+    def validate_outcome(self) -> "PdfInterpretation":
+        """Apply the same outcome rules as a clear question."""
+        subject = f"interpretation {self.interpretation_id}"
+        outcome = self.expected_outcome
+        if outcome is PdfExpectedOutcome.AMBIGUOUS:
+            raise ValueError(f"{subject}: an interpretation is not ambiguous")
+        _require_support(
+            subject, outcome, self.source_support, self.text_context_support,
+        )
+        _require_limitation(subject, outcome, self.limitation_reason)
+        _require_evidence_shape(
+            subject, outcome, self.sufficient_sets, (), self.related_units,
+        )
+        return self
+
+    @property
+    def set_units(self) -> tuple[str, ...]:
+        """Return the units of every sufficient set, in order."""
+        return tuple(dict.fromkeys(
+            unit for item in self.sufficient_sets for unit in item
+        ))
+
+    @property
+    def unit_ids(self) -> tuple[str, ...]:
+        """Return every unit this interpretation references."""
+        return tuple(dict.fromkeys((*self.set_units, *self.related_units)))
+
+
+PdfMultibookCase.model_rebuild()
+
+
+class PdfGoldenLineage(_StrictModel):
+    """Name the earlier dataset version this one was migrated from."""
+
+    schema_version: Literal[1]
+    dataset_id: str = Field(min_length=1)
+    content_fingerprint: str = Field(pattern=_SHA256)
 
 
 class PdfGoldenProvenance(_StrictModel):
@@ -334,13 +414,14 @@ class PdfMultibookGolden(_StrictModel):
     schema_name: Literal["fredl.pdf.multibook-golden"] = Field(
         default="fredl.pdf.multibook-golden", alias="schema",
     )
-    version: Literal[1] = 1
+    version: Literal[2] = 2
     dataset_id: str = Field(min_length=1)
     status: Literal["draft", "frozen"]
     page_numbering: Literal["physical_pdf_page"] = "physical_pdf_page"
     language: str = Field(min_length=1)
     library: PdfLibraryManifest
     provenance: PdfGoldenProvenance | None = None
+    migrated_from: PdfGoldenLineage | None = None
     freeze_record: PdfGoldenFreezeRecord | None = None
     evidence_units: tuple[PdfEvidenceUnit, ...]
     cases: tuple[PdfMultibookCase, ...] = Field(min_length=1)
@@ -356,6 +437,18 @@ class PdfMultibookGolden(_StrictModel):
             raise ValueError(
                 "Exactly the frozen multi-book golden set has a freeze record"
             )
+        if self.status == "frozen":
+            unapproved = [
+                f"{case.case_id}/{item.interpretation_id}"
+                for case in self.cases
+                for item in case.interpretations
+                if not (item.clarified_question or "").strip()
+            ]
+            if unapproved:
+                raise ValueError(
+                    "Freezing needs a clarified question for every "
+                    f"interpretation: {', '.join(unapproved)}"
+                )
         _require_unique("case", (case.case_id for case in self.cases))
         _require_unique(
             "evidence unit", (unit.unit_id for unit in self.evidence_units),
@@ -421,6 +514,36 @@ def load_pdf_multibook_golden(path: Path) -> PdfMultibookGolden:
         ) from error
 
 
+def _require_minimal_sets(
+    sets: tuple[tuple[str, ...], ...],
+) -> tuple[tuple[str, ...], ...]:
+    members = [frozenset(item) for item in sets]
+    for item, member in zip(sets, members):
+        if not item or len(item) != len(member):
+            raise ValueError(
+                "Sufficient sets must be non-empty without repeats"
+            )
+    for index, member in enumerate(members):
+        for other_index, other in enumerate(members):
+            if index != other_index and other <= member:
+                raise ValueError(
+                    "Sufficient sets must be distinct and minimal"
+                )
+    return sets
+
+
+def _require_support(
+    subject: str,
+    outcome: PdfExpectedOutcome,
+    source: PdfSourceSupport,
+    text: PdfTextSupport,
+) -> None:
+    if (source, text) != _OUTCOME_SUPPORT[outcome]:
+        raise ValueError(
+            f"{subject}: support fields contradict {outcome.value}",
+        )
+
+
 def _require_limitation(
     case_id: str,
     outcome: PdfExpectedOutcome,
@@ -440,45 +563,101 @@ def _require_limitation(
         raise ValueError(f"{case_id}: {outcome.value} takes no limitation")
 
 
-def _require_evidence_shape(case: PdfMultibookCase) -> None:
-    outcome = case.expected_outcome
-    has_sets = bool(case.sufficient_sets)
+def _require_evidence_shape(
+    subject: str,
+    outcome: PdfExpectedOutcome,
+    sufficient_sets: tuple[tuple[str, ...], ...],
+    conditional_units: tuple[str, ...],
+    related_units: tuple[str, ...],
+) -> None:
+    has_sets = bool(sufficient_sets)
     if outcome in {
         PdfExpectedOutcome.COMPLETE,
         PdfExpectedOutcome.PARTIAL,
         PdfExpectedOutcome.EXTRACTION_LIMITED,
     } and not has_sets:
-        raise ValueError(
-            f"{case.case_id}: {outcome.value} needs evidence sets",
-        )
+        raise ValueError(f"{subject}: {outcome.value} needs evidence sets")
     if outcome in {
         PdfExpectedOutcome.AMBIGUOUS,
         PdfExpectedOutcome.UNSUPPORTED,
         PdfExpectedOutcome.SOURCE_INCOMPLETE,
     } and has_sets:
         raise ValueError(
-            f"{case.case_id}: {outcome.value} has no sufficient evidence set"
+            f"{subject}: {outcome.value} has no sufficient evidence set"
         )
     if outcome is PdfExpectedOutcome.AMBIGUOUS:
-        if len(set(case.conditional_units)) < 2:
+        if len(set(conditional_units)) < 2:
             raise ValueError(
-                f"{case.case_id}: ambiguous needs two conditional units"
+                f"{subject}: ambiguous needs two conditional units"
             )
-    elif case.conditional_units:
+    elif conditional_units:
         raise ValueError(
-            f"{case.case_id}: only ambiguous cases have conditional units"
+            f"{subject}: only ambiguous cases have conditional units"
         )
-    groups = (
-        case.set_units, frozenset(case.conditional_units),
-        frozenset(case.related_units),
-    )
-    if len(case.related_units) != len(groups[2]) or len(
-        case.conditional_units
-    ) != len(groups[1]):
-        raise ValueError(f"{case.case_id}: evidence units are repeated")
-    if groups[0] & groups[1] or groups[0] & groups[2] or groups[1] & groups[2]:
+    set_units = frozenset(unit for item in sufficient_sets for unit in item)
+    conditional = frozenset(conditional_units)
+    related = frozenset(related_units)
+    if len(related_units) != len(related) or len(
+        conditional_units
+    ) != len(conditional):
+        raise ValueError(f"{subject}: evidence units are repeated")
+    if set_units & conditional or set_units & related or conditional & related:
         raise ValueError(
-            f"{case.case_id}: an evidence unit has more than one role"
+            f"{subject}: an evidence unit has more than one role"
+        )
+
+
+def _require_interpretations(case: PdfMultibookCase) -> None:
+    """Tie clarification to ambiguity and keep meanings apart.
+
+    The case-level fields describe the question before clarification.
+    conditional_units must list exactly the units of the interpretations'
+    sufficient sets, in order, so pools and metrics built on them stay
+    unchanged.
+    """
+    clarify = (
+        case.expected_behavior is PdfExpectedBehavior.CLARIFICATION_REQUIRED
+    )
+    ambiguous = case.expected_outcome is PdfExpectedOutcome.AMBIGUOUS
+    if clarify != ambiguous:
+        raise ValueError(
+            f"{case.case_id}: clarification is required exactly for "
+            "ambiguous questions"
+        )
+    if not clarify:
+        if case.interpretations:
+            raise ValueError(
+                f"{case.case_id}: a clear question has no interpretations"
+            )
+        return
+    if len(case.interpretations) < 2:
+        raise ValueError(
+            f"{case.case_id}: clarification needs two or more interpretations"
+        )
+    _require_unique(
+        "interpretation",
+        (item.interpretation_id for item in case.interpretations),
+    )
+    seen: set[str] = set()
+    for item in case.interpretations:
+        shared = seen & set(item.unit_ids)
+        if shared:
+            raise ValueError(
+                f"{case.case_id}: interpretations share evidence units "
+                f"{', '.join(sorted(shared))}"
+            )
+        seen.update(item.unit_ids)
+    union = tuple(
+        unit for item in case.interpretations for unit in item.set_units
+    )
+    if union != case.conditional_units:
+        raise ValueError(
+            f"{case.case_id}: conditional units must equal the "
+            "interpretations' evidence units, in order"
+        )
+    if case.related_units:
+        raise ValueError(
+            f"{case.case_id}: related units belong to an interpretation"
         )
 
 

@@ -117,6 +117,35 @@ refusal are separate errors. These metrics do not measure generation correctness
 or user usefulness, and the binary protocol does not independently handle the
 multi-book review's ambiguity or extraction-limitation classes.
 
+## Multi-book golden contract
+
+A separate schema, `fredl.pdf.multibook-golden` version 2, describes a private
+multi-book evaluation set; the single-book format above is unchanged. It pins
+the library by PDF hash and record-set fingerprint and keeps original-source
+support apart from extracted-text support. Expected outcomes are `complete`,
+`partial`, `ambiguous`, `unsupported`, `extraction_limited` and
+`source_incomplete`; the last three stay distinct, with an explicit limitation
+reason where the text or the source itself falls short. Evidence units point
+at exact anchors on physical pages, and sufficient evidence is OR across sets
+and AND within a set.
+
+Each question also records `expected_behavior`, kept separate from its
+outcome. `answer` means the wording is clear enough to answer from evidence,
+which may still be partial or unsupported. `clarification_required` means
+several materially different meanings remain open: FREDL should ask which one
+the user means instead of choosing. Each meaning is an interpretation with its
+own label, clarified question, outcome, support and evidence sets; evidence is
+never shared between interpretations. FREDL does not guess what the user wants
+to learn.
+
+Version 1 drafts stay readable for audit. The `pdf_import_multibook_golden`,
+`pdf_freeze_multibook_golden`, `pdf_prepare_judgment_pilot`,
+`pdf_collect_judgments` and `pdf_migrate_judgment_pilot` commands import a
+reviewed package as a draft, freeze it only on a named approval, prepare a
+blind relevance worksheet, collect human labels, and move labels unchanged to a
+regenerated pool after a schema migration. None of them runs retrieval or a
+model, and none assigns a relevance label.
+
 ## Current review state and unmeasured work
 
 PDF Tasks 1–5 are implemented. A private Task 6 package contains 22 human-approved

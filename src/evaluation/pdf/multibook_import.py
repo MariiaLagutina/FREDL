@@ -27,9 +27,12 @@ from src.evaluation.pdf.models import PdfGoldenModality
 from src.evaluation.pdf.multibook_golden import (
     PdfEvidenceLocator,
     PdfEvidenceUnit,
+    PdfExpectedBehavior,
     PdfExpectedOutcome,
     PdfGoldenFreezeRecord,
+    PdfGoldenLineage,
     PdfGoldenProvenance,
+    PdfInterpretation,
     PdfLimitationReason,
     PdfMultibookCase,
     PdfMultibookCategory,
@@ -37,6 +40,7 @@ from src.evaluation.pdf.multibook_golden import (
     PdfSourceSupport,
     PdfTextSupport,
 )
+from src.evaluation.pdf.multibook_golden_v1 import PdfMultibookGoldenV1
 from src.ingestion.pdf.reading_text import PdfReadingPage
 
 
@@ -105,13 +109,15 @@ class _StrictModel(BaseModel):
 class PdfImportDecision(_StrictModel):
     """Supply a human decision the review package does not encode.
 
-    A decision may fill a missing outcome or limitation reason; it can
-    never replace a value the package already approved.
+    A decision may fill a missing outcome or limitation reason, or give the
+    interpretations of an ambiguous question; it can never replace a value
+    the package already approved.
     """
 
     case_id: str = Field(min_length=1)
     expected_outcome: PdfExpectedOutcome | None = None
     limitation_reason: PdfLimitationReason | None = None
+    interpretations: tuple[PdfInterpretation, ...] = ()
     provenance: str = Field(min_length=1)
 
 
@@ -121,7 +127,7 @@ class PdfImportDecisions(_StrictModel):
     schema_name: Literal["fredl.pdf.multibook-import-decisions"] = Field(
         default="fredl.pdf.multibook-import-decisions", alias="schema",
     )
-    version: Literal[1] = 1
+    version: Literal[1, 2] = 2
     decisions: tuple[PdfImportDecision, ...] = ()
 
     model_config = ConfigDict(
@@ -217,8 +223,14 @@ def import_pdf_multibook_candidates(
     decisions: PdfImportDecisions,
     dataset_id: str = PDF_MULTIBOOK_DATASET_ID,
     language: str = "en",
+    migrated_from: PdfGoldenLineage | None = None,
 ) -> PdfMultibookImport:
-    """Build a draft golden set from human-approved candidate fields only."""
+    """Build a draft golden set from human-approved candidate fields only.
+
+    expected_behavior is clarification_required exactly for questions the
+    review approved as ambiguous, whose interpretations must come from an
+    explicit decision; every other question is answered.
+    """
     findings: list[PdfImportFinding] = []
     candidates = package.candidates["candidates"]
     by_decision = _decisions_by_case(decisions)
@@ -236,12 +248,21 @@ def import_pdf_multibook_candidates(
     unused = sorted(set(by_decision) - {case.case_id for case in cases})
     if unused:
         raise ValueError(f"Import decisions name unknown cases: {unused}")
+    answered = [case.case_id for case in cases
+                if case.expected_behavior is PdfExpectedBehavior.ANSWER]
+    findings.append(PdfImportFinding(
+        "all cases", "expected_behavior",
+        f"answer for {len(answered)} case(s) whose approved outcome is not "
+        f"ambiguous; clarification_required for "
+        f"{len(cases) - len(answered)}",
+    ))
     try:
         golden = PdfMultibookGolden(
             dataset_id=dataset_id,
             status="draft",
             language=language,
             library=library,
+            migrated_from=migrated_from,
             provenance=PdfGoldenProvenance(
                 package_id=package.package_id,
                 candidates_sha256=package.file_sha256[CANDIDATES_FILE],
@@ -311,6 +332,65 @@ def verify_pdf_multibook_golden(
             f"{len(unit.supporting_locators)} supporting locators match; "
             f"required anchors overlap {len(overlapping)} record(s)",
         ))
+    return tuple(findings)
+
+
+def require_v1_to_v2_preserved(
+    v1: PdfMultibookGoldenV1,
+    v2: PdfMultibookGolden,
+) -> tuple[PdfImportFinding, ...]:
+    """Prove that a version 2 draft keeps every version 1 value.
+
+    Library, units, and every version 1 case field must be equal; version
+    2 may only add expected_behavior, interpretations, the lineage, and
+    decision provenance. Any other difference stops the migration.
+    """
+    lineage = v2.migrated_from
+    if lineage is None or lineage.content_fingerprint != (
+        v1.content_fingerprint
+    ) or lineage.dataset_id != v1.dataset_id:
+        raise ValueError("Version 2 draft does not name this version 1 draft")
+    old = v1.model_dump(mode="json", by_alias=True)
+    new = v2.model_dump(mode="json", by_alias=True)
+    for key in ("dataset_id", "status", "page_numbering", "language",
+                "library", "evidence_units", "freeze_record"):
+        if old[key] != new[key]:
+            raise ValueError(f"Version 2 changes {key}")
+    old_provenance = dict(old["provenance"] or {})
+    new_provenance = dict(new["provenance"] or {})
+    old_decisions = old_provenance.pop("decisions", [])
+    new_decisions = new_provenance.pop("decisions", [])
+    if old_provenance != new_provenance:
+        raise ValueError("Version 2 changes the review package provenance")
+    if new_decisions[:len(old_decisions)] != old_decisions:
+        raise ValueError("Version 2 drops or reorders a version 1 decision")
+    if [case["case_id"] for case in old["cases"]] != [
+        case["case_id"] for case in new["cases"]
+    ]:
+        raise ValueError("Version 2 changes the cases or their order")
+    findings = []
+    for old_case, new_case in zip(old["cases"], new["cases"]):
+        added = {key: new_case.pop(key)
+                 for key in ("expected_behavior", "interpretations")}
+        if old_case != new_case:
+            changed = sorted(
+                key for key in old_case if old_case[key] != new_case.get(key)
+            )
+            raise ValueError(
+                f"Version 2 changes {old_case['case_id']}: {changed}"
+            )
+        if added["interpretations"]:
+            findings.append(PdfImportFinding(
+                old_case["case_id"], "v1_preserved",
+                "every version 1 field equal; added clarification_required "
+                f"with {len(added['interpretations'])} interpretations",
+            ))
+    findings.append(PdfImportFinding(
+        "all cases", "v1_preserved",
+        f"{len(old['cases'])} cases, {len(old['evidence_units'])} evidence "
+        "units, library and package provenance equal to version 1 "
+        f"({v1.content_fingerprint[:12]})",
+    ))
     return tuple(findings)
 
 
@@ -396,17 +476,36 @@ def render_pdf_import_report(
         "",
         "## Expected outcomes",
         "",
-        "| Case | Category | Outcome | Source | Extracted text | Limitation |",
-        "| --- | --- | --- | --- | --- | --- |",
+        "| Case | Category | Behavior | Outcome | Source | Extracted text "
+        "| Limitation |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
     ]
     for case in golden.cases:
         reason = case.limitation_reason
         lines.append(
             f"| {case.case_id} | {case.category.value} | "
+            f"{case.expected_behavior.value} | "
             f"{case.expected_outcome.value} | {case.source_support.value} | "
             f"{case.text_context_support.value} | "
             f"{reason.value if reason else '-'} |"
         )
+    clarified = [case for case in golden.cases if case.interpretations]
+    if clarified:
+        lines.extend([
+            "", "## Interpretations", "",
+            "| Case | Interpretation | Outcome | Source | Extracted text "
+            "| Evidence sets |",
+            "| --- | --- | --- | --- | --- | --- |",
+        ])
+        for case in clarified:
+            for item in case.interpretations:
+                lines.append(
+                    f"| {case.case_id} | {item.interpretation_id} | "
+                    f"{item.expected_outcome.value} | "
+                    f"{item.source_support.value} | "
+                    f"{item.text_context_support.value} | "
+                    f"{_sets(item.sufficient_sets)} |"
+                )
     for title, items in (
         ("Import findings", imported.findings),
         ("Locator verification", verification),
@@ -414,8 +513,10 @@ def render_pdf_import_report(
         lines.extend(["", f"## {title}", ""])
         if not items:
             lines.append("- None.")
-        for item in items:
-            lines.append(f"- `{item.subject}` {item.kind}: {item.detail}")
+        for finding in items:
+            lines.append(
+                f"- `{finding.subject}` {finding.kind}: {finding.detail}",
+            )
     return "\n".join(lines) + "\n"
 
 
@@ -568,6 +669,24 @@ def _case(
         ))
     others = tuple(unit for unit in others if unit not in in_sets)
     ambiguous = outcome is PdfExpectedOutcome.AMBIGUOUS
+    interpretations = decision.interpretations if decision else ()
+    if ambiguous and len(interpretations) < 2:
+        raise ValueError(
+            f"{case_id} is ambiguous and needs approved interpretations"
+        )
+    if interpretations and not ambiguous:
+        raise ValueError(f"{case_id} is not ambiguous; it takes no "
+                         "interpretations")
+    if interpretations:
+        assert decision is not None
+        findings.append(PdfImportFinding(
+            case_id, "interpretations_applied",
+            f"{len(interpretations)} interpretations from an explicit "
+            f"decision ({decision.provenance}): " + "; ".join(
+                f"{item.interpretation_id} -> {item.expected_outcome.value}"
+                for item in interpretations
+            ),
+        ))
     return PdfMultibookCase(
         case_id=case_id,
         question=question,
@@ -580,6 +699,11 @@ def _case(
         conditional_units=others if ambiguous else (),
         related_units=() if ambiguous else others,
         reference_notes=candidate.get("candidate_expected_answer", ""),
+        expected_behavior=(
+            PdfExpectedBehavior.CLARIFICATION_REQUIRED if ambiguous
+            else PdfExpectedBehavior.ANSWER
+        ),
+        interpretations=interpretations,
     )
 
 

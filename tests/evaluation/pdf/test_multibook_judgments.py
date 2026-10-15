@@ -100,12 +100,24 @@ def _golden(library: PdfLibraryCorpus) -> PdfMultibookGolden:
     def case(case_id: str, category: str, outcome: str, support: tuple[
         str, str,
     ], **fields: Any) -> object:
+        behavior = (
+            "clarification_required" if outcome == "ambiguous" else "answer"
+        )
         return {"case_id": case_id, "question": f"Question {case_id}?",
                 "category": category, "expected_outcome": outcome,
                 "source_support": support[0],
-                "text_context_support": support[1], **fields}
+                "text_context_support": support[1],
+                "expected_behavior": behavior, **fields}
+
+    def meaning(name: str, unit: str) -> object:
+        return {"interpretation_id": name, "label": f"Meaning {name}",
+                "clarified_question": f"Clarified {name}?",
+                "expected_outcome": "complete", "source_support": "complete",
+                "text_context_support": "complete",
+                "sufficient_sets": [[unit]]}
 
     return PdfMultibookGolden.model_validate_json(json.dumps({
+        "version": 2,
         "dataset_id": "synthetic", "status": "draft", "language": "en",
         "library": library.manifest.model_dump(mode="json"),
         "evidence_units": [
@@ -126,7 +138,9 @@ def _golden(library: PdfLibraryCorpus) -> PdfMultibookGolden:
                  sufficient_sets=[["queue", "cache"]]),
             case("which", "ambiguous_terminology", "ambiguous",
                  ("conditional", "conditional"),
-                 conditional_units=["queue", "backpressure"]),
+                 conditional_units=["queue", "backpressure"],
+                 interpretations=[meaning("queues", "queue"),
+                                  meaning("producers", "backpressure")]),
             case("absent", "hard_negative", "unsupported",
                  ("not_found", "not_found"), related_units=["cache"]),
         ],
@@ -341,3 +355,167 @@ def test_cli_prepares_pilot_and_collects_judgments(tmp_path: Path) -> None:
     with pytest.raises(CliError, match="Unknown cases"):
         pdf_prepare_judgment_pilot(golden, str(library_root), "missing",
                                    str(private / "other"))
+
+
+def test_worksheet_names_the_interpretation_of_each_unit() -> None:
+    library = _library()
+    golden = _golden(library)
+    pool = build_judgment_pool(golden, library, anchor_pool_entries(
+        golden, library, ("which",),
+    ))
+
+    worksheet, _ = render_judgment_worksheet(golden, library, pool)
+
+    assert "### Interpretation `queues`: Meaning queues" in worksheet
+    assert worksheet.index("Interpretation `producers`") < worksheet.index(
+        "Evidence unit `backpressure`",
+    )
+
+
+def _relabelled(golden: PdfMultibookGolden) -> PdfMultibookGolden:
+    # A content change outside the pool (reference notes) gives a new
+    # golden fingerprint, as a schema migration does.
+    cases = tuple(
+        case.model_copy(update={"reference_notes": "Revised notes."})
+        for case in golden.cases
+    )
+    return PdfMultibookGolden.model_validate(
+        golden.model_copy(update={"cases": cases}).model_dump(
+            mode="json", by_alias=True,
+        ),
+    )
+
+
+def test_carry_over_moves_labels_unchanged_to_a_regenerated_pool() -> None:
+    from hashlib import sha256
+
+    from src.evaluation.pdf.pooling import carry_over_worksheet
+
+    library, golden, pool, sheet = _pilot()
+    labelled = _filled(sheet, {"a1": ("required", "yes"),
+                               "a2": ("irrelevant", ""),
+                               "b1": ("supporting", "no")})
+    revised = _relabelled(golden)
+    new_pool = build_judgment_pool(revised, library, anchor_pool_entries(
+        revised, library, ("both",),
+    ))
+    digest = sha256(labelled.encode("utf-8")).hexdigest()
+
+    moved = carry_over_worksheet(pool, new_pool, labelled, digest)
+
+    assert new_pool.fingerprint != pool.fingerprint
+    assert moved.sheet == labelled
+    assert [old for old, new, _ in moved.row_map] == [
+        new for _, new, _ in moved.row_map
+    ]
+    judgments = read_judgment_worksheet(
+        moved.sheet, new_pool, dataset_id="synthetic", reviewer="Reviewer",
+        status="pilot",
+    )
+    assert len(judgments.judgments) == 3
+    with pytest.raises(ValueError, match="recorded hash"):
+        carry_over_worksheet(pool, new_pool, labelled, "0" * 64)
+    other_pool = build_judgment_pool(revised, library, anchor_pool_entries(
+        revised, library, ("which",),
+    ))
+    with pytest.raises(ValueError, match="pool differs"):
+        carry_over_worksheet(pool, other_pool, labelled, digest)
+    tampered = labelled.replace(",a1,", ",a3,", 1)
+    with pytest.raises(ValueError, match="does not match"):
+        carry_over_worksheet(
+            pool, new_pool, tampered,
+            sha256(tampered.encode("utf-8")).hexdigest(),
+        )
+
+
+def test_cli_migrates_a_labelled_pilot_from_v1_to_v2(tmp_path: Path) -> None:
+    from hashlib import sha256
+
+    from src.evaluation.pdf.multibook_cli import pdf_migrate_judgment_pilot
+    from src.evaluation.pdf.multibook_golden import load_pdf_multibook_golden
+    from src.evaluation.pdf.multibook_import import PdfImportDecisions
+    from tests.evaluation.pdf.test_multibook_import import (
+        _as_v1,
+        _interpretations,
+        _with_ambiguous,
+    )
+
+    library_root = tmp_path / "library"
+    for alias, path in BOOKS.items():
+        _write_pdf(library_root / path, PAGES[alias])
+    texts = {
+        alias: tuple(
+            page.reading_text
+            for page in prepare_pdf_reading_document(
+                library_root, path,
+            ).reading_pages
+        )
+        for alias, path in BOOKS.items()
+    }
+    library = load_pdf_library_corpus(
+        library_root, tuple(BOOKS.values()), PdfRetrievalPolicy.ALL_RECORDS,
+    )
+    files = _with_ambiguous(texts)
+    for book in files["source-manifest.json"]["books"].values():
+        pinned = library.book(book["book_path"])
+        book["pdf_sha256"] = pinned.pdf_sha256
+        book["record_fingerprint"] = pinned.corpus.record_set_fingerprint
+    private = tmp_path / "private"
+    package = _write_package(private / "package", files)
+    decisions = private / "decisions.json"
+    decisions.write_text(PdfImportDecisions(
+        decisions=(*_decisions().decisions, _interpretations()),
+    ).model_dump_json(by_alias=True))
+    pdf_import_multibook_golden(str(package), str(library_root),
+                                str(decisions), str(private / "first"))
+    first = load_pdf_multibook_golden(
+        private / "first" / "multibook-golden-draft.json",
+    )
+    v1 = _as_v1(first)
+    v1_path = private / "v1.json"
+    v1_path.write_text(v1.model_dump_json(by_alias=True))
+    pdf_import_multibook_golden(str(package), str(library_root),
+                                str(decisions), str(private / "v2"),
+                                migrated_from=str(v1_path))
+    v2_path = private / "v2" / "multibook-golden-draft.json"
+    v2 = load_pdf_multibook_golden(v2_path)
+    assert "v1_preserved" in (private / "v2" / "import-report.md").read_text()
+    pool = build_judgment_pool(v2, library, anchor_pool_entries(
+        v2, library, ("q-both", "q-which"),
+    ))
+    old_pool = pool.model_copy(
+        update={"golden_content_fingerprint": v1.content_fingerprint},
+    )
+    (private / "old-pool.json").write_text(
+        old_pool.model_dump_json(by_alias=True),
+    )
+    sheet = render_judgment_worksheet(v2, library, pool)[1]
+    records = [row["record_id"] for row in csv.DictReader(io.StringIO(sheet))]
+    labelled = _filled(sheet, {records[0]: ("required", "yes"),
+                               records[-1]: ("irrelevant", "")})
+    (private / "labels.csv").write_text(labelled)
+    digest = sha256(labelled.encode("utf-8")).hexdigest()
+
+    def migrate(output: str, expected: str) -> str:
+        return pdf_migrate_judgment_pilot(
+            str(v1_path), str(v2_path), str(library_root),
+            str(private / "old-pool.json"), str(private / "labels.csv"),
+            expected, "Reviewer", str(private / output),
+        )
+
+    summary = migrate("pilot-v2", digest)
+
+    labelled_rows = sum(
+        bool(row["relevance"]) for row in csv.DictReader(io.StringIO(labelled))
+    )
+    assert summary.startswith(f"{labelled_rows} judgments moved")
+    out = private / "pilot-v2"
+    assert (out / "worksheet-labels.csv").read_text() == labelled
+    assert v2.content_fingerprint in (out / "migration-report.md").read_text()
+    assert load_pdf_multibook_judgments(out / "judgments.json").status == (
+        "pilot"
+    )
+    assert migrate("pilot-v2", digest) == summary
+    with pytest.raises(CliError, match="recorded hash"):
+        migrate("refused", "0" * 64)
+    assert not (private / "refused").exists()

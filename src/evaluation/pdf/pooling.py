@@ -10,6 +10,7 @@ offered, so no retriever can be favoured while labelling.
 import csv
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from hashlib import sha256
 import io
 import re
 from typing import cast, Literal
@@ -265,7 +266,9 @@ def render_judgment_worksheet(
                 "",
             ])
         if current != (entry.case_id, entry.unit_id):
-            lines.extend(_unit_lines(golden, entry.unit_id))
+            lines.extend(_unit_lines(
+                golden, entry.unit_id, cases[entry.case_id],
+            ))
             current = (entry.case_id, entry.unit_id)
         record = records[entry.record_id]
         lines.extend(_record_lines(item, record))
@@ -332,6 +335,73 @@ def read_judgment_worksheet(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class PdfWorksheetCarryOver:
+    """Hold labels moved to a regenerated pool and the row mapping."""
+
+    sheet: str
+    row_map: tuple[tuple[str, str, tuple[str, str, str]], ...]
+
+
+def carry_over_worksheet(
+    old_pool: PdfJudgmentPool,
+    new_pool: PdfJudgmentPool,
+    labelled_sheet: str,
+    expected_sheet_sha256: str,
+) -> PdfWorksheetCarryOver:
+    """Move human labels to a regenerated pool, unchanged, by key.
+
+    The old sheet must hash as recorded, both pools must name the same
+    library, depth, and entries with the same sources, and every row must
+    match its old pool entry. Labels and notes are copied verbatim; rows are
+    renumbered in the new pool's order. Any difference stops the transfer.
+    """
+    digest = sha256(labelled_sheet.encode("utf-8")).hexdigest()
+    if digest != expected_sheet_sha256:
+        raise ValueError("Labelled worksheet differs from its recorded hash")
+    if old_pool.library_fingerprint != new_pool.library_fingerprint:
+        raise ValueError("Regenerated pool names a different library")
+    if old_pool.retrieval_depth != new_pool.retrieval_depth:
+        raise ValueError("Regenerated pool uses a different depth")
+    old_sources = {entry.key: entry.sources for entry in old_pool.entries}
+    new_sources = {entry.key: entry.sources for entry in new_pool.entries}
+    if old_sources != new_sources:
+        missing = sorted(set(old_sources) - set(new_sources))
+        added = sorted(set(new_sources) - set(old_sources))
+        raise ValueError(
+            "Regenerated pool differs: "
+            f"missing {missing[:3]}, added {added[:3]}, or changed sources"
+        )
+    old_items = {
+        f"W{number:04d}": entry
+        for number, entry in enumerate(old_pool.entries, start=1)
+    }
+    reader = csv.DictReader(io.StringIO(labelled_sheet))
+    if tuple(reader.fieldnames or ()) != WORKSHEET_COLUMNS:
+        raise ValueError("Worksheet columns differ from the template")
+    rows: dict[tuple[str, str, str], tuple[str, dict[str, str]]] = {}
+    for row in reader:
+        entry = old_items.get(row["item"])
+        key = (row["case_id"], row["unit_id"], row["record_id"])
+        if entry is None or entry.key != key or key in rows:
+            raise ValueError(f"Worksheet row {row['item']} does not match")
+        rows[key] = (row["item"], row)
+    if len(rows) != len(old_items):
+        raise ValueError("Worksheet rows are missing")
+    output = io.StringIO()
+    writer = csv.DictWriter(
+        output, fieldnames=list(WORKSHEET_COLUMNS), lineterminator="\n",
+    )
+    writer.writeheader()
+    mapping = []
+    for number, entry in enumerate(new_pool.entries, start=1):
+        old_item, row = rows[entry.key]
+        item = f"W{number:04d}"
+        writer.writerow({**row, "item": item})
+        mapping.append((old_item, item, entry.key))
+    return PdfWorksheetCarryOver(output.getvalue(), tuple(mapping))
+
+
 def _selected_cases(
     golden: PdfMultibookGolden,
     case_ids: Sequence[str],
@@ -372,9 +442,22 @@ def _supplies(item: str, value: str) -> bool | None:
     raise ValueError(f"{item}: supplies_evidence must be yes or no")
 
 
-def _unit_lines(golden: PdfMultibookGolden, unit_id: str) -> list[str]:
+def _unit_lines(
+    golden: PdfMultibookGolden,
+    unit_id: str,
+    case: PdfMultibookCase,
+) -> list[str]:
     unit = golden.units[unit_id]
-    lines = [
+    lines = []
+    for interpretation in case.interpretations:
+        if unit_id in interpretation.unit_ids:
+            lines.extend([
+                f"### Interpretation `{interpretation.interpretation_id}`: "
+                f"{interpretation.label}", "",
+                "Judge only for this meaning, as if the user had chosen it.",
+                "",
+            ])
+    lines += [
         f"### Evidence unit `{unit_id}` ({unit.modality.value})", "",
         f"Required content: {unit.required_content}", "",
         "Verified locators:",

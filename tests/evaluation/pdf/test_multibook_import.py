@@ -439,3 +439,141 @@ def test_cli_imports_a_draft_and_freezes_only_on_request(
             str(output / "frozen.json"), str(output / "again.json"),
             "Reviewer", "Again.",
         )
+
+
+# Version 2: clarification decisions and migration from version 1 --------
+
+def _with_ambiguous(texts: dict[str, tuple[str, ...]]) -> dict[str, Any]:
+    files = _package_files(texts)
+    files["candidates.json"]["candidates"].append(_candidate(
+        "q-which", "ambiguous_terminology", "ambiguous_or_conflicting",
+        "conditional", [], "ambiguous_or_conflicting",
+        ["alp-queue", "bet-cache"],
+    ))
+    return files
+
+
+def _interpretations() -> PdfImportDecision:
+    from src.evaluation.pdf.multibook_golden import PdfInterpretation
+
+    def meaning(name: str, unit: str, outcome: str) -> PdfInterpretation:
+        support = "complete" if outcome == "complete" else "partial"
+        return PdfInterpretation.model_validate({
+            "interpretation_id": name, "label": f"Meaning {name}",
+            "clarified_question": f"Clarified {name}?",
+            "expected_outcome": outcome, "source_support": support,
+            "text_context_support": support,
+            "sufficient_sets": [[unit]],
+        })
+
+    return PdfImportDecision(
+        case_id="q-which",
+        interpretations=(meaning("queue", "alp-queue", "complete"),
+                         meaning("cache", "bet-cache", "partial")),
+        provenance="Reviewer interpretation decision",
+    )
+
+
+def test_ambiguous_question_needs_explicit_interpretations(
+    tmp_path: Path,
+) -> None:
+    package = load_pdf_review_package(
+        _write_package(tmp_path / "package", _with_ambiguous(PAGES)),
+    )
+
+    with pytest.raises(ValueError, match="needs approved interpretations"):
+        import_pdf_multibook_candidates(package, _decisions())
+    imported = import_pdf_multibook_candidates(package, PdfImportDecisions(
+        decisions=(*_decisions().decisions, _interpretations()),
+    ))
+
+    cases = {case.case_id: case for case in imported.golden.cases}
+    assert cases["q-which"].expected_behavior.value == (
+        "clarification_required"
+    )
+    assert cases["q-which"].conditional_units == ("alp-queue", "bet-cache")
+    assert all(case.expected_behavior.value == "answer"
+               for case_id, case in cases.items() if case_id != "q-which")
+    kinds = {(item.subject, item.kind) for item in imported.findings}
+    assert ("q-which", "interpretations_applied") in kinds
+    assert ("all cases", "expected_behavior") in kinds
+    assert "## Interpretations" in render_pdf_import_report(imported)
+
+
+def test_clear_question_rejects_interpretations(tmp_path: Path) -> None:
+    package = load_pdf_review_package(
+        _write_package(tmp_path / "package", _package_files(PAGES)),
+    )
+    wrong = _interpretations().model_copy(update={"case_id": "q-queue"})
+
+    with pytest.raises(ValueError, match="takes no interpretations"):
+        import_pdf_multibook_candidates(package, PdfImportDecisions(
+            decisions=(*_decisions().decisions, wrong),
+        ))
+
+
+def test_version_1_decision_files_still_load() -> None:
+    decisions = PdfImportDecisions.model_validate_json(json.dumps({
+        "schema": "fredl.pdf.multibook-import-decisions", "version": 1,
+        "decisions": [{"case_id": "q-clipped",
+                       "expected_outcome": "source_incomplete",
+                       "provenance": "Reviewer decision D3"}],
+    }))
+
+    assert decisions.version == 1
+
+
+def _as_v1(golden: Any) -> Any:
+    from src.evaluation.pdf.multibook_golden_v1 import PdfMultibookGoldenV1
+
+    data = golden.model_dump(mode="json", by_alias=True)
+    data["version"] = 1
+    data.pop("migrated_from")
+    for case in data["cases"]:
+        del case["expected_behavior"], case["interpretations"]
+    return PdfMultibookGoldenV1.model_validate(data)
+
+
+def test_v1_to_v2_preservation_detects_any_changed_value(
+    tmp_path: Path,
+) -> None:
+    from src.evaluation.pdf.multibook_golden import PdfGoldenLineage
+    from src.evaluation.pdf.multibook_import import (
+        require_v1_to_v2_preserved,
+    )
+
+    package = load_pdf_review_package(
+        _write_package(tmp_path / "package", _with_ambiguous(PAGES)),
+    )
+    v1_decisions = _decisions()
+    v2_decisions = PdfImportDecisions(
+        decisions=(*v1_decisions.decisions, _interpretations()),
+    )
+    v1 = _as_v1(import_pdf_multibook_candidates(
+        package, v2_decisions,
+    ).golden)
+    v1 = v1.model_copy(update={"provenance": v1.provenance.model_copy(
+        update={"decisions": v1.provenance.decisions[:2]},
+    )})
+    lineage = PdfGoldenLineage(
+        schema_version=1, dataset_id=v1.dataset_id,
+        content_fingerprint=v1.content_fingerprint,
+    )
+    v2 = import_pdf_multibook_candidates(
+        package, v2_decisions, migrated_from=lineage,
+    ).golden
+
+    findings = require_v1_to_v2_preserved(v1, v2)
+
+    assert {item.subject for item in findings} >= {"q-which", "all cases"}
+    changed = v1.model_copy(update={"cases": (
+        v1.cases[0].model_copy(update={"question": "Changed?"}),
+        *v1.cases[1:],
+    )})
+    with pytest.raises(ValueError, match="does not name"):
+        require_v1_to_v2_preserved(changed, v2)
+    relinked = v2.model_copy(update={"migrated_from": lineage.model_copy(
+        update={"content_fingerprint": changed.content_fingerprint},
+    )})
+    with pytest.raises(ValueError, match="changes q-queue"):
+        require_v1_to_v2_preserved(changed, relinked)

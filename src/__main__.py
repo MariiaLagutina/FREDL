@@ -36,6 +36,7 @@ from src.evaluation.pdf.multibook_cli import (
     pdf_collect_judgments,
     pdf_freeze_multibook_golden,
     pdf_import_multibook_golden,
+    pdf_migrate_judgment_pilot,
     pdf_prepare_judgment_pilot,
 )
 
@@ -59,6 +60,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 "pdf_evaluate_retrieval": pdf_evaluate_retrieval,
                 "pdf_freeze_multibook_golden": pdf_freeze_multibook_golden,
                 "pdf_import_multibook_golden": pdf_import_multibook_golden,
+                "pdf_migrate_judgment_pilot": pdf_migrate_judgment_pilot,
                 "pdf_migrate_judgments": pdf_migrate_judgments,
                 "pdf_prepare_judgment_pilot": pdf_prepare_judgment_pilot,
                 "pdf_run_answerability": pdf_run_answerability,
