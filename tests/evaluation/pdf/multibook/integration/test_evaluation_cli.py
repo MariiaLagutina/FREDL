@@ -9,18 +9,20 @@ import pytest
 
 from src.__main__ import main
 from src.cli import CliError
-from src.evaluation.pdf.multibook_evaluation_cli import (
+from src.evaluation.pdf.multibook.scoring.cli import (
     pdf_collect_multibook_judgments, pdf_evaluate_multibook_retrieval,
 )
-from src.evaluation.pdf.multibook_judgment_models import PdfCollectedJudgments
-from src.evaluation.pdf.multibook_metric_models import (
+from src.evaluation.pdf.multibook.scoring.judgment_models import (
+    PdfCollectedJudgments,
+)
+from src.evaluation.pdf.multibook.scoring.metric_models import (
     PdfMultibookRetrievalEvaluation,
 )
 from src.evaluation.pdf.multibook_pool_cli import pdf_pool_multibook_judgments
 from src.evaluation.pdf.multibook_pool_models import PdfRetrievalJudgmentPool
 from tests.evaluation.pdf import multibook_pool_helpers as pool_helpers
 from tests.evaluation.pdf import multibook_runner_helpers as runner
-from tests.evaluation.pdf.multibook_metric_helpers import fill
+from tests.evaluation.pdf.multibook.scoring.metric_helpers import fill
 
 
 pdf_inputs = runner.pdf_inputs
@@ -168,7 +170,7 @@ def test_failed_output_publication_never_overwrites_or_leaves_temporary_files(
             target.write_bytes(b'other writer')
         raise OSError('Synthetic publication failure')
     monkeypatch.setattr(
-        'src.evaluation.pdf.multibook_evaluation_cli.os.link', fail_link,
+        'src.evaluation.pdf.multibook.scoring.cli.os.link', fail_link,
     )
     with pytest.raises(CliError):
         pdf_evaluate_multibook_retrieval(

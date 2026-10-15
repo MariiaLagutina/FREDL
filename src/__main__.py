@@ -39,7 +39,7 @@ from src.evaluation.pdf.multibook_cli import (
     pdf_migrate_judgment_pilot,
     pdf_prepare_judgment_pilot,
 )
-from src.evaluation.pdf.multibook_evaluation_cli import (
+from src.evaluation.pdf.multibook.scoring.cli import (
     pdf_collect_multibook_judgments,
     pdf_evaluate_multibook_retrieval,
 )

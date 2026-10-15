@@ -5,14 +5,18 @@ from hashlib import sha256
 import io
 from collections.abc import Callable
 
-from src.evaluation.pdf.multibook_collector import (
+from src.evaluation.pdf.multibook.scoring.collector import (
     collect_pdf_multibook_judgments,
 )
-from src.evaluation.pdf.multibook_judgment_models import (
+from src.evaluation.pdf.multibook.scoring.judgment_models import (
     PdfCollectedJudgments, PdfWorksheetSubmission,
 )
-from src.evaluation.pdf.multibook_metrics import score_pdf_multibook_retrieval
-from src.evaluation.pdf.multibook_metric_models import PdfQueryRetrievalMetrics
+from src.evaluation.pdf.multibook.scoring.metrics import (
+    score_pdf_multibook_retrieval,
+)
+from src.evaluation.pdf.multibook.scoring.metric_models import (
+    PdfQueryRetrievalMetrics,
+)
 from src.evaluation.pdf.multibook_pool_models import PdfRetrievalJudgmentPool
 from src.evaluation.pdf.multibook_pool_worksheet import (
     POOL_WORKSHEET_COLUMNS, render_retrieval_pool_worksheet,

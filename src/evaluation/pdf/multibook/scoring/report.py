@@ -5,8 +5,10 @@ from collections.abc import Sequence
 from src.evaluation.pdf.manifest import (
     current_pdf_run_environment, PdfRetrieverKind,
 )
-from src.evaluation.pdf.multibook_judgment_models import PdfCollectedJudgments
-from src.evaluation.pdf.multibook_metric_models import (
+from src.evaluation.pdf.multibook.scoring.judgment_models import (
+    PdfCollectedJudgments,
+)
+from src.evaluation.pdf.multibook.scoring.metric_models import (
     PdfMetricMean, PdfMultibookRetrievalEvaluation, PdfQueryRetrievalMetrics,
     PdfRetrievalAggregate,
 )

@@ -21,6 +21,21 @@ provide OCR, formula interpretation, a PDF reader or personal learning memory.
 See [Technical Foundation](technical-foundation.md) for extraction limits,
 P0/P1/P2 corpus policies, section-interval context and fingerprint layers.
 
+## Code layout
+
+Historical single-book evaluation modules stay directly under
+`src/evaluation/pdf/`. Multi-book modules are being organized by
+responsibility under `src/evaluation/pdf/multibook/`. Human judgment collection
+and multi-book retrieval metrics are in `multibook/scoring/`; the other
+multi-book modules remain directly under `src/evaluation/pdf/` for now.
+
+Tests mirror production responsibilities under
+`tests/evaluation/pdf/multibook/`. Tests that run several responsibilities
+together, such as retrieval, pooling and scoring through the CLI, live in
+`tests/evaluation/pdf/multibook/integration/`. Moving a module changes its
+import path only; command names, arguments, artifacts and fingerprints stay the
+same.
+
 ## Commands
 
 Run from the repository with the locked environment installed (`make install`).

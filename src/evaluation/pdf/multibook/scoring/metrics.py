@@ -5,14 +5,14 @@ from collections.abc import Mapping, Sequence
 from src.evaluation.pdf.judgments import PdfRecordRelevance
 from src.evaluation.pdf.library import PdfLibraryCorpus
 from src.evaluation.pdf.manifest import PdfRetrieverKind
-from src.evaluation.pdf.multibook_collector import (
+from src.evaluation.pdf.multibook.scoring.collector import (
     Binding, PdfMissingJudgments, require_collected_judgments_match,
 )
 from src.evaluation.pdf.multibook_golden import PdfMultibookGolden
-from src.evaluation.pdf.multibook_judgment_models import (
+from src.evaluation.pdf.multibook.scoring.judgment_models import (
     PdfCollectedJudgment, PdfCollectedJudgments,
 )
-from src.evaluation.pdf.multibook_metric_models import (
+from src.evaluation.pdf.multibook.scoring.metric_models import (
     PdfContextGain, PdfEvidenceCoverage, PdfQueryRetrievalMetrics,
 )
 from src.evaluation.pdf.multibook_pool_models import (

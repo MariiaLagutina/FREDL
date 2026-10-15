@@ -9,8 +9,8 @@ import pytest
 from src.evaluation.pdf.library import (
     PdfLibraryBookInput, build_pdf_library_corpus,
 )
-from src.evaluation.pdf.multibook_collector import PdfMissingJudgments
-from src.evaluation.pdf.multibook_metric_report import (
+from src.evaluation.pdf.multibook.scoring.collector import PdfMissingJudgments
+from src.evaluation.pdf.multibook.scoring.report import (
     aggregate_multibook_metrics,
 )
 from src.evaluation.pdf.multibook_pool_models import PdfPoolingRun
@@ -21,7 +21,7 @@ from src.evaluation.pdf.multibook_runs import (
 from tests.evaluation.pdf import multibook_contract_helpers as contracts
 from tests.evaluation.pdf import multibook_pool_helpers as helpers
 from tests.evaluation.pdf import multibook_runner_helpers as runner
-from tests.evaluation.pdf.multibook_metric_helpers import (
+from tests.evaluation.pdf.multibook.scoring.metric_helpers import (
     collect, fill, score, worksheet,
 )
 from tests.evaluation.pdf.multibook_pool_helpers import PoolInputs, build_pool
@@ -201,6 +201,6 @@ def test_mrr_uses_earliest_required_hit_and_required_supply_hit_separately(
 
 
 def test_gain_subtraction_does_not_clamp_negative_values() -> None:
-    from src.evaluation.pdf.multibook_metrics import _difference
+    from src.evaluation.pdf.multibook.scoring.metrics import _difference
     assert _difference(0.25, 0.75) == -0.5
     assert _difference(None, 0.0) is None

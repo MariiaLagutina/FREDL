@@ -10,18 +10,22 @@ from pypdf.errors import PyPdfError
 
 from src.cli import CliError
 from src.evaluation.pdf.library import load_pdf_library_corpus, sha256_file
-from src.evaluation.pdf.multibook_collector import (
+from src.evaluation.pdf.multibook.scoring.collector import (
     collect_pdf_multibook_judgments, PdfMissingJudgments,
 )
 from src.evaluation.pdf.multibook_golden import PdfMultibookGolden
-from src.evaluation.pdf.multibook_judgment_models import (
+from src.evaluation.pdf.multibook.scoring.judgment_models import (
     PdfCollectedJudgments, PdfJudgmentInputs, PdfWorksheetSubmission,
 )
-from src.evaluation.pdf.multibook_metric_report import (
+from src.evaluation.pdf.multibook.scoring.report import (
     build_multibook_metric_report,
 )
-from src.evaluation.pdf.multibook_metrics import score_pdf_multibook_retrieval
-from src.evaluation.pdf.multibook_metric_models import PdfQueryRetrievalMetrics
+from src.evaluation.pdf.multibook.scoring.metrics import (
+    score_pdf_multibook_retrieval,
+)
+from src.evaluation.pdf.multibook.scoring.metric_models import (
+    PdfQueryRetrievalMetrics,
+)
 from src.evaluation.pdf.multibook_pool_cli import load_pdf_pooling_runs
 from src.evaluation.pdf.multibook_pool_models import PdfRetrievalJudgmentPool
 from src.ingestion.pdf.pages import _resolve_book_path

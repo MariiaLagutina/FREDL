@@ -4,13 +4,13 @@ import json
 
 import pytest
 
-from src.evaluation.pdf.multibook_metric_report import (
+from src.evaluation.pdf.multibook.scoring.report import (
     aggregate_multibook_metrics, build_multibook_metric_report,
 )
 from tests.evaluation.pdf import multibook_contract_helpers as contracts
 from tests.evaluation.pdf import multibook_pool_helpers as helpers
 from tests.evaluation.pdf import multibook_runner_helpers as runner
-from tests.evaluation.pdf.multibook_metric_helpers import (
+from tests.evaluation.pdf.multibook.scoring.metric_helpers import (
     collect, fill, score, worksheet,
 )
 from tests.evaluation.pdf.multibook_pool_helpers import PoolInputs, build_pool
@@ -187,7 +187,9 @@ def test_report_fingerprint_excludes_environment_and_has_explicit_denominators(
 def test_top5_pool_cannot_silently_drop_unjudged_top10_records(
     pool_inputs: PoolInputs,
 ) -> None:
-    from src.evaluation.pdf.multibook_collector import PdfMissingJudgments
+    from src.evaluation.pdf.multibook.scoring.collector import (
+        PdfMissingJudgments,
+    )
     pool = build_pool(pool_inputs, depth=5)
     sheet = fill(worksheet(pool_inputs, pool), lambda row: ('irrelevant', ''))
     judgments = collect(pool_inputs, pool, sheet)
