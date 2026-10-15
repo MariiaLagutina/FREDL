@@ -225,6 +225,19 @@ is tested), multi-book retrieval metrics with per-book and cross-book slices,
 an answerability context policy that labels each passage with its book and
 physical page, and public aggregate reporting.
 
+B0 Slice 1 adds typed query plans and separate version 1 multi-book run and
+manifest contracts, with synthetic compatibility tests. Query identities keep
+the original question separate from each approved clarified interpretation.
+Configuration/comparison identities are distinct from results fingerprints;
+validation checks pinned inputs, ranking rules and direct neighbor provenance.
+These contracts do not execute retrieval, pooling or metrics. The three planned
+multi-book retrieval commands are not implemented yet.
+
+The approved future primary metric is Best Evidence Recall (`BER@5`), with
+`BER@10` diagnostic: the greatest supplied-unit coverage of any sufficient set.
+Localization, sufficient-set success and `MRR@10_localization` /
+`MRR@10_supply` remain separate. These metrics are not implemented in Slice 1.
+
 Not yet performed: retrieval runs over the library, full human labelling,
 freezing the Golden Set or its judgments, and any multi-book retrieval or
 answerability measurement.
