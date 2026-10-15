@@ -254,3 +254,60 @@ by themselves suppress content or change its rank.
 
 Revisit the policy after measured baselines, reviewed relevance judgments, or
 new document types expose lost evidence or unreliable classification.
+
+## PD-004: Show the original PDF page when extracted text cannot carry the evidence
+
+**Date:** 15 October 2026
+**Status:** accepted requirement; not implemented
+
+### Context
+
+Text extraction can flatten formulas and tables, drop the content of figures
+and diagrams, or lose other structure. Retrieval may still locate the right
+record or physical page while its extracted text lacks what the reader needs.
+Filling that gap with reconstructed content would look like a source quotation
+without being one.
+
+### Decision
+
+- FREDL never reconstructs missing source content and presents it as a
+  verified quotation. When extracted text is insufficient for a reliable
+  answer, FREDL says so and helps the reader inspect the original source.
+- **Phase 1, Open in PDF:** offer an action that opens the original local PDF
+  at the exact physical page, preserving book identity and physical-page
+  provenance. State clearly when the extracted text is insufficient, and never
+  claim the original content was verified when only extracted text was read.
+- **Phase 2, original source preview:** show a rendered image of the original
+  PDF page inside FREDL, later a focused crop around a formula, table or figure
+  once reliable coordinates exist. Use the original PDF rendering, never an
+  AI-reconstructed image, and let the reader open the full PDF from the
+  preview.
+- Rendering stays local, like the PDFs themselves.
+
+### Evidence
+
+The multi-book candidate review contains a reviewed formula case: the original
+page shows the complete equation, while the extracted text keeps its symbols
+but loses exponents, indices and the fraction structure. Its expected outcome
+is `extraction_limited`. Retrieval can locate that page, but the extracted text
+alone cannot support an exact answer.
+
+### Consequences
+
+Evaluation keeps three questions apart:
+
+1. whether retrieval located the relevant record or physical page;
+2. whether the extracted text supplies sufficient evidence for an exact answer;
+3. whether the reader can inspect the original page through source navigation.
+
+Source navigation does not change human relevance judgments, does not make
+extracted evidence sufficient, and does not change an `extraction_limited`
+outcome. This is a future reading-flow feature, not part of the current
+multi-book evaluation, and no viewer, renderer or navigation is implemented.
+
+### Revisit when
+
+Revisit the preview design when layout-aware extraction recovers formulas,
+tables or figures reliably enough to verify, when crop coordinates prove
+unreliable, or when a real reading session shows that page navigation alone
+does not let the reader resolve the evidence.

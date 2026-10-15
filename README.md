@@ -274,6 +274,9 @@ future work. Four-book validation does not establish general PDF compatibility.
 - see an overview of the book and its topics;
 - ask a question;
 - compare exact passages;
+- open the original PDF at the exact physical page, and later preview it,
+  when extracted text cannot carry a formula, table or figure
+  ([PD-004](docs/product-decisions.md#pd-004-show-the-original-pdf-page-when-extracted-text-cannot-carry-the-evidence));
 - save the question, its reason, and its source;
 - return to it and record what changed.
 
