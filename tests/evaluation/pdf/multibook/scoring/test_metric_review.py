@@ -100,15 +100,24 @@ def test_headline_counts_variants_without_ambiguous_original_double_counting(
     rows = score(pool_inputs, pool, collect(pool_inputs, pool, sheet))
     groups = {group.group: group for group in aggregate_multibook_metrics(rows)
               if group.retriever.value == 'bm25'}
-    headline = groups['headline_complete']
+    headline = groups['headline_complete:original']
     assert (headline.query_count, headline.interpretation_count,
-            headline.case_count) == (3, 2, 2)
-    assert headline.metrics['ranked_only.ber@5'].denominator == 3
+            headline.case_count) == (1, 0, 1)
+    assert headline.metrics['ranked_only.ber@5'].denominator == 1
+    clarified = groups['headline_complete:clarified']
+    assert (clarified.query_count, clarified.interpretation_count,
+            clarified.case_count, clarified.eligible_case_count) == (
+        2, 2, 1, 1)
+    ber = clarified.metrics['ranked_only.ber@5']
+    assert (ber.denominator, ber.contributing_queries) == (1, 2)
+    combined = groups['diagnostic:complete_original_and_clarified']
+    assert (combined.query_count, combined.weighting) == (3, 'query_variant')
+    assert combined.metrics['ranked_only.ber@5'].denominator == 3
     ambiguous = groups['track:original_ambiguous']
     assert ambiguous.query_count == 1 and ambiguous.eligible_query_count == 0
     assert all(metric.mean is None and metric.denominator == 0
                for metric in ambiguous.metrics.values())
-    empty = groups['outcome:partial']
+    empty = groups['outcome:partial:original']
     assert empty.query_count == 0 and empty.excluded_queries == ()
     assert all(metric.mean is None and metric.denominator == 0
                for metric in empty.metrics.values())

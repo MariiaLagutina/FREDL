@@ -11,8 +11,9 @@ A separate [multi-book golden contract](#multi-book-golden-contract) with human
 relevance judgments is implemented and tested. A global multi-book retrieval
 runner now searches the pinned eligible library. Deterministic retrieval
 pooling produces blind human-review worksheets. An interpretation-aware
-collector and retrieval metrics evaluator are implemented with synthetic tests;
-no private multi-book baseline has been measured.
+collector and retrieval metrics evaluator are implemented with synthetic tests,
+including one end-to-end run of the public commands; no private multi-book
+baseline has been measured.
 
 The general `index` and API indexing path use text/code ingestion and do not
 dispatch to the PDF pipeline. For PDFs, use the `pdf_*` commands below. They
@@ -331,7 +332,9 @@ Accepted relevance cells are `required`, `supporting`, `irrelevant` or blank;
 supply cells are exactly `yes`, `no` or blank. Blank relevance requires blank
 supply. Irrelevant requires blank supply. A relevant label with blank supply
 is retained as incomplete. Notes and source file bytes are not rewritten.
-There is no automatic pilot migration, label carry-over or freeze path.
+There is no automatic pilot migration, label carry-over or freeze path:
+labels from the anchor-based judgment pilot are not bound to a query variant,
+so they are not moved into these worksheets automatically.
 
 `pdf_evaluate_multibook_retrieval` independently recollects those pinned CSVs
 in memory, then writes a version 1 `fredl.pdf.multibook-retrieval-evaluation`.
@@ -342,8 +345,11 @@ no final artifact is written. A depth-5 pool that omits top-10 bindings cannot
 silently pass. Blank anchor-only rows outside the evaluated retrieval scope
 remain unjudged and are retained in the collected draft.
 
-Metric policy `declared-sets-query-macro-v1` uses the Golden Set's declared
-sufficient sets without modality heuristics. Within each query variant:
+Per-query metrics use the Golden Set's declared sufficient sets without
+modality heuristics. Best Evidence Recall (`BER`) is the chosen primary
+evidence metric: it counts evidence units, not records, so several records
+supplying one unit count once and OR-of-AND sufficiency is respected. Recall
+of individual required records is not part of B0. Within each query variant:
 
 - `BER@5` is primary; `BER@10` is diagnostic. For each sufficient set, count
   distinct units supplied by at least one retrieved record, divide by set
@@ -368,23 +374,71 @@ queries retain conditional-unit diagnostics, but have no case-level sufficient
 set and therefore null coverage/success/MRR. Unsupported and source-incomplete
 queries similarly contribute null, not failed-retrieval zeros.
 
-Every aggregate records its metric denominator, query/interpretation/case
-counts and excluded identities. Means weight query variants equally. Headline
-averages include only complete original/clarified queries. Partial and
-extraction-limited queries use their declared sets in separate outcome slices;
-their scores concern those sets, not full-question answerability. Track and
-outcome slices expose other denominators explicitly.
+Aggregates follow metric policy `declared-sets-query-macro-v2`. Each group
+is computed per engine and records its weighting, query, interpretation, case
+and eligible-case counts, and excluded query identities. For each metric,
+`denominator` counts the averaged values (query variants or cases, as the
+weighting says) and `contributing_queries` counts the non-null query values
+behind them. Null values are never turned into zeros, and a group without
+values has a null mean.
+
+| Group | Members | Weighting |
+| --- | --- | --- |
+| `headline_complete:original` | Complete clear original questions. This is the primary headline. | query variant |
+| `headline_complete:clarified` | Complete clarified interpretations, reported separately. | case |
+| `diagnostic:complete_original_and_clarified` | Both headline populations together; diagnostic only, never a headline. | query variant |
+| `track:original`, `track:original_ambiguous` | Clear original questions; ambiguous originals, whose metrics are always null. | query variant |
+| `track:clarified` | Every clarified interpretation. | case |
+| `outcome:<outcome>:original`, `outcome:<outcome>:clarified` | Queries of one expected outcome in one track; interpretations are never ambiguous. | query variant; case |
+| `category:<category>:original`, `category:<category>:clarified` | The Golden Set category of the case; clarified interpretations inherit it. Only categories with queries in that track appear. | query variant; case |
+
+`track:original` includes only unambiguous original questions. The
+`outcome:<outcome>:original` and `category:<category>:original` groups contain
+every original question, including ambiguous ones. Those count toward query
+and case counts, but their metrics are null and never enter a mean.
+
+Case weighting first averages a case's non-null interpretation values, then
+averages those case values, so a case with three meanings has the same weight
+as a case with two. Ambiguous originals never enter either headline. Partial
+and extraction-limited queries use their declared sets in separate outcome
+slices; their scores concern those sets, not full-question answerability.
+
+Artifacts written before policy v2 declare `declared-sets-query-macro-v1`.
+They remain readable with their original fingerprint and carry no category,
+Golden Set status, weighting or contributing-query fields. Their
+`headline_complete` group mixed complete original and clarified queries with
+query-variant weights, so it is not comparable with
+`headline_complete:original`. Validation rejects v2 fields or group names
+under policy v1, and missing provenance, unknown groups or mismatched
+weightings under policy v2. The schema version stays 1.
 
 Artifacts bind Golden/corpus/library/query/comparison identities, pool and
 judgment fingerprints, run hashes, pool file hash and human-input hashes.
+Policy v2 also records the validated Golden Set status, `draft` or `frozen`,
+whose bytes are pinned by the Golden Set hash. Evaluation does not require a
+frozen Golden Set; the recorded status shows whether metrics used a draft.
 Evaluation environment/code diagnostics are excluded from its semantic
 fingerprint; exact input hashes still identify the consumed bytes. Reordering
 valid CSV rows preserves decisions and metric values, but changes byte hashes
 and therefore artifact provenance/fingerprints. Outputs
 require new filenames and existing parent directories, with exclusive hard-link
 publication as in Slice 2. Existing outputs are refused; no crash durability is
-promised. These synthetic checks establish implementation behavior only, not
-private retrieval quality, answerability or learning-loop usefulness.
+promised.
+
+An end-to-end synthetic test runs the public commands in sequence: BM25,
+MiniLM and Hybrid retrieval over generated PDFs, pooling, a filled synthetic
+worksheet, collection and evaluation. A scripted local encoder replaces
+MiniLM and network connections are refused. Expected values follow from the
+scripted rankings and labels. The test checks BER at both cutoffs,
+sufficient-set success, both MRR variants, context-only gain, null metrics,
+separate tracks, category groups, provenance hashes, byte-identical repeated
+runs, unchanged inputs, rejected incomplete or mismatched judgments and
+refused existing outputs.
+
+Diagnostics for navigation records and for retrieved records from books
+outside a question's evidence are deferred beyond B0. These synthetic checks
+establish implementation behavior only, not private retrieval quality,
+answerability or learning-loop usefulness.
 
 ## Compatibility and metrics
 
@@ -482,8 +536,9 @@ book other than its unit's produces a warning, not an error.
 These judgments are the basis for multi-book evidence-unit coverage. A unit is
 located when a required record for it is retrieved, and supplied only when that
 record also supplies the evidence; a question's evidence is complete when every
-unit of one sufficient set is supplied. These multi-book metrics are planned
-and not yet implemented.
+unit of one sufficient set is supplied. The retrieval-pool collector and
+metrics that implement these rules are described in
+[Human collection and multi-book retrieval metrics](#human-collection-and-multi-book-retrieval-metrics).
 
 ### Schema migration
 
@@ -529,7 +584,9 @@ These contracts do not execute retrieval, pooling or metrics. B0 Slice 2 adds
 the [global retrieval runner](#global-multi-book-retrieval); Slice 3 adds
 [retrieval judgment pooling](#global-retrieval-judgment-pooling). Slice 4 adds
 [human collection and retrieval metrics](#human-collection-and-multi-book-retrieval-metrics),
-verified synthetically only.
+verified synthetically only. Slice 5 adds category groups, separate original
+and clarified headlines with case weighting, Golden Set status provenance and
+an end-to-end synthetic CLI test.
 
 The primary retrieval metric is Best Evidence Recall (`BER@5`), with
 `BER@10` diagnostic: the greatest supplied-unit coverage of any sufficient set.

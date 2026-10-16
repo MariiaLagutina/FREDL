@@ -116,6 +116,7 @@ def score_pdf_multibook_retrieval(
             scores.append(PdfQueryRetrievalMetrics(
                 retriever=item.run.manifest.retrieval.retriever,
                 query=result.query, track=query.track,
+                category=case.category,
                 expected_behavior=case.expected_behavior,
                 outcome=subject.expected_outcome,
                 eligible_sufficient_sets=sets,

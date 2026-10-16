@@ -41,6 +41,7 @@ from src.ingestion.pdf.reading_document import prepare_pdf_reading_document
 class _EvaluationInput:
     """Keep only fully validated inputs and their consumed-byte hashes."""
 
+    golden: PdfMultibookGolden
     pool: PdfRetrievalJudgmentPool
     judgments: PdfCollectedJudgments
     scores: tuple[PdfQueryRetrievalMetrics, ...]
@@ -99,7 +100,7 @@ def _inputs(
               'judgment_inputs': sha256(manifest_raw).hexdigest(),
               **{f'worksheet:{index}': item.sha256
                  for index, item in enumerate(submissions)}}
-    return _EvaluationInput(pool, judgments, scores, hashes)
+    return _EvaluationInput(dataset, pool, judgments, scores, hashes)
 
 
 def pdf_collect_multibook_judgments(
@@ -136,7 +137,8 @@ def _execute(
                             evaluate=evaluate)
         artifact = build_multibook_metric_report(
             validated.scores, validated.pool, validated.judgments,
-            validated.hashes,
+            validated.hashes, golden=validated.golden,
+            golden_sha256=validated.hashes['golden'],
         ) if evaluate else validated.judgments
         payload = (artifact.model_dump_json(indent=1) + '\n').encode('utf-8')
         _write_new_artifact(target, payload)

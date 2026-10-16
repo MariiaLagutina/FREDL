@@ -161,12 +161,17 @@ def test_outcome_slices_and_headline_denominators(
     rows = score(inputs, pool, judgments)
     groups = {group.group: group for group in aggregate_multibook_metrics(rows)
               if group.retriever.value == 'bm25'}
-    diagnostic = groups[f'outcome:{status}']
+    diagnostic = groups[f'outcome:{status}:original']
     expected = 0 if status == 'source_incomplete' else 1
     assert diagnostic.metrics['ranked_only.ber@5'].denominator == expected
     assert diagnostic.query_count == 1
-    assert groups['headline_complete'].query_count == 2
-    assert groups['headline_complete'].interpretation_count == 2
+    # The only clear original question left the headline; clarified
+    # interpretations are reported separately, one vote for their case.
+    assert groups['headline_complete:original'].query_count == 0
+    clarified = groups['headline_complete:clarified']
+    assert (clarified.query_count, clarified.interpretation_count,
+            clarified.case_count) == (2, 2, 1)
+    assert clarified.metrics['ranked_only.ber@5'].denominator == 1
     assert groups['track:original_ambiguous'].eligible_query_count == 0
 
 
@@ -177,7 +182,10 @@ def test_report_fingerprint_excludes_environment_and_has_explicit_denominators(
     sheet = fill(worksheet(pool_inputs, pool), lambda row: ('irrelevant', ''))
     judgments = collect(pool_inputs, pool, sheet)
     rows = score(pool_inputs, pool, judgments)
-    report = build_multibook_metric_report(rows, pool, judgments, {})
+    report = build_multibook_metric_report(
+        rows, pool, judgments, {}, golden=pool_inputs[0],
+        golden_sha256=contracts.HASH,
+    )
     changed = report.model_copy(update={
         'diagnostics': {'python': 'different'},
     })
