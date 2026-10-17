@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from src.evaluation.pdf.library import (
+from src.evaluation.pdf.multibook.library import (
     build_pdf_library_corpus,
     PdfLibraryBookIdentity,
     PdfLibraryBookInput,
@@ -16,7 +16,7 @@ from src.evaluation.pdf.library import (
     require_library_matches_manifest,
 )
 from src.evaluation.pdf.loader import load_pdf_golden_dataset
-from src.evaluation.pdf.multibook_golden import (
+from src.evaluation.pdf.multibook.curation.golden import (
     load_pdf_multibook_golden,
     PdfExpectedOutcome,
     PdfMultibookGolden,
@@ -582,7 +582,7 @@ V1_SYNTHETIC_FINGERPRINT = (
 def test_v1_reader_keeps_its_fingerprint_and_formats_stay_apart(
     tmp_path: Path,
 ) -> None:
-    from src.evaluation.pdf.multibook_golden_v1 import (
+    from src.evaluation.pdf.multibook.curation.golden_v1 import (
         load_pdf_multibook_golden_v1,
         PdfMultibookGoldenV1,
     )

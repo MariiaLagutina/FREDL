@@ -1,9 +1,10 @@
 # Product Decision Log
 
 This log records product decisions that change what FREDL presents to the
-reader or treats as learning content. Each entry preserves the reason for the
-decision, the evidence available at the time, and the conditions that may
-justify revisiting it.
+reader or treats as learning content, and the technical boundaries that
+constrain those decisions. Each entry preserves the reason for the decision,
+the evidence available at the time, and the conditions that may justify
+revisiting it.
 
 Implementation history belongs in Git. This document records product meaning.
 
@@ -377,3 +378,158 @@ Revisit this decision when real reading sessions show that clarification
 prompts interrupt more than they help, when ambiguous questions become common
 enough to need an ordering of readings, or when a component that asks for
 clarification is designed and needs its own evaluation contract.
+
+## PD-006: Prefer GPU acceleration for experiments without making CUDA a product dependency
+
+**Recorded:** 17 October 2026 (agreed in discussion; the date of agreement was
+not recorded)
+**Status:** agreed direction; no implementation
+
+### Context
+
+The first grounded-answer smoke tests ran entirely on the CPU because the
+CUDA backend of the external llama.cpp runtime could not load its libraries.
+With the GPU active on the same machine, the same prompts took seconds instead
+of minutes. Faster runs make research iterations practical, but the
+measurements come from one development machine with a dedicated NVIDIA GPU.
+
+### Decision
+
+- Prefer GPU acceleration for current research, because it allows faster
+  experimentation.
+- CUDA is not a mandatory product dependency.
+- CPU-only operation remains a future compatibility and usability
+  investigation.
+- Do not generalize GPU results to CPU-only hardware.
+- Avoid unnecessary hardware-specific coupling in the architecture.
+- This decision approves no CPU optimization and no alternative model.
+
+### Evidence
+
+[Inference Performance Diagnostics](inference-performance-diagnostics.md):
+twelve B1 prompts took 81–331 s with CPU-only execution and 2.9–9.0 s of model
+time with all layers offloaded to a 6 GB GPU, without prompt-cache reuse. One
+run per prompt, one machine, one model and one runtime build. GPU execution
+did not resolve the observed answer-behavior problems.
+
+### Consequences
+
+- Performance reports state whether the GPU was used and how offload was
+  confirmed.
+- GPU timings describe the measured machine only and set no product-wide
+  requirement.
+- The external runtime and its launch procedure stay outside FREDL
+  dependencies, as in
+  [PD-002](#pd-002-require-direct-evidence-before-treating-retrieval-as-an-answer).
+
+### Revisit when
+
+Revisit when CPU-only operation is investigated, when a supported runtime
+setup is designed, or when a component would need a specific accelerator to
+work at all.
+
+## PD-007: Evaluate performance as one user's sequential question workflow
+
+**Recorded:** 17 October 2026 (agreed in discussion; the date of agreement was
+not recorded)
+**Status:** agreed direction; no implementation
+
+### Context
+
+The inference diagnostics measured model time in isolation. PDF preparation
+and retrieval were outside the timed requests, and no product flow yet shows
+evidence before the answer. A reader experiences the whole path from asking a
+question to inspecting its evidence and answer.
+
+### Decision
+
+- FREDL initially targets a single-user workflow.
+- Optimize the experience of one question at a time, not concurrent request
+  throughput.
+- Measure the complete question-answer workflow, reporting library
+  preparation, retrieval, context preparation, inference and validation
+  separately.
+- Measure time to the first useful retrieved evidence where feasible.
+- Set no universal latency thresholds at this stage.
+- Use one reproducible reference question for routine performance
+  comparisons, and broader evaluation sets when needed.
+- Introduce no multi-user infrastructure or concurrency optimization
+  prematurely.
+
+### Evidence
+
+[Investigation 1B](inference-performance-diagnostics.md#investigation-1b-gpu-baseline-for-all-twelve-b1-prompts-16-october-2026)
+timed model inference only. PDF preparation took about 33 s per experiment
+script run, and per-query retrieval latency and time to first useful result
+were not measured.
+
+### Consequences
+
+- Performance comparisons report each workflow stage rather than one total.
+- The reference question is not yet chosen. When it is, it should come from
+  the existing private evaluation set; have fixed retrieved context and a
+  fixed prompt identified by hash; have its expected evidence present in that
+  context, so that the complete answer path is exercised; be replayable
+  sequentially without prompt-cache reuse; and use a prompt length typical of
+  routine questions rather than an extreme case. Its text stays private.
+- Multi-user use remains the deferred direction described in the
+  [retrieval and inference roadmap](retrieval-inference-roadmap.md#possible-multi-user-direction).
+
+### Revisit when
+
+Revisit when concurrent use becomes a product requirement or when measured
+workflow stages show that a single reference question no longer represents
+routine use.
+
+## PD-008: Treat Qwen3-4B as a baseline and keep model providers replaceable
+
+**Recorded:** 17 October 2026 (agreed in discussion; the date of agreement was
+not recorded)
+**Status:** agreed direction; the comparison phase and any provider work are
+not implemented
+
+### Context
+
+Qwen3-4B Q4_K_M is the current local experimental model
+([PD-002](#pd-002-require-direct-evidence-before-treating-retrieval-as-an-answer)).
+In the six-question grounded-answer smoke test it omitted citations, answered
+without sufficient evidence, did not ask for clarification and once produced a
+quotation that occurs in no supplied passage. Faster GPU inference did not
+change these behaviors.
+
+### Decision
+
+- Qwen3-4B is the current baseline, not a permanent or exclusive model choice.
+- The next research phase compares a small number of alternative LLMs.
+- Comparisons preserve equivalent retrieved evidence and evaluation
+  conditions.
+- Evaluate grounding, citations, quotation fidelity, abstention, clarification
+  behavior, latency and resource consumption.
+- Prefer local experimentation first, to keep private book data local.
+- User-selectable local and remote model providers are a product direction,
+  not an approved implementation task.
+- Avoid hard-coding Qwen-specific assumptions into future architecture.
+- Any remote provider integration requires explicit privacy and data-transfer
+  decisions first.
+- Do not implement a provider abstraction, settings UI or API integrations
+  now.
+
+### Evidence
+
+[B1-2 and B1-3](pdf-retrieval-experiments.md#b1-2-qwen3-4b-grounded-answer-smoke-test-16-october-2026)
+and the GPU comparison in
+[Investigation 1B](inference-performance-diagnostics.md#answer-behavior-gpu-versus-cpu).
+These are assistant checks on six questions, not human judgments.
+
+### Consequences
+
+- Candidate models, the evaluation set and acceptance criteria are chosen
+  when the comparison phase is planned and approved.
+- A model comparison reports each quality and resource dimension separately.
+- Books, passages, questions and evaluation cases stay local unless a later
+  decision approves a specific data transfer.
+
+### Revisit when
+
+Revisit after the model comparison, or before any remote provider, provider
+abstraction or model settings interface is designed.

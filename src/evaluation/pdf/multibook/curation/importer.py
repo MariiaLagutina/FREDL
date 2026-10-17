@@ -17,14 +17,14 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from src.evaluation.pdf.library import (
+from src.evaluation.pdf.multibook.library import (
     PdfLibraryBookIdentity,
     PdfLibraryCorpus,
     PdfLibraryManifest,
     require_library_matches_manifest,
 )
 from src.evaluation.pdf.models import PdfGoldenModality
-from src.evaluation.pdf.multibook_golden import (
+from src.evaluation.pdf.multibook.curation.golden import (
     PdfEvidenceLocator,
     PdfEvidenceUnit,
     PdfExpectedBehavior,
@@ -40,7 +40,9 @@ from src.evaluation.pdf.multibook_golden import (
     PdfSourceSupport,
     PdfTextSupport,
 )
-from src.evaluation.pdf.multibook_golden_v1 import PdfMultibookGoldenV1
+from src.evaluation.pdf.multibook.curation.golden_v1 import (
+    PdfMultibookGoldenV1,
+)
 from src.ingestion.pdf.reading_text import PdfReadingPage
 
 
