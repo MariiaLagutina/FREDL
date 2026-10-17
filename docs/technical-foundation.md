@@ -279,9 +279,11 @@ memory.
 
 Four-book technical validation, the evaluation-contract utilities and the
 multi-book golden and judgment contract are implemented, with the limits above.
-The next evaluation step is a runner and metrics for the combined library;
-retrieval runs, full relevance labelling, Golden Set freezing and model
-evaluation remain separate work requiring approval. New baselines remain
+A runner and metrics for the combined library are implemented, and private
+retrieval runs have been pooled for review
+([B1-1](pdf-retrieval-experiments.md#experiment-b1-1-baseline-runs-and-judgment-pool));
+full relevance labelling, Golden Set freezing and model evaluation remain
+separate work requiring approval. New baselines remain
 pending. Neither the diagnostic probes, completed migrations, candidate
 acceptance nor the judgment pilot establish improved retrieval quality or
 answerability.

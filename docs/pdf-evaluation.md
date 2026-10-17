@@ -12,8 +12,9 @@ relevance judgments is implemented and tested. A global multi-book retrieval
 runner now searches the pinned eligible library. Deterministic retrieval
 pooling produces blind human-review worksheets. An interpretation-aware
 collector and retrieval metrics evaluator are implemented with synthetic tests,
-including one end-to-end run of the public commands; no private multi-book
-baseline has been measured.
+including one end-to-end run of the public commands. Private retrieval runs
+and a judgment pool exist ([B1-1](pdf-retrieval-experiments.md#experiment-b1-1-baseline-runs-and-judgment-pool)),
+but no private multi-book baseline has been measured.
 
 The general `index` and API indexing path use text/code ingestion and do not
 dispatch to the PDF pipeline. For PDFs, use the `pdf_*` commands below. They
@@ -594,9 +595,11 @@ Localization, sufficient-set success and `MRR@10_localization` /
 `MRR@10_supply` remain separate. Their implementation has synthetic coverage;
 private baseline measurement remains pending.
 
-Not yet performed on the private library: retrieval runs, full human labelling,
-freezing the Golden Set or its judgments, and any multi-book retrieval or
-answerability measurement.
+Performed on the private library: BM25, MiniLM and hybrid retrieval runs and
+their top-10 judgment pool
+([B1-1](pdf-retrieval-experiments.md#experiment-b1-1-baseline-runs-and-judgment-pool)).
+Not yet performed: full human labelling, freezing the Golden Set or its
+judgments, and any multi-book retrieval or answerability measurement.
 
 No new private retrieval or answerability baselines have been established after
 the corpus and evaluation-contract changes. Historical single-book results in

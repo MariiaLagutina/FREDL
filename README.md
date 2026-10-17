@@ -149,7 +149,8 @@ carrying forward.
 | PDF section-aware chunking | Verified headings, outline-without-destinations fallback, unresolved structural status and exact physical-page provenance |
 | PDF retrieval evaluation | Historical single-book baselines; current corpus and evaluation contract implemented, new baselines pending |
 | Answerability check | Local experimental runner with separate metrics; not part of a product reading flow |
-| Multi-book PDF evaluation | Golden contract, import and judgment tooling implemented; unfrozen draft of 22 human-approved private candidates and a four-question judgment pilot; no library-wide runner, retrieval runs, full judgments or new baselines |
+| Multi-book PDF evaluation | Golden contract, import, library-wide retrieval runner, pooling and metrics tooling implemented; unfrozen draft of 22 human-approved private candidates; private BM25, MiniLM and hybrid runs pooled for human review; no full judgments, frozen Golden Set or retrieval metrics yet |
+| Grounded-answer and inference research | Six-question local smoke test and inference diagnostics recorded in [research reports](docs/pdf-retrieval-experiments.md); no grounded PDF answer workflow is implemented |
 | Clarification of ambiguous questions | Evaluation reference only ([PD-005](docs/product-decisions.md#pd-005-ask-for-clarification-instead-of-guessing-the-users-meaning)); not implemented |
 | Production frontend | Not implemented |
 | Learning-memory storage | Designed conceptually; not implemented |
@@ -261,13 +262,14 @@ Four-book technical validation and PDF Tasks 1–5 are implemented. For Task 6,
 the versioned multi-book contract, candidate import, human-judgment tooling and
 label-preserving schema migration are implemented. The 22 human-approved
 candidates form an unfrozen draft, and a four-question judgment pilot is
-complete. Candidate approval and the pilot do not establish retrieval or
-answerability quality. The remaining work requires separate approval:
+complete. A runner that searches the combined library and the multi-book
+retrieval metrics are implemented. Private BM25, MiniLM and hybrid runs have
+been pooled into a human-review worksheet
+([B1](docs/pdf-retrieval-experiments.md)). Candidate approval, the pilot and
+these runs do not establish retrieval or answerability quality. The remaining
+work requires separate approval:
 
-- implement a runner that searches the combined library, and multi-book
-  retrieval metrics;
-- run BM25, MiniLM and hybrid retrieval, pool their top-10 results and complete
-  human relevance labelling;
+- complete human relevance labelling of the pooled top-10 results;
 - freeze the Golden Set and its judgments;
 - measure retrieval, evidence sufficiency and answerability separately;
 - report per-book and cross-book results without reusing historical scores as
@@ -349,6 +351,13 @@ only. It does not detect book text copied into an allowed file.
 - [`docs/pdf-evaluation.md`](docs/pdf-evaluation.md) describes the existing
   single-book evaluation utilities, CLI commands, the multi-book golden and
   relevance-judgment contract, and the work not yet measured.
+- [`docs/retrieval-inference-roadmap.md`](docs/retrieval-inference-roadmap.md)
+  lists retrieval and inference investigations, which are proposed until
+  separately approved, and how their results are decided.
+- [`docs/pdf-retrieval-experiments.md`](docs/pdf-retrieval-experiments.md) and
+  [`docs/inference-performance-diagnostics.md`](docs/inference-performance-diagnostics.md)
+  record the multi-book retrieval runs, the local grounded-answer smoke test
+  and the inference performance diagnosis as aggregate results.
 
 ## Verification
 
