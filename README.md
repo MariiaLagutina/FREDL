@@ -14,18 +14,13 @@ requirements. FREDL is not a general-purpose PDF reader or fiction-reading
 application.
 
 > [!IMPORTANT]
-> FREDL is at an early research and development stage. A manual prototype under
-> founder-led testing, a verified retrieval foundation, a local PDF ingestion
-> pipeline, and a historical single-book evaluation exist today. Technical PDF
-> validation covers four books. A versioned multi-book evaluation contract,
-> human-judgment tooling, a library-wide retrieval runner and metrics tooling are
-> implemented. A private set of 22 human-approved candidate questions is an
-> unfrozen draft with a four-question judgment pilot. BM25, MiniLM and hybrid
-> retrieval runs are complete and pooled for human review; full relevance
-> judgments, a frozen Golden Set and judged retrieval baselines remain incomplete.
-> Human evaluation of generated answers is also unfinished. General PDF
-> compatibility, the production frontend and personal learning memory remain
-> unimplemented or unverified.
+> FREDL is a research prototype. A tested PDF ingestion and retrieval
+> foundation exists and has been checked on four technical books, but it is not
+> yet connected to a complete reading and learning workflow. Retrieval and
+> local-model experiments have been run; they record system behavior and do not
+> establish retrieval or answer quality. A manual prototype is in founder-led
+> testing. The production frontend and personal learning memory are not
+> implemented. See [Current Project State](#current-project-state).
 
 ## Why FREDL
 
@@ -150,10 +145,11 @@ carrying forward.
 | Code and Markdown ingestion | Implemented |
 | PDF ingestion and page provenance | Local utilities checked on four text-based technical books; complex layouts have explicit limitations |
 | PDF section-aware chunking | Verified headings, outline-without-destinations fallback, unresolved structural status and exact physical-page provenance |
-| PDF retrieval evaluation | Historical single-book baselines; multi-book retrieval runs complete, human relevance judgments and judged baselines pending |
+| PDF retrieval evaluation | Historical single-book baselines; multi-book BM25, MiniLM and hybrid runs recorded; retrieval quality not established; human relevance judgments optional since [PD-009](docs/product-decisions.md#pd-009-evaluate-without-mandatory-manual-annotation) |
 | Answerability check | Local experimental runner with separate metrics; not part of a product reading flow |
-| Multi-book PDF evaluation | Golden contract, import, library-wide retrieval runner, pooling and metrics tooling implemented; unfrozen draft of 22 human-approved private candidates; private BM25, MiniLM and hybrid runs pooled for human review; no full judgments, frozen Golden Set or retrieval metrics yet |
-| Grounded-answer and inference research | Six-question local smoke test and inference diagnostics recorded in [research reports](docs/pdf-retrieval-experiments.md); human evaluation of generated answers remains incomplete; no grounded PDF answer workflow is implemented |
+| Multi-book PDF evaluation | Golden contract, import, library-wide retrieval runner, pooling and metrics tooling implemented and tested synthetically; private query sets (22 reviewed candidates, 120 curated questions) and recorded runs; no judged retrieval metrics |
+| Grounded-answer and inference research | Six-question smoke test, inference diagnostics and a controlled Qwen3-4B / Phi-4-mini comparison run recorded in [research reports](docs/pdf-retrieval-experiments.md); no model choice or answer-quality conclusion; no grounded PDF answer workflow is implemented |
+| Embedding model comparison | Planned next technical work: MiniLM versus BGE small and base ([roadmap](docs/retrieval-inference-roadmap.md#3-embedding-model-alternatives)); not implemented |
 | Clarification of ambiguous questions | Evaluation reference only ([PD-005](docs/product-decisions.md#pd-005-ask-for-clarification-instead-of-guessing-the-users-meaning)); not implemented |
 | Production frontend | Not implemented |
 | Learning-memory storage | Designed conceptually; not implemented |
@@ -190,10 +186,10 @@ external model.
 | Optional semantic search | Pinned CPU MiniLM embeddings |
 | Optional hybrid search | Weighted Reciprocal Rank Fusion for documentation and PDF records |
 | PDF evaluation | Canonical ordering, layered fingerprints, manifests, judgment migration, and ranked/context evidence-unit coverage |
-| Multi-book evaluation contract | Library corpus with per-book policy; golden schema v2 with OR-of-AND evidence sets and clarification-aware interpretations; per-unit human judgments, blind pools and label-preserving migration; library-wide retrieval runner and multi-book retrieval metrics tooling implemented; full judgments and a frozen Golden Set remain incomplete |
+| Multi-book evaluation contract | Library corpus with per-book policy; golden schema v2 with OR-of-AND evidence sets and clarification-aware interpretations; per-unit human judgments, blind pools and label-preserving migration; library-wide retrieval runner and multi-book retrieval metrics tooling implemented; metrics require complete human judgments, which are optional |
 | PDF neighbor context | Eligible touching records in the same known section interval; equal section titles alone are insufficient |
 | Answerability experiment | Binary `ANSWERABLE` / `NOT_FOUND` decision with false refusals and false acceptances reported separately |
-| Answer generation | Replaceable local model backend with citation validation |
+| Answer generation | Transformers backend for the code and text pipeline (default `Qwen/Qwen3-0.6B`) with citation validation; PDF model experiments use a separate local llama.cpp server outside FREDL's dependencies |
 | Interfaces | Python Fire CLI and local FastAPI server |
 | Persistence | Corpus, pipeline, schema, and checksum validation |
 
@@ -212,7 +208,7 @@ See [PDF evaluation and CLI](docs/pdf-evaluation.md) for interfaces and limits.
 ### First PDF evaluation
 
 The results below are historical, from the earlier corpus and evaluation
-protocol. They cannot be directly compared with pending baselines after the
+protocol. They cannot be directly compared with later multi-book runs after the
 PDF extraction, corpus and evaluation-contract changes.
 
 The first PDF evaluation uses one private technical book and 17 real
@@ -259,24 +255,20 @@ answer. Questions, labels, and book text stay outside the repository.
 
 The next work is deliberately narrower than the complete product vision.
 
-### 1. Establish the next PDF evaluation
+### 1. Prepare the embedding model comparison
 
-Four-book technical validation and PDF Tasks 1–5 are implemented. For Task 6,
-the versioned multi-book contract, candidate import, human-judgment tooling and
-label-preserving schema migration are implemented. The 22 human-approved
-candidates form an unfrozen draft, and a four-question judgment pilot is
-complete. A runner that searches the combined library and multi-book retrieval
-metrics tooling are implemented. Private BM25, MiniLM and hybrid runs have
-been pooled into a human-review worksheet
-([B1](docs/pdf-retrieval-experiments.md)). Candidate approval, the pilot and
-these runs do not establish retrieval or answerability quality. The remaining
-work requires separate approval:
+The PDF evaluation tooling, the multi-book runs and the local-model
+comparison are recorded in the [research reports](docs/pdf-retrieval-experiments.md).
+Since [PD-009](docs/product-decisions.md#pd-009-evaluate-without-mandatory-manual-annotation), manual relevance annotation is not a required milestone; the
+existing judgment tools remain available.
 
-- complete human relevance labelling of the pooled top-10 results;
-- freeze the Golden Set and its judgments;
-- measure retrieval, evidence sufficiency and answerability separately;
-- report per-book and cross-book results without reusing historical scores as
-  current baselines.
+The next technical work, *Embedding Comparison Readiness*, makes the semantic
+encoder configurable so the current MiniLM baseline can be compared with
+`BAAI/bge-small-en-v1.5` and `BAAI/bge-base-en-v1.5` on the same corpus,
+chunking and queries. Planned measurements are ranking overlap and rank
+changes, query paraphrase stability, input truncation, latency and resource
+use. These are behavioral diagnostics; they do not show which model retrieves
+more relevant evidence.
 
 Broader multimodal support, OCR and faithful complex-layout extraction remain
 future work. Four-book validation does not establish general PDF compatibility.
@@ -344,6 +336,8 @@ only. It does not detect book text copied into an allowed file.
 
 ## Documentation
 
+- [`docs/developer-guide.md`](docs/developer-guide.md) explains setup, tests,
+  repository entry points and how experiments are made reproducible.
 - [`docs/product-direction.md`](docs/product-direction.md) explains the learning
   problem, the product loop, and the signals FREDL intends to test.
 - [`docs/product-decisions.md`](docs/product-decisions.md) records accepted
@@ -364,8 +358,9 @@ only. It does not detect book text copied into an allowed file.
 
 ## Verification
 
-CI runs the quality gates on Python 3.10 for every pull request, and local
-development uses Python 3.13. The supported checks are:
+CI runs the quality gates on Python 3.10 for every pull request and push to
+`main`. The suite has also been run locally on Python 3.13. The supported
+checks are:
 
 ```text
 make test
