@@ -399,7 +399,7 @@ measurements come from one development machine with a dedicated NVIDIA GPU.
   experimentation.
 - CUDA is not a mandatory product dependency.
 - CPU-only operation remains a future compatibility and usability
-  investigation.
+  investigation, after the core mechanisms have been validated.
 - Do not generalize GPU results to CPU-only hardware.
 - Avoid unnecessary hardware-specific coupling in the architecture.
 - This decision approves no CPU optimization and no alternative model.
@@ -508,9 +508,11 @@ change these behaviors.
 - Prefer local experimentation first, to keep private book data local.
 - User-selectable local and remote model providers are a product direction,
   not an approved implementation task.
-- Avoid hard-coding Qwen-specific assumptions into future architecture.
+- Do not tie FREDL conceptually to one LLM family, and avoid hard-coding
+  Qwen-specific assumptions into future architecture.
 - Any remote provider integration requires explicit privacy and data-transfer
-  decisions first.
+  decisions first. Selected passages or questions sent to such a provider must
+  be visible to the user.
 - Do not implement a provider abstraction, settings UI or API integrations
   now.
 
@@ -533,3 +535,85 @@ These are assistant checks on six questions, not human judgments.
 
 Revisit after the model comparison, or before any remote provider, provider
 abstraction or model settings interface is designed.
+
+## PD-009: Evaluate without mandatory manual annotation
+
+**Recorded:** 1 November 2026
+**Status:** accepted development strategy; supersedes the mandatory-annotation
+plans listed below
+
+### Context
+
+The multi-book evaluation contract can publish retrieval metrics only after a
+human label exists for every unit/record binding in each engine's top-10 and
+direct context. The B1 pool requires 1,233 such labels, estimated at roughly
+28 hours of reading
+([B1-1](pdf-retrieval-experiments.md#judgment-readiness)). The Qwen3-4B
+versus Phi-4-mini comparison likewise waits for a blind human review of 24
+responses
+([M2-B](pdf-retrieval-experiments.md#m2-b-controlled-comparison-execution-17-october-2026)).
+FREDL is developed by one person. Making this work a prerequisite stops
+engineering experiments that do not need it.
+
+### Decision
+
+- Manual relevance annotation is not a required development milestone.
+- Completing the remaining 1,233 B1 judgments is not required.
+- A frozen, human-labelled Golden Set is not a prerequisite for further
+  development.
+- A blind human comparison of Qwen3-4B and Phi-4-mini is not required.
+- No new large-scale manual labelling task is planned.
+- Small qualitative spot checks remain optional and never become a hidden
+  prerequisite for continuing development.
+- Human curation of questions (selecting, rejecting and composing an
+  evaluation query set) remains welcome and is distinct from passage-level
+  relevance annotation. A curated query set is not a validated Golden Set.
+- Future experiments prefer lightweight, reproducible measurements: retrieval
+  overlap and rank changes, query paraphrase stability, latency, CPU, RAM and
+  VRAM use, synthetic cases with known provenance, and optional local
+  LLM-as-judge runs.
+- Every result states its evidence class:
+  1. *behavioral diagnostic*: how a system behaves, not whether a result is
+     relevant;
+  2. *synthetic known-provenance check*: whether a known source is found for
+     a query constructed from it; the label is synthetic;
+  3. *model judgment*: an opinion of a named, pinned model, not ground truth;
+  4. *human judgment*: only when a person explicitly supplied it.
+- Synthetic labels and model judgments are never presented as human ground
+  truth. Agreement between engines, stability or overlap is never presented as
+  evidence that one engine is more relevant.
+
+### Preserved
+
+All existing human judgments (the 29-label anchor pilot, the migrated
+single-book judgments and any partial reviews), the draft Golden Set v2, the
+B1 pool and worksheets, the judgment, pooling and metrics tools, and all
+experiment records remain unchanged and usable. Superseded plans are marked
+with a dated note, not removed.
+
+### Superseded plans
+
+- The B1 next action "human labelling of the 1233 required worksheet rows".
+- Golden Set freezing as a precondition for retrieval comparisons.
+- The M2-B decision step that requires human evaluation before any model
+  comparison conclusion.
+- The roadmap's judged-subset requirement for preliminary comparisons
+  (provisional decision 1 and the evaluation scope of 16 October 2026).
+
+### Consequences
+
+- Retrieval comparisons report behavior and cost, not validated relevance.
+  These methods cannot establish retrieval quality.
+- A model, configuration or engine may be adopted for further experiments on
+  diagnostic grounds, with its assumptions stated; this is not a claim of
+  better relevance.
+- The existing evaluator still refuses headline metrics without complete
+  judgments. Lightweight diagnostics need separate, clearly named tools.
+- Product decisions about what a reader sees still require the evidence named
+  in their own entries.
+
+### Revisit when
+
+Revisit if a decision cannot responsibly be made without validated relevance,
+for example before presenting retrieval quality to other users, or if a
+cheaper source of human judgments becomes available.
