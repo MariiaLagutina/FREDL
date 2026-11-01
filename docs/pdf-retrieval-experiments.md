@@ -850,8 +850,9 @@ further human review is optional.
   [B1](#retrieval-configuration). Corpus embeddings were computed once; the
   persisted indexes were reloaded and verified before searching.
 - Top-10 per engine: 360 ranked lists, 3600 positions and 2389 unique
-  question–record pairs. No model generated answers, and no metric was
-  computed.
+  question–record pairs. No model generated answers, and no
+  retrieval-effectiveness metric was computed. The exploratory human–model
+  agreement statistics below describe the judge, not the engines.
 - An operator script outside the repository produced the run on code revision
   `b0dbd06`, with only documentation files modified. FREDL commands alone do
   not reproduce it.

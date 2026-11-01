@@ -592,9 +592,11 @@ an end-to-end synthetic CLI test.
 The primary retrieval metric is Best Evidence Recall (`BER@5`), with
 `BER@10` diagnostic: the greatest supplied-unit coverage of any sufficient set.
 Localization, sufficient-set success and `MRR@10_localization` /
-`MRR@10_supply` remain separate. Their implementation has synthetic coverage;
-no private measurement exists, because the metrics require complete human
-judgments.
+`MRR@10_supply` remain separate. Their implementation has synthetic coverage.
+No complete judged multi-book retrieval baseline has been computed, because
+these metrics require complete human judgments. Partial human judgments and
+exploratory human–model agreement measurements exist
+([R120](pdf-retrieval-experiments.md#r120-120-question-retrieval-pool-and-local-model-judge-18-october-2026)).
 
 Performed on the private library: BM25, MiniLM and hybrid retrieval runs and
 their top-10 judgment pool
