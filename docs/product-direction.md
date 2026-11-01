@@ -118,15 +118,18 @@ testing later.
 
 Technical PDF validation now covers four books, with known extraction and layout
 limitations. It does not establish cross-book retrieval quality, answerability,
-or the usefulness of the full learning loop. New evaluation baselines remain
-pending; the implemented utilities and their limits are described in
+or the usefulness of the full learning loop. Multi-book retrieval runs are
+complete; judged baselines and human evaluation of generated answers remain
+unfinished. The implemented utilities and their limits are described in
 [Technical Foundation](technical-foundation.md).
 
 A private Task 6 package now contains 22 human-approved candidate questions.
 This approves their evaluation intent, not the system's answers. A versioned
-multi-book evaluation contract and a four-question human judgment pilot exist,
-but the Golden Set is not frozen, and full judgments, library-wide retrieval
-runs and new baselines remain incomplete.
+multi-book evaluation contract, library-wide retrieval runner, metrics tooling
+and a four-question human judgment pilot exist. Private BM25, MiniLM and hybrid
+retrieval runs are complete and pooled for human review. Full relevance
+judgments, Golden Set freezing and judged retrieval baselines remain incomplete;
+completed runs do not establish retrieval or answer quality.
 
 The contract records what a question means separately from how well the books
 support it. When a question has several materially different meanings, FREDL
