@@ -135,20 +135,15 @@ question-and-context loop helps with real engineering study and project work.
 The prototype is evidence only about that use. Broader claims require broader
 testing later.
 
-Technical PDF validation now covers four books, with known extraction and layout
-limitations. It does not establish cross-book retrieval quality, answerability,
-or the usefulness of the full learning loop. Multi-book retrieval runs are
-complete; judged baselines and human evaluation of generated answers remain
-unfinished. The implemented utilities and their limits are described in
+Technical PDF validation covers four books, with known extraction and layout
+limitations. Recorded retrieval and local-model experiments describe system
+behavior; they do not establish cross-book retrieval quality, answerability or
+the usefulness of the full learning loop. Manual relevance annotation is not a
+required milestone
+([PD-009](product-decisions.md#pd-009-evaluate-without-mandatory-manual-annotation)).
+The current capabilities and their limits are summarized in the
+[README](../README.md#current-project-state) and described in
 [Technical Foundation](technical-foundation.md).
-
-A private Task 6 package now contains 22 human-approved candidate questions.
-This approves their evaluation intent, not the system's answers. A versioned
-multi-book evaluation contract, library-wide retrieval runner, metrics tooling
-and a four-question human judgment pilot exist. Private BM25, MiniLM and hybrid
-retrieval runs are complete and pooled for human review. Full relevance
-judgments, Golden Set freezing and judged retrieval baselines remain incomplete;
-completed runs do not establish retrieval or answer quality.
 
 The contract records what a question means separately from how well the books
 support it. When a question has several materially different meanings, FREDL

@@ -593,17 +593,19 @@ The primary retrieval metric is Best Evidence Recall (`BER@5`), with
 `BER@10` diagnostic: the greatest supplied-unit coverage of any sufficient set.
 Localization, sufficient-set success and `MRR@10_localization` /
 `MRR@10_supply` remain separate. Their implementation has synthetic coverage;
-private baseline measurement remains pending.
+no private measurement exists, because the metrics require complete human
+judgments.
 
 Performed on the private library: BM25, MiniLM and hybrid retrieval runs and
 their top-10 judgment pool
 ([B1-1](pdf-retrieval-experiments.md#experiment-b1-1-baseline-runs-and-judgment-pool)).
-Not yet performed: full human labelling, freezing the Golden Set or its
-judgments, and any multi-book retrieval or answerability measurement.
+Not performed: full human labelling, freezing the Golden Set or its
+judgments, and any judged multi-book retrieval or answerability measurement.
+Since [PD-009](product-decisions.md#pd-009-evaluate-without-mandatory-manual-annotation) these are optional; the collection, freeze and metrics commands
+remain available and unchanged.
 
-No new private retrieval or answerability baselines have been established after
-the corpus and evaluation-contract changes. Historical single-book results in
+No judged private retrieval or answerability baseline exists after the corpus
+and evaluation-contract changes. Historical single-book results in
 [PD-002](product-decisions.md#pd-002-require-direct-evidence-before-treating-retrieval-as-an-answer)
-remain historical and are not directly comparable with pending baselines.
-Retrieval runs, Golden Set freezing and model evaluation each require separate
-approval.
+remain historical and are not directly comparable with later runs. New
+experiments report their evidence class as defined in [PD-009](product-decisions.md#pd-009-evaluate-without-mandatory-manual-annotation).

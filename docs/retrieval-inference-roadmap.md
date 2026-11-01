@@ -9,6 +9,8 @@
 > M2-B has completed 24 requests and awaits human review
 > ([execution record](pdf-retrieval-experiments.md#m2-b-controlled-comparison-execution-17-october-2026)).
 > Investigations 2–6 and further M3–M4 analysis/decisions are not completed.
+> [Investigation 3](#3-embedding-model-alternatives) is the next planned
+> technical work block.
 > Acceptance criteria are agreed before execution; the result may
 > be to keep the current solution.
 >
@@ -16,7 +18,7 @@
 > optional, not prerequisites ([PD-009](product-decisions.md#pd-009-evaluate-without-mandatory-manual-annotation)).
 
 This roadmap belongs to the current PDF evaluation work described in the
-[README](../README.md#1-establish-the-next-pdf-evaluation). It does not change
+[README](../README.md#1-prepare-the-embedding-model-comparison). It does not change
 the [product direction](product-direction.md), the
 [product decisions](product-decisions.md) or the implemented boundary in the
 [technical foundation](technical-foundation.md).
@@ -249,18 +251,57 @@ every investigation still needs separate approval.
 
 ### 3. Embedding model alternatives
 
-- **Hypothesis:** another local embedding model may retrieve technical text
-  better, accept longer input, or offer a better quality/performance trade-off.
-- **Current baseline:** pinned `all-MiniLM-L6-v2` on CPU, 256 word pieces.
-- **Controlled experiment:** compare candidates with the same corpus, chunking
-  and queries; a preliminary judged subset is acceptable (see
-  [Evaluation scope](#evaluation-scope)).
-- **Measurements:** supported input length, technical-text retrieval quality,
-  CPU and GPU speed, memory, model size, indexing cost, offline operation and
-  compatibility with the chunking strategy.
-- **Acceptance criteria:** not defined.
-- **Impact:** semantic index rebuild and new Hybrid rankings. No model is
-  selected or installed by this roadmap.
+- **Status:** next technical work block, *Embedding Comparison Readiness*,
+  within the phase *Make a Technical PDF a Trustworthy Source*. Planned; no
+  code, model download or run has started.
+- **Hypothesis:** another local embedding model may accept longer input or
+  offer a better retrieval behavior/cost trade-off on technical text. In B1,
+  1346 of 2043 eligible records exceeded MiniLM's 256-word-piece limit.
+- **Current baseline:** `sentence-transformers/all-MiniLM-L6-v2` at a pinned
+  revision, CPU float32, mean pooling, L2 normalization, `max_length = 256`, no
+  query instruction.
+- **Candidates:** `BAAI/bge-small-en-v1.5` and `BAAI/bge-base-en-v1.5`, each
+  pinned to a revision when approved. Their model-specific settings (pooling,
+  query instruction, input limit) are taken from the pinned model card.
+  BGE-M3 is a separate later experiment.
+- **Readiness work, in dependency order:**
+  1. embedding profiles that declare model, revision, pooling, normalization,
+     query and passage instructions, input length, dtype and device; the
+     MiniLM profile reproduces current behavior;
+  2. separate query and passage encoding;
+  3. tokenization diagnostics: untruncated length per record and the share of
+     truncated records per profile;
+  4. the complete profile in run configurations and persisted index
+     identities, with existing MiniLM manifests still readable;
+  5. persisted PDF embeddings per corpus and profile, loaded without
+     re-encoding and rejected on any identity mismatch;
+  6. profile selection in the multi-book retrieval runner;
+  7. ranking comparison: overlap at 5 and 10, rank-biased overlap, rank
+     displacement, records unique to one model and per-book distribution;
+  8. paraphrase stability across alternative formulations of one question;
+  9. a performance harness: model load, corpus encoding throughput, repeated
+     query latency (median and 95th percentile after warm-up), peak RAM and,
+     on GPU, peak VRAM;
+  10. an optional offline HTML report of the largest ranking differences,
+      without required annotation fields.
+
+  Steps 1–6 and 7–10 are planned as two separate code changes.
+- **Controlled experiment:** identical corpus, chunking, retrieval corpus
+  policy and queries (the draft Golden Set v2 query variants and the curated
+  120-question set); semantic-only and hybrid rankings for every profile; BGE
+  with and without its query instruction as an ablation. Raw similarity scores
+  are not compared across models.
+- **Evidence class:** behavioral diagnostics and, where used, synthetic
+  known-provenance checks or optional model judgments
+  ([PD-009](product-decisions.md#pd-009-evaluate-without-mandatory-manual-annotation)).
+  Overlap or stability does not show that a model retrieves more relevant
+  evidence.
+- **Acceptance criteria:** a model may be adopted for further experiments on
+  stated diagnostic grounds (for example, removing truncation at an
+  acceptable latency); that decision is recorded with its assumptions and is
+  not a relevance claim.
+- **Impact:** new semantic indexes and Hybrid rankings per profile. Existing
+  B1 and October 18 runs stay unchanged.
 
 ### 4. Hybrid retrieval improvements
 

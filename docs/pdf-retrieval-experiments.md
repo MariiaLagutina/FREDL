@@ -819,3 +819,74 @@ prompt edits, production changes, commits or publication steps occurred.
 This records observations under PD-006 (verified GPU use), PD-007 (sequential
 requests and separate stage/resource reporting), and PD-008 (replaceable models
 with equivalent private evidence), without creating a new product decision.
+
+## R120: 120-question retrieval pool and local model judge (18 October 2026)
+
+**Status: executed; behavioral record only. No retrieval quality metric is
+established.** Under
+[PD-009](product-decisions.md#pd-009-evaluate-without-mandatory-manual-annotation)
+further human review is optional.
+
+### Questions
+
+- 120 candidate questions, 20 in each of six groups: one group per book,
+  cross-book synthesis, and candidates that may fall outside the library.
+- Provenance: AI-assisted question generation with human curation, selection
+  and dataset design. A language model proposed candidate questions; the
+  project owner accepted or rejected each one for whether it reflects a
+  realistic information need, and defined the dataset composition: coverage
+  of the four books, cross-book questions and intentionally unanswerable
+  candidates. The questions are neither entirely human-authored nor generated
+  without human review.
+- Question curation is not passage-level relevance annotation. No expected
+  answers, gold passages or relevance labels were assigned, and none has been
+  independently verified. The set is not a validated Golden Set, and the
+  out-of-library group is not a set of confirmed negatives.
+
+### Retrieval run
+
+- Same four-book library, P2 corpus (2043 searchable of 2163 records) and
+  BM25, MiniLM and Hybrid RRF configuration as
+  [B1](#retrieval-configuration). Corpus embeddings were computed once; the
+  persisted indexes were reloaded and verified before searching.
+- Top-10 per engine: 360 ranked lists, 3600 positions and 2389 unique
+  question–record pairs. No model generated answers, and no metric was
+  computed.
+- An operator script outside the repository produced the run on code revision
+  `b0dbd06`, with only documentation files modified. FREDL commands alone do
+  not reproduce it.
+
+### Local model judge
+
+- Every pair was rated once by Qwen3-4B Q4_K_M under llama.cpp on loopback:
+  thinking off, temperature 0, fixed seed, a 0–3 rubric with a short
+  rationale, and only the question and one record text as input. A rating of
+  2 or more counts as relevant for binary comparison.
+- 2389 of 2389 pairs completed in about 27 minutes on the reference GPU
+  laptop, with four parallel requests and no external service. Parallel
+  execution means byte-identical outputs on a rerun are not guaranteed.
+- Ratings: 0 — 107, 1 — 1181, 2 — 873, 3 — 228. These are model opinions,
+  not relevance labels.
+
+### Interim agreement with a human reviewer
+
+An exploratory comparison used 89 pairs from an unfinished human review:
+
+| Measure | Value |
+| --- | --- |
+| Binary agreement | 58 of 87 (67%) |
+| Exact 0–3 agreement | 34 of 88 (39%) |
+| Weighted Cohen's kappa, linear | 0.29 |
+| Weighted Cohen's kappa, quadratic | 0.42 |
+
+All 89 pairs belong to a prespecified, stratified sample of 240 pairs, which
+is not a simple random sample of all pairs. The reviewed part is small and
+partial, and denominators differ because some fields were left blank. These statistics do not validate the judge, and its labels cannot
+substitute for human judgments. Engine identities remain sealed, and no
+per-engine result is reported.
+
+### Interpretation
+
+The run provides persisted indexes and a larger curated query pool for later
+behavioral diagnostics, such as engine overlap and rank changes. It does not
+show which engine retrieves more relevant evidence.

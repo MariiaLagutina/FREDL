@@ -9,6 +9,9 @@ provide the production learning interface.
 
 The general `index` and API indexing path still use the text/code pipeline;
 recognizing a PDF during file discovery does not connect it to that pipeline.
+That pipeline retains evaluation commands for its earlier documentation and
+code datasets, and the local API keeps its earlier title; the datasets
+themselves are not part of the repository.
 The separate PDF utilities prepare and evaluate PDF records. There is no
 production PDF reader or complete library-to-learning-memory flow.
 
@@ -226,10 +229,13 @@ and its migration guarantees are documented in
 
 ### Not yet measured
 
-- new BM25, MiniLM, hybrid, evidence-coverage, and answerability baselines after
-  PDF Tasks 1–5; historical runs use an earlier corpus and protocol and cannot
-  be compared directly with the pending baselines;
-- retrieval and answerability across several books and document classes;
+- judged retrieval, evidence-coverage and answerability results after PDF
+  Tasks 1–5. Multi-book runs and a local model-judge diagnostic are recorded
+  ([research reports](pdf-retrieval-experiments.md)), but they establish no
+  validated relevance; historical single-book runs use an earlier corpus and
+  protocol and are not directly comparable. Complete human judgments are
+  optional since [PD-009](product-decisions.md#pd-009-evaluate-without-mandatory-manual-annotation);
+- retrieval and answerability across other document classes;
 - whether FREDL recognizes an ambiguous question and asks for clarification; no
   component implements this behavior;
 - whether a returned passage was useful in the product flow.
@@ -282,15 +288,19 @@ memory.
 Four-book technical validation, the evaluation-contract utilities and the
 multi-book golden and judgment contract are implemented, with the limits above.
 A runner and metrics for the combined library are implemented, and private
-retrieval runs have been pooled for review
-([B1-1](pdf-retrieval-experiments.md#experiment-b1-1-baseline-runs-and-judgment-pool));
-full relevance labelling, Golden Set freezing and model evaluation remain
-separate work requiring approval. New baselines remain
-pending. Neither the diagnostic probes, completed migrations, candidate
-acceptance nor the judgment pilot establish improved retrieval quality or
-answerability.
+retrieval runs have been recorded
+([B1-1](pdf-retrieval-experiments.md#experiment-b1-1-baseline-runs-and-judgment-pool)).
+None of these establishes improved retrieval quality or answerability.
 
-The rest of the milestone remains intentionally small:
+The next technical slice is *Embedding Comparison Readiness*: a configurable
+semantic encoder with model-specific pooling, query instructions,
+normalization, truncation diagnostics and complete index identities, followed
+by diagnostic tools for ranking differences, paraphrase stability, latency
+and resource use. It prepares a comparison of the current MiniLM baseline
+with `BAAI/bge-small-en-v1.5` and `BAAI/bge-base-en-v1.5`; results are
+reported with the evidence classes of [PD-009](product-decisions.md#pd-009-evaluate-without-mandatory-manual-annotation).
+
+The product milestone after the PDF phase remains intentionally small:
 
 1. show the exact supporting passage;
 2. save the question and why it mattered;
