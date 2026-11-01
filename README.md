@@ -17,12 +17,15 @@ application.
 > FREDL is at an early research and development stage. A manual prototype under
 > founder-led testing, a verified retrieval foundation, a local PDF ingestion
 > pipeline, and a historical single-book evaluation exist today. Technical PDF
-> validation covers four books. A versioned multi-book evaluation contract and
-> human-judgment tooling are implemented. A private set of 22 human-approved
-> candidate questions is an unfrozen draft with a four-question judgment pilot;
-> library-wide retrieval runs, full judgments and new baselines are not
-> complete. General PDF compatibility, the production frontend and personal
-> learning memory remain unimplemented or unverified.
+> validation covers four books. A versioned multi-book evaluation contract,
+> human-judgment tooling, a library-wide retrieval runner and metrics tooling are
+> implemented. A private set of 22 human-approved candidate questions is an
+> unfrozen draft with a four-question judgment pilot. BM25, MiniLM and hybrid
+> retrieval runs are complete and pooled for human review; full relevance
+> judgments, a frozen Golden Set and judged retrieval baselines remain incomplete.
+> Human evaluation of generated answers is also unfinished. General PDF
+> compatibility, the production frontend and personal learning memory remain
+> unimplemented or unverified.
 
 ## Why FREDL
 
@@ -147,10 +150,10 @@ carrying forward.
 | Code and Markdown ingestion | Implemented |
 | PDF ingestion and page provenance | Local utilities checked on four text-based technical books; complex layouts have explicit limitations |
 | PDF section-aware chunking | Verified headings, outline-without-destinations fallback, unresolved structural status and exact physical-page provenance |
-| PDF retrieval evaluation | Historical single-book baselines; current corpus and evaluation contract implemented, new baselines pending |
+| PDF retrieval evaluation | Historical single-book baselines; multi-book retrieval runs complete, human relevance judgments and judged baselines pending |
 | Answerability check | Local experimental runner with separate metrics; not part of a product reading flow |
 | Multi-book PDF evaluation | Golden contract, import, library-wide retrieval runner, pooling and metrics tooling implemented; unfrozen draft of 22 human-approved private candidates; private BM25, MiniLM and hybrid runs pooled for human review; no full judgments, frozen Golden Set or retrieval metrics yet |
-| Grounded-answer and inference research | Six-question local smoke test and inference diagnostics recorded in [research reports](docs/pdf-retrieval-experiments.md); no grounded PDF answer workflow is implemented |
+| Grounded-answer and inference research | Six-question local smoke test and inference diagnostics recorded in [research reports](docs/pdf-retrieval-experiments.md); human evaluation of generated answers remains incomplete; no grounded PDF answer workflow is implemented |
 | Clarification of ambiguous questions | Evaluation reference only ([PD-005](docs/product-decisions.md#pd-005-ask-for-clarification-instead-of-guessing-the-users-meaning)); not implemented |
 | Production frontend | Not implemented |
 | Learning-memory storage | Designed conceptually; not implemented |
@@ -187,7 +190,7 @@ external model.
 | Optional semantic search | Pinned CPU MiniLM embeddings |
 | Optional hybrid search | Weighted Reciprocal Rank Fusion for documentation and PDF records |
 | PDF evaluation | Canonical ordering, layered fingerprints, manifests, judgment migration, and ranked/context evidence-unit coverage |
-| Multi-book evaluation contract | Library corpus with per-book policy; golden schema v2 with OR-of-AND evidence sets and clarification-aware interpretations; per-unit human judgments, blind pools and label-preserving migration; no library-wide runner or metrics yet |
+| Multi-book evaluation contract | Library corpus with per-book policy; golden schema v2 with OR-of-AND evidence sets and clarification-aware interpretations; per-unit human judgments, blind pools and label-preserving migration; library-wide retrieval runner and multi-book retrieval metrics tooling implemented; full judgments and a frozen Golden Set remain incomplete |
 | PDF neighbor context | Eligible touching records in the same known section interval; equal section titles alone are insufficient |
 | Answerability experiment | Binary `ANSWERABLE` / `NOT_FOUND` decision with false refusals and false acceptances reported separately |
 | Answer generation | Replaceable local model backend with citation validation |
@@ -262,8 +265,8 @@ Four-book technical validation and PDF Tasks 1–5 are implemented. For Task 6,
 the versioned multi-book contract, candidate import, human-judgment tooling and
 label-preserving schema migration are implemented. The 22 human-approved
 candidates form an unfrozen draft, and a four-question judgment pilot is
-complete. A runner that searches the combined library and the multi-book
-retrieval metrics are implemented. Private BM25, MiniLM and hybrid runs have
+complete. A runner that searches the combined library and multi-book retrieval
+metrics tooling are implemented. Private BM25, MiniLM and hybrid runs have
 been pooled into a human-review worksheet
 ([B1](docs/pdf-retrieval-experiments.md)). Candidate approval, the pilot and
 these runs do not establish retrieval or answerability quality. The remaining
@@ -361,8 +364,8 @@ only. It does not detect book text copied into an allowed file.
 
 ## Verification
 
-On 15 October 2026, `make test` passed **949 automated tests** locally with
-Python 3.13. CI targets Python 3.10. The supported checks are:
+CI runs the quality gates on Python 3.10 for every pull request, and local
+development uses Python 3.13. The supported checks are:
 
 ```text
 make test
