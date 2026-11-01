@@ -223,6 +223,11 @@ also create new unjudged candidates. BM25 stays at `k1 = 1.4`, `b = 0.65`.
 
 ### Decision and next actions
 
+> **Superseded on 1 November 2026 by [PD-009](product-decisions.md#pd-009-evaluate-without-mandatory-manual-annotation):** labelling the 1233 worksheet
+> rows is no longer a required next step, and the open questions below no
+> longer block further work. The runs, the pool and the decision as recorded
+> on 16 October 2026 are preserved unchanged.
+
 - The baseline runs and the review worksheet exist; the judged baseline does
   not. B1 is stopped at the human-review boundary.
 - Next: human labelling of the 1233 required worksheet rows, or a decision to
@@ -411,3 +416,406 @@ The dominant problems are now model behavior: missing citations, answering
 without evidence, no clarification and an invented quotation. A human should
 verify the twelve responses before any decision; retrieval-window changes
 would need the judged baseline to show a measurable evidence gain.
+
+## M2-A: Phi-4-mini compatibility smoke (17 October 2026)
+
+**Status: executed once; technical compatibility gate passed, pending review.**
+Authorization covered the pinned download, integrity check, twelve private B1
+payloads, non-generating preflight and one uncached Phi request. No Qwen run,
+M2-B comparison, retrieval change, prompt revision or production change occurred.
+The [approved protocol](retrieval-inference-roadmap.md#m2-a-compatibility-and-context-fit-protocol-17-october-2026)
+provides the preparation and stop conditions. This result applies to this
+artifact, runtime, configuration and machine only.
+
+### Artifact and input integrity
+
+Downloaded only `microsoft_Phi-4-mini-instruct-Q4_K_M.gguf` from
+`bartowski/microsoft_Phi-4-mini-instruct-GGUF`, pinned to
+`915429cb42fe8eba71bd1d3117a7d63070892268`. Verified local size:
+**2,491,874,688 bytes**; verified SHA256:
+`01999f17c39cc3074afae5e9c539bc82d45f2dd7faa3917c66cbef76fce8c0c2`.
+Both match the approved artifact. GGUF V3, file type Q4_K_M, architecture
+`phi3`; the loader reports about 3.84B parameters. The model and all scripts,
+request/response files, metadata, logs and answers remain outside Git.
+
+The B1 records do not contain complete request bodies. Preparation recovered
+passage text from existing extraction snapshots using an inert opcode parser,
+without executing pickle globals or constructors, and reused the saved source
+order, labels, book/page metadata, question and system instructions. All twelve
+original body hashes matched before exporting new private messages files.
+Frozen-file hashes were checked before tokenization. Original input-file
+hashes were rechecked after the run and remained unchanged. No re-extraction,
+reranking, evidence shortening, normalization or source relabelling occurred.
+
+### Runtime, template and effective capacity
+
+- Existing llama.cpp b11574, commit `8bb3cf0d2`, CUDA 12.8 backend; existing
+  companion CUDA libraries supplied through the process library path. Binary
+  hash and effective settings were saved privately. No dependencies installed.
+- Quadro RTX 3000: 6,144 MiB physical; runtime device enumeration reported
+  5,738 MiB visible and 5,648 MiB free before loading.
+- Launch: `-ngl 99 --fit off -c 16384 -np 4 --kv-unified -ctk f16 -ctv f16
+  -t 6 -tb 6 -b 2048 -ub 512 -fa auto --jinja --no-context-shift
+  --no-warmup -lv 4`, loopback only. No warmup or automatic fit adjustment.
+- Logs: `n_ctx = n_ctx_seq = n_ctx_slot = 16384`, `n_seq_max = 4`, four slots
+  and unified KV. `/props` and each `/slots` entry independently reported
+  16,384. The one request actually processed 8,267 input tokens, exceeding
+  4,096, without truncation. This confirms capacity is not divided into four
+  4k windows in this measured configuration; it does not test the 16k boundary
+  or concurrent capacity.
+- Tokenizer: BPE `gpt-4o` pre-tokenizer, 200,064 vocabulary entries; automatic
+  BOS/EOS insertion disabled. Native role tokens: system 200022, user 200021,
+  assistant 200019, end-of-turn 200020. Runtime EOG set: 199999
+  (`<|endoftext|>`) and 200020 (`<|end|>`).
+- `/apply-template` produced exactly the native system/content/end,
+  user/content/end, assistant-prefix sequence for every input. Both contents
+  occurred once, without relocation. Token-piece checks found the expected
+  five role/turn markers and no extra BOS; detokenization exactly recovered
+  every rendered prompt. Embedded template equalled `/props.chat_template`.
+- The generation used `/completion` with those exact integer token IDs:
+  no raw untemplated text, second template application or added BOS. The
+  installed `/apply-template` handler uses the chat request formatter without
+  inference, so the native template route was inspected before execution.
+  No chat-completion generation request was sent.
+
+The GGUF has 32 layers, 8 KV heads, 96 rotary dimensions of a 128-dimensional
+head (0.75), and both 48-value short/long RoPE factor tensors. The generic
+load log labels RoPE scaling `linear`; the Phi implementation additionally
+uses these factor tensors according to context length. No metadata overrides
+were applied. The loader warns that Phi sliding-window attention is disabled.
+The artifact declares a 262,144-token sliding window, exceeding this entire
+16,384-token context, so no in-window cutoff is lost here. This does not
+validate all long-context behavior or certify upstream numerical equivalence.
+
+### Measured token counts and context fit
+
+Q1–Q6 retain the public B1 aliases; private case IDs are not included. Qwen
+counts are historical measurements; Phi counts were measured with this GGUF
+and its effective native template. The 700-token reserve is calculated.
+
+| Question alias | Qwen top-5 input | Phi top-5 input | Phi top-5 + 700 | Qwen top-10 input | Phi top-10 input | Phi top-10 + 700 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Q1 | 3,134 | 3,077 | 3,777 | 5,052 | 4,965 | 5,665 |
+| Q2 | 3,664 | 3,552 | 4,252 | 5,709 | 5,559 | 6,259 |
+| Q3 | 3,191 | 3,089 | 3,789 | 7,657 | 7,392 | 8,092 |
+| Q4 | 3,849 | 3,662 | 4,362 | 7,427 | 7,096 | 7,796 |
+| Q5 | 4,000 | 3,819 | 4,519 | 8,538 | **8,267** | **8,967** |
+| Q6 | 4,950 | 4,772 | 5,472 | 8,027 | 7,723 | 8,423 |
+
+All twelve unchanged Phi inputs fit the measured 16,384-token single-request
+capacity with the full reserve. The largest leaves 7,417 positions beyond
+input plus reserve. All would also fit 12k arithmetically, but 12k was not
+configured or tested. Phi Q5/Q6 top-10 would exceed 8k with the reserve;
+changing evidence or context to address that was neither needed nor attempted.
+Twelve template/tokenization/roundtrip checks generated no answers.
+
+### GPU allocation and resource measurements
+
+| Item | Measured |
+| --- | ---: |
+| GPU layer offload | 33/33, including output layer |
+| CUDA0 model buffer | 2,368.57 MiB |
+| CPU-mapped model buffer | 480.81 MiB |
+| CUDA0 f16 KV buffer | 2,048.00 MiB: 1,024 K + 1,024 V |
+| KV layout | 16,384 cells, 32 layers, shared across four sequences |
+| CUDA0 compute buffer | 88.01 MiB |
+| CUDA-host compute / output buffers | 40.02 / 3.05 MiB |
+| Sampled GPU use after loading | about 4,609 MiB |
+| Maximum sampled GPU use | 4,619 MiB |
+| Minimum sampled free VRAM | **1,121 MiB**, above the 256 MiB gate |
+
+Sampling ran every 200 ms from before loading through completion and review;
+702 samples were summarized before shutdown. It can miss brief peaks. The
+CPU-mapped file buffer and CUDA-host buffers are explicitly recorded; they do
+not indicate a switch to CPU-only execution. Layer offload and KV placement
+remained on CUDA0, with no CUDA/OOM error or fallback reported. No claim is
+made that every host operation runs on the GPU. After shutdown, GPU use
+returned to 4 MiB and the test port was free.
+
+### Exactly one generation request
+
+Selected the longest measured Phi input, Q5 top-10. Sent one non-streaming
+request, with no automatic retry: temperature 0, top-p 1, seed 0, output limit
+700, `cache_prompt: false`, `ignore_eos: false`, no custom stop strings and
+raw output token IDs enabled. Effective settings confirmed those values;
+additional recorded defaults included top-k 40, min-p about 0.05, repeat
+penalty 1, zero presence/frequency penalties and no active logit biases.
+The native endpoint reported content-only chat format and no extracted
+reasoning; its generic `reasoning_format` field was `deepseek`, which does
+not insert a thinking prompt into the already rendered token-ID input.
+No Qwen-specific controls or prompt alterations were applied.
+
+| Measurement | Result |
+| --- | --- |
+| HTTP | 200 |
+| Prompt tokens supplied / evaluated | 8,267 / 8,267 |
+| Prefix cache reuse | `timings.cache_n = 0` |
+| Generated tokens | 73, including terminal token ID 200020 |
+| Completion | `stop_type = eos`, terminal `<|end|>`, no custom stop word |
+| Truncation | false; server release log also reports `truncated = 0` |
+| Prefill | 13.176 s, 627.4 tokens/s |
+| Decode | 1.304 s, 55.2 tokens/s |
+| Client wall time | 14.493 s |
+| First-token latency | not measured: non-streaming request |
+
+The response was nonempty, ended with punctuation, contained no emitted role
+markers and terminated naturally below the output limit. These are technical
+completion checks, not human validation of its meaning or grounding. The
+private answer is retained for review and is not reproduced here. Citation
+correctness was not an M2-A acceptance criterion and no quality score was
+assigned. `tokens_cached = 8339` describes retained KV tokens after completion,
+not input reuse: all 8,267 prompt tokens were evaluated and `cache_n = 0`.
+
+One expected protocol field needed a schema correction: this binary's native
+response has a flat `generation_settings` object without `n_ctx`. Capacity was
+verified in load logs, `/props` and `/slots`, then confirmed by actual prompt
+processing; no request configuration changed. Do not use the preparation
+snippet's `generation_settings.n_ctx` assertion with this response schema.
+
+### Interpretation and next boundary
+
+M2-A passed the approved technical gates for this one run. M2-B appears
+feasible at the unchanged 16k/four-slot/f16-KV configuration with all twelve
+frozen evidence payloads. This is feasibility evidence, not authorization to
+run it, proof of every future output completing within 700 tokens, or a reason
+to replace Qwen. No retry, second generation or Qwen comparison was performed;
+the test server and monitor were stopped.
+
+Before M2-B, approve the common endpoint, instrumentation and human review
+protocol and run a fresh Qwen baseline under the same comparison conditions.
+The native-token smoke is not directly comparable to historical chat-endpoint
+B1 timings. Baseline instructions, retrieval and original B1/1B results remain
+unchanged. Grounding, citations, abstention, clarification and usefulness still
+need the separately approved controlled comparison and review.
+
+## M2-B: controlled comparison preparation (17 October 2026)
+
+**Status: planned, not executed.** Preparation only: no model loading,
+tokenization, generation, download or dependency installation. Planned scope:
+24 fresh responses from Qwen3-4B Q4_K_M and Phi-4-mini-instruct Q4_K_M, using
+the same twelve B1 question/context payloads. The full
+[M2-B protocol](retrieval-inference-roadmap.md#m2-b-controlled-comparison-protocol-17-october-2026)
+defines controls, order, measurements, rubric and stop conditions. M1 and M2-A
+remain separate completed research records; their results are not overwritten.
+
+### Observation — verified preparation, no answer judgments
+
+- Both existing local GGUF hashes were reverified by file reads, without
+  loading either model. Qwen SHA256:
+  `7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5`;
+  Phi SHA256:
+  `01999f17c39cc3074afae5e9c539bc82d45f2dd7faa3917c66cbef76fce8c0c2`.
+- All twelve frozen messages and reconstructed legacy body hashes matched
+  their B1/M2-A records. A new private input snapshot contains exact question
+  text, system instructions, ordered evidence text and source/record mappings,
+  per-component hashes, original generation settings and a package manifest.
+  No passage, order, retrieval, ranking or chunk changed.
+- Static GGUF reads pinned each embedded native chat template and its hash,
+  tokenizer metadata, and model-specific controls. The planned runtime binary
+  hash matches M2-A. These file checks are not fresh runtime validation.
+- Six private draft behavior records include separate expectations for each
+  context: twelve delivered-evidence targets, with source/text offsets and
+  rationale. They are pending Maria's approval, not new human judgments or
+  changes to the Golden Set. One previous preliminary support assessment is
+  flagged for review because non-anchor passages may support an answer.
+  Neither absence nor presence of an anchor alone settles sufficiency.
+- A private rubric, 24 empty individual review cards, twelve empty pair-review
+  forms, a 24-row measurement template, execution schedule, opaque review IDs
+  and separate operator key were prepared. All ratings/measurements are null;
+  no response or preference was scored. Approval fields remain unfilled and
+  generation is explicitly unauthorized in this preparation snapshot.
+
+### Interpretation — what this preparation permits us to propose
+
+The same evidence can be compared without redesigning retrieval. Expected
+actions must follow the supplied context: a full answer, bounded partial
+answer, explicit insufficient-evidence refusal or clarification can each be
+appropriate. Case-specific choices stay private and require review before
+any generation. Existing Golden Set source support describes the wider corpus;
+it cannot be substituted for support in the delivered top-5/top-10 contexts.
+
+M2-A established Phi's fit at 16k with four slots and f16 unified KV. B1/1B
+established the historical Qwen configuration. M2-B still needs fresh runtime
+preflight for both models, especially Qwen's native-template rendering and
+token counts under the common endpoint. Underlying message content is fixed;
+native wrappers and tokenization differ. Exact historical rendered Qwen bytes
+were not saved, so no byte-identical-wrapper claim is made.
+
+The proposed order is Qwen set A, Phi set A, Phi set B, Qwen set B, six
+requests per block; each set contains three top-5 and three top-10 inputs.
+Only one server is resident, all requests are sequential and uncached, and
+there are no extra warmup generations. This reverses model order across
+matched input sets but cannot eliminate session or thermal effects.
+
+Review should separate deterministic citation/quotation diagnostics from
+human claim support, correctness and usefulness. One reviewer can complete
+four sessions of six individual responses, then twelve blinded same-context
+pairs. Preserve uncertain and not-applicable entries, rationale, confidence,
+prior familiarity and any first/second-pass disagreement. Unreviewed nulls
+are not scores. Treat the twelve contexts as related observations from six
+questions, not independent evidence of statistically significant superiority.
+No external evaluator, provider call or automatic self-assessment is planned.
+
+### Decision — pending Maria's review and execution approval
+
+Approve or revise the private delivered-context expectations and rubric;
+confirm the common native-token `/completion` route, unchanged 700-token
+budget, explicit sampler controls, 16k/four-slot/f16-KV configuration, execution
+order and human-review procedure. The existing Qwen baseline must be rerun
+fresh; no M2-A or B1 answer counts toward the 24 planned responses.
+
+Technical validity is a separate gate from grounding, usefulness and resource
+reporting. Invalid configuration or incomplete generation stops the run and
+preserves partial artifacts; no automatic retries, shorter evidence or rescue
+prompts. A citation/grounding defect remains a reviewable output, not a hidden
+technical exclusion. There is no universal product latency threshold, overall
+quality score or model-adoption rule.
+
+### Implementation — none
+
+No production changes, execution, new retrieval run or baseline-prompt edit.
+Only private preparation artifacts and research documentation were created.
+M2-B remains planned until explicitly authorized. Later observations and human
+judgments must be recorded separately from this preparation, linked to
+PD-006 (verified GPU use), PD-007 (sequential workflow/stage measurements) and
+PD-008 (replaceable models with equivalent local evidence). A result will not
+automatically create a product decision or implementation.
+
+## M2-B: controlled comparison execution (17 October 2026)
+
+**Status: executed, 24/24 requests technically complete; awaiting human review.**
+
+> **Superseded on 1 November 2026 by [PD-009](product-decisions.md#pd-009-evaluate-without-mandatory-manual-annotation):** the human review described below
+> is optional and no longer a prerequisite for further work. The execution
+> record and its observations are unchanged.
+
+The [approved comparison protocol](retrieval-inference-roadmap.md#m2-b-controlled-comparison-protocol-17-october-2026)
+was executed with the two existing pinned GGUFs and twelve fixed B1 payloads.
+No winning model, semantic grounding score or usefulness judgment is assigned.
+Model labels in the aggregate table are anonymous; their key and response
+mapping remain private and outside the reviewer package.
+
+### Observation — input and preflight gates
+
+- Both GGUF SHA256 values, the runtime binary hash, all twelve message/body
+  hashes and the private preparation package were verified before loading.
+  Original B1/M2-A records and the previous expectation draft remain unchanged.
+- The approved delivered-context expectations were saved as a separate private
+  version before execution, preserving the draft and recording the approved
+  source-based clarification. This approves assessment targets, not historical
+  model answers or new answer judgments.
+- Both models passed non-generating preflight before the first answer. A
+  preflight-only load was followed by the three planned execution loads; no
+  warmup generation or extra smoke request was sent. Each later execution
+  load repeated the template/context/offload checks.
+- Native template text matched the pinned GGUF. The Qwen thinking-off wrapper
+  was checked explicitly and all twelve Qwen input counts matched B1. Phi
+  token IDs matched M2-A. All rendered prompts contained the exact unchanged
+  messages and roundtripped through their tokenizers without change.
+- Every slot reported 16,384 effective context positions with four slots and
+  unified f16 KV, corroborated by load logs and properties. All twelve inputs
+  plus the unchanged 700-token output reserve fitted for each model. No
+  evidence truncation, reordering, context shift or configuration adjustment.
+- Full expected model-layer and KV GPU offload was verified on each load.
+  The 256 MiB sampled-free-VRAM gate passed throughout every request. Host
+  mapped/bookkeeping buffers were recorded separately from layer placement.
+
+### Observation — execution and technical validity
+
+Executed four sequential batches of six in the approved balanced set order,
+with one model resident at a time. Every question/context was generated once
+per model; all 24 answers were fresh. The earlier M2-A answer and historical
+B1 answers were not reused. There were exactly **24 generation attempts and
+24 technical completions**, no retries and no technical stop conditions.
+
+Both models used `/completion` with integer token IDs from the native
+`/apply-template` → `/tokenize` route. No raw untemplated prompt or second
+rendering was used. Approved settings were preserved: output budget 700,
+temperature 0, top-p 1, seed 0, explicit common sampler controls, no custom
+stop strings, `ignore_eos: false`, non-streaming, and prompt caching disabled.
+Response-level effective settings and sampler chains were checked; inactive
+common controls did not drift. Model-specific thinking controls remained as
+specified in the protocol.
+
+All responses returned HTTP 200, evaluated the complete supplied prompt,
+reported `timings.cache_n = 0` and `truncated = false`, and terminated on a
+native EOG token within the output budget. No timeout, OOM, CUDA failure,
+unexpected CPU/KV fallback, capacity failure or automatic fit change occurred.
+Natural EOG is technical termination evidence, not proof of semantic
+completeness, correct refusal or useful content. First-token latency was not
+measured because requests were non-streaming.
+
+| Anonymous label | Requests | Client wall median (range), s | Prefill median, s | Decode median, s | Peak sampled GPU use, MiB | Minimum sampled free VRAM, MiB |
+| --- | ---: | --- | ---: | ---: | ---: | ---: |
+| Model A | 12 | 5.534 (2.883–8.629) | 3.186 | 1.749 | 4,889 | 851 |
+| Model B | 12 | 4.449 (2.494–9.460) | 2.599 | 1.359 | 4,621 | 1,119 |
+
+The table is descriptive, **not a speed ranking**: tokenizers, prompt lengths,
+output lengths and response actions differ. Per-request lengths and phase
+throughput are retained privately for matched analysis. Phase medians do not
+sum to the wall-time median. Model loading and preflight/tokenization are
+outside request wall time. Requests were not uniformly cold: one execution
+session covered twelve requests and two sessions covered six each, as planned.
+First-request/CUDA-graph and thermal/order effects were not isolated. The
+200 ms sampler can miss brief peaks. The known Phi sliding-window warning and
+generic RoPE log terminology remain the M2-A limitations; no claim about the
+advertised maximum context or upstream numerical equivalence follows.
+
+Separate deterministic formatting observations flagged 12 responses whose
+first line did not exactly match the required decision-line form. Two answers
+contained only that full decision line and two contained only a bare decision
+label. Five non-punctuation endings were decision-label endings; all ended
+naturally rather than through a token limit or transport interruption. These
+are preserved output-contract observations, not automatic grounding or
+usefulness scores, and none triggered a hidden rerun. No emitted role markers
+or candidate-name keyword cues were flagged; this heuristic does not prove
+that identity is unguessable or content is semantically complete.
+
+### Observation — private reviewer export
+
+Raw response bytes are preserved unchanged. A separate private reviewer
+package contains the exact questions/instructions/evidence, approved expected
+actions, unmodified answer text, 24 blank individual review cards, twelve
+matched pair forms and review guidance. Fresh opaque review IDs are mapped
+only in operator records. All answer bytes were checked against their raw
+response content; every human rating remains null/unreviewed.
+
+The package excludes model/runtime identity metadata, execution order,
+performance measurements, operator-only records, mapping keys and the full
+experiment manifest. It contains no model-to-label key. Blinding remains
+partial because style, source references or prior familiarity can suggest
+identity; answers were not rewritten to hide such cues. Performance summaries
+are kept outside the reviewer packet. No semantic answer judgments or model
+preferences were generated automatically.
+
+### Interpretation — what the execution establishes
+
+The approved comparison is technically reproducible on the measured machine
+with fixed local evidence and the recorded runtime settings. It supplies
+matched outputs for review, not evidence that either model grounds claims
+better. Six questions with related top-5/top-10 contexts remain a small,
+purposefully selected sample; no statistical superiority or permanent model
+choice follows from completion, timing or formatting checks.
+
+### Decision — pending human evaluation
+
+> **Superseded on 1 November 2026:** the review below is optional; see the
+> note under this section's status.
+
+Maria reviews individual responses before matched pairs, preserving uncertainty,
+claim/source spans, first/revised judgments and suspected identity leaks. Keep
+model mappings sealed until judgments are finalized; reveal performance after
+content judgments. Compare models at the same question/cutoff, and compare
+contexts within each model using record/text identity. Historical judgments
+are not rewritten to match these new outputs. Any subsequent adoption or
+implementation decision requires separate review.
+
+### Implementation — no production change
+
+Only private execution/reviewer artifacts and research documentation changed.
+The server and sampler were stopped; the test port was free and GPU use
+returned to its idle level. No dependencies, downloads, new retrieval runs,
+prompt edits, production changes, commits or publication steps occurred.
+This records observations under PD-006 (verified GPU use), PD-007 (sequential
+requests and separate stage/resource reporting), and PD-008 (replaceable models
+with equivalent private evidence), without creating a new product decision.

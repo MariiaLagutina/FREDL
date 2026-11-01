@@ -59,6 +59,25 @@ The second searches the user's learning memory. It returns earlier questions,
 reasons, notes, decisions, attempts, and follow-up questions. It should retain
 short records of what mattered rather than copying entire books into memory.
 
+## Model choice
+
+FREDL is local-first and designed initially for one person working through a
+personal library one question at a time
+([PD-007](product-decisions.md#pd-007-evaluate-performance-as-one-users-sequential-question-workflow)).
+Its value lies in grounded, inspectable answers rather than fluent ones, so it
+should not be tied to one model family. A user may later choose the model
+provider: a locally hosted model, a local inference service, or a remote
+API-based model. A remote provider would receive selected passages or
+questions from the user's device, so that transfer must be visible to the
+user and requires a deliberate product and privacy decision first.
+
+This is a future capability. FREDL currently uses one local experimental model
+and has no provider choice or remote integration; the agreed boundaries are
+recorded in
+[PD-006](product-decisions.md#pd-006-prefer-gpu-acceleration-for-experiments-without-making-cuda-a-product-dependency)
+and
+[PD-008](product-decisions.md#pd-008-treat-qwen3-4b-as-a-baseline-and-keep-model-providers-replaceable).
+
 ## Feedback and evidence
 
 Signals do not have equal meaning. FREDL should prefer them in this order:

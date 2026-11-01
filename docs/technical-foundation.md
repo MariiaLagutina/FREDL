@@ -271,7 +271,9 @@ PDFs are supplied by the user and should remain under the user's control. The
 PDF pipeline and the answerability experiment run locally; book text,
 retrieved passages, and evaluation cases are not sent to an external service.
 A model integration must be replaceable and explicit about which text it
-receives. The learning-memory system should store the user's question, reason,
+receives; remote providers are a future direction that requires its own
+privacy decision
+([PD-008](product-decisions.md#pd-008-treat-qwen3-4b-as-a-baseline-and-keep-model-providers-replaceable)). The learning-memory system should store the user's question, reason,
 actions, and concise reflections. It should not duplicate whole books as
 memory.
 
